@@ -1,14 +1,29 @@
-# FDE Journey web app: design spec (v0.1)
+# FDE Journey web app: design spec (v0.2)
 
-Status: for M1 and later. Written 2026-11-25 against `PLAN.md` v0.1, which the owner approved on 2026-11-25 (GitHub sign-in for the owner's account only; job applications are the first new section after go-live; four agents plus one skill).
+Status: for M1 and later. v0.1 written 2026-11-25 against `PLAN.md` v0.1, which the owner approved on 2026-11-25 (GitHub sign-in for the owner's account only; job applications are the first new section after go-live; four agents plus one skill). v0.2 written 2026-11-25 after the M1 screen review.
 Read with `.claude/skills/journey-app-dev/SKILL.md`. If this spec and the plan disagree, the plan wins; tell the lead.
 
-**What is live when.** Every component below is built in M1 with all its states, so M2 only wires up saving.
+**Changes in v0.2** (from the M1 screen review)
+- Toolbar: the status filter takes its natural width; search placeholders are short enough to fit 150 px (sections 4 and 8).
+- "Clear search and filter" moves focus to the search field (Toolbar, EmptyState).
+- Card heads keep the chip and count in one group that never splits (Card).
+- CollapsibleCard is now an `h2` with a button and a stretched hit area, replacing `<details>`/`<summary>`. The stored open state wins once anything is stored.
+- Focus ring: never transitioned (no `outline-color` transitions); inset by 2 px on bottom-bar cells; the page `h1` is `w-fit` (sections 2.5, 3.1, 4).
+- New SkipLink component.
+- States: the first-visit banner is hidden while the read-only banner shows; the skeleton covers only the toolbar and cards (section 6).
+- Reading: "This week" only during that paper's 7-day window.
+- Not found uses the `/login` layout plus the app name.
+- NoteButton and NoteEditor arrive in M2.
+- The 44 px rule applies to controls; text links in rows follow WCAG 2.5.8.
+- Copy: "Nothing marked done yet."; row meta and why lines capped at 75ch; `/login` M1 banner text and an M1-only "Go to Home" link.
+- Later: open the new current Scaler module once.
+
+**What is live when.** Every component below is built in M1 with all its states, so M2 only wires up saving. Exception: NoteButton and NoteEditor are built in M2, with all their states; M1 shows no note controls, only NotePreview.
 
 | Milestone | Works | Shown but not working yet |
 |---|---|---|
-| M1 (read-only parity) | Navigation, search, status filter, open and close modules and resource lists, summary tiles, current-phase panel, next class, countdown | Tick boxes and weekly notes are shown disabled. Note buttons are hidden. A "read-only preview" banner explains why (section 6) |
-| M2 (sign-in and saving) | Ticks, notes, links, weekly notes, resource ticks, sign-in and sign-out | |
+| M1 (read-only parity) | Navigation, search, status filter, open and close modules and resource lists, summary tiles, current-phase panel, next class, countdown | Tick boxes and weekly notes are shown disabled. No note buttons yet. A "read-only preview" banner explains why (section 6). The sign-in button is disabled |
+| M2 (sign-in and saving) | Ticks, notes (NoteButton, NoteEditor), links, weekly notes, resource ticks, sign-in and sign-out | |
 
 ## 1. Principles
 
@@ -136,13 +151,13 @@ Load fonts from npm in the root layout, one import per weight (`import "@fontsou
 | `num` | Mono, tabular figures | 13 px / 1.4 | 500 | Counts ("3/7"), date ranges, item index |
 | `num-lg` | Mono, tabular figures | 26 px / 1.2 | 600 | Tile numbers |
 
-Nothing smaller than 12 px. Body text lines stay under about 75 characters (descriptions `max-w-[65ch]`).
+Nothing smaller than 12 px. Body text lines stay under about 75 characters (descriptions `max-w-[65ch]`; row meta and why lines `max-w-[75ch]`).
 
 ### 2.5 Spacing, radius, shadow, motion, breakpoints
 - **Spacing**: Tailwind's default 4 px scale. Use 4, 8, 12, 16, 20, 24, 32, 40, 64 px only. Card padding 16 px; gap between cards 12 px; gap between page sections 20 px (phone) and 24 px (desktop).
 - **Radius**: `sm` 6 px (focus ring, skeleton blocks), `md` 10 px (fields, buttons, resource list box), `lg` 12 px (cards, tiles, panels, sheet), `full` (chips, progress bar).
-- **Shadow**: cards and tiles have none, only a 1 px `line` border. `shadow-overlay` is only for the "More" sheet.
-- **Motion**: 150 ms ease-out for colour changes, 200 ms for caret rotation, 300 ms for progress-bar width. Nothing else moves. Under `prefers-reduced-motion: reduce` all of it is off (use Tailwind's `motion-safe:`), including skeleton pulsing.
+- **Shadow**: cards and tiles have none, only a 1 px `line` border. `shadow-overlay` is only for the "More" sheet and the focused SkipLink.
+- **Motion**: 150 ms ease-out for colour changes, 200 ms for caret rotation, 300 ms for progress-bar width. Nothing else moves. Colour transitions list their properties (`transition-[color,background-color,border-color]`), not Tailwind's `transition-colors`, which also animates `outline-color` and makes the focus ring fade in from the text colour. The focus ring always appears at once. Under `prefers-reduced-motion: reduce` all of it is off (use Tailwind's `motion-safe:`), including skeleton pulsing.
 - **Breakpoints**: Tailwind defaults. Below `lg` (1024 px) is the phone layout; `md` (768 px) only changes grids. Layouts must also work at 320 px with no sideways scrolling.
 
 ## 3. Layout
@@ -150,7 +165,7 @@ Nothing smaller than 12 px. Body text lines stay under about 75 characters (desc
 ### 3.1 Phone and tablet (below 1024 px)
 - Set the viewport to `viewport-fit=cover` (Next.js `viewport` export, `viewportFit: "cover"`) so the safe-area insets below work on phones with a notch.
 - No top bar. The page header is the first thing on screen; pad the top with `max(24px, env(safe-area-inset-top))`.
-- **Bottom bar**, fixed: `surface` background, 1 px `line` top border, height 64 px plus `env(safe-area-inset-bottom)`. Five equal cells: **Home, Roadmap, Reading, Scaler, More**. Each cell is a 22 px icon above a `tab-label`, the whole cell is the target (at least 48 px tall). Default colour `muted`. Current page: icon and label `accent`, a 3 px by 24 px `accent` pill above the icon, and `aria-current="page"`.
+- **Bottom bar**, fixed: `surface` background, 1 px `line` top border, height 64 px plus `env(safe-area-inset-bottom)`. Five equal cells: **Home, Roadmap, Reading, Scaler, More**. Each cell is a 22 px icon above a `tab-label`, the whole cell is the target (at least 48 px tall). Default colour `muted`. Current page: icon and label `accent`, a 3 px by 24 px `accent` pill above the icon, and `aria-current="page"`. Focus ring inset (`outline-offset: -2px`) so the bottom edge of the screen never clips it.
 - **More** is a button (`aria-expanded`, `aria-controls`). It opens a sheet above the bar: `surface`, `lg` top corners, `shadow-overlay`, over a scrim of `rgb(0 0 0 / 0.3)`. Rows 52 px tall: Certifications, Projects, Career, then a divider and Sign out (M2 onwards). It closes on choosing a row, on Escape and on tapping the scrim; focus goes to the first row on open and back to More on close. When the current page is in the sheet, More takes the current style.
 - Side padding `max(16px, env(safe-area-inset-left/right))`. Bottom padding 24 px plus the bar height, so the last row is never hidden.
 
@@ -190,9 +205,15 @@ Every page: page header, banner area, then content. Content is a single column o
 ```
 
 ## 4. Components
-Shared rules: focus ring is `outline: 2px solid accent; outline-offset: 2px` on `:focus-visible`, never removed. Disabled means `opacity: 0.5`, `cursor: not-allowed`, and the native `disabled` attribute. Hit areas are at least 44 by 44 px even when the visible shape is smaller (extend with padding or an inset `::before`).
+Shared rules:
+- Focus ring: `outline: 2px solid accent; outline-offset: 2px` on `:focus-visible`. Never removed, never transitioned (section 2.5). Exceptions: bottom-bar cells use `outline-offset: -2px` (section 3.1), and the Scaler card head draws the ring for its button (CollapsibleCard).
+- Disabled means `opacity: 0.5`, `cursor: not-allowed`, and the native `disabled` attribute.
+- Controls (buttons, fields, selects, tick boxes, summaries, nav items, tiles, the skip link) have hit areas at least 44 by 44 px, even when the visible shape is smaller (extend with padding or an inset `::before`).
+- Text links inside rows or sentences (item titles, note links) follow WCAG 2.5.8 instead: at least 24 by 24 px, or spaced so that a 24 px circle centred on each one does not overlap another target. One-line title links are about 19 px tall and pass by spacing.
 
-**PageHeader.** Optional eyebrow (`label`, `accent`), `h1` (`display`), optional description (`small`, `muted`, 65ch), optional facts. The `h1` gets `tabindex="-1"` so focus can move to it after navigation. States: default only.
+**SkipLink.** "Skip to content", the first focusable element on every page that has the sidebar or bottom bar; it targets `<main id="main">`. Visually hidden until focused (hidden with the `sr-only` technique, never `display: none`). When focused: fixed 12 px from the top and left, above everything (`z-50`), at least 44 px tall (`inline-flex items-center`, padding 0 16 px), `surface` background, 1 px `line-strong` border, `md` radius, `shadow-overlay`, `body-strong` in `accent`. In Tailwind, `focus:not-sr-only` resets padding to 0, so set the padding with `focus:` utilities after it. States: hidden, focused.
+
+**PageHeader.** Optional eyebrow (`label`, `accent`), `h1` (`display`), optional description (`small`, `muted`, 65ch), optional facts. The `h1` gets `tabindex="-1"` so focus can move to it after navigation, and `w-fit` so the focus ring (shown after keyboard navigation only) hugs the title instead of spanning the column. States: default only.
 
 **Facts.** A `<dl>` that wraps: `dt` in `label`/`muted`, `dd` in `small` at weight 500, `ink`. Gap 8 px by 18 px. Loading: `dd` shows "–" until the client has computed it.
 
@@ -206,9 +227,33 @@ Shared rules: focus ring is `outline: 2px solid accent; outline-offset: 2px` on 
 
 **Count.** `num`, `muted`, shown as "3/7"; screen readers get "3 of 7 done" (visible text `aria-hidden`, plus a visually hidden span).
 
-**Card.** `surface`, 1 px `line` border, `lg` radius. Head: padding 14 px by 16 px, wrapping row of [title block: `h2` + sub line] [chip] [count]. Optional description (`small`, `muted`, padding 0 16 px 12 px). Body: an item list. Empty: not possible (content files always have items); when filtered, the whole card is hidden.
+**Card.** `surface`, 1 px `line` border, `lg` radius. Head: padding 14 px by 16 px, wrapping row of [title block: `h2` + sub line] [chip and count group]. The chip and the count sit in one group (`flex items-center gap-3 whitespace-nowrap`) that never splits: beside the title block it aligns with the title's first line (`self-start`), not the middle of a long sub line; when there is no room, the whole group wraps under the sub line, left-aligned. Optional description (`small`, `muted`, padding 0 16 px 12 px). Body: an item list. Empty: not possible (content files always have items); when filtered, the whole card is hidden.
 
-**CollapsibleCard** (Scaler modules). Native `<details>`/`<summary>`; the summary is the card head with a "›" caret before the title that turns 90° when open. Summary at least 56 px tall. Default: the current module open, the rest closed. Open and closed choices are remembered on the device (`localStorage`, key `fde-open-modules`, same as today). A search or filter match inside forces it open.
+**CollapsibleCard** (Scaler modules). A disclosure made of a heading and a button, not `<details>`/`<summary>`: some screen readers (reported for VoiceOver with Safari) treat a summary like a button and flatten a heading inside it, which would hide the module headings from heading navigation. Never put a heading inside a `<summary>`.
+
+```
+<section aria-labelledby="{titleId}" class="card">
+  <div class="card-head relative min-h-14">           same layout as the Card head
+    <span aria-hidden="true">›</span>                 caret, muted; turns 90° when open
+    <div>                                             title block
+      <h2 class="type-title">
+        <button type="button" aria-expanded="{open}" aria-controls="{bodyId}"
+                class="text-left after:absolute after:inset-0 after:content-['']">
+          <span id="{titleId}">Module 3 · {title}</span>
+        </button>
+      </h2>
+      <p>{sub line}</p>
+    </div>
+    [chip and count group]
+  </div>
+  <div id="{bodyId}" hidden={!open}>item rows</div>
+</section>
+```
+- The button's stretched `::after` covers the whole head, so the full head (at least 56 px tall) is the target. The `h2` and button must not be positioned themselves, so the `::after` sizes to the head.
+- Accessible name: the title only ("Module 3 · {title}"), with the state from `aria-expanded`. The sub line, chip and count are read as text after it.
+- Focus: the head draws the ring (`.card-head:has(button:focus-visible)`: 2 px `accent`, 2 px offset, `lg` radius); the button draws none of its own.
+- Open state: with nothing stored, the current module is open and the rest are closed. Once anything is stored (`localStorage`, key `fde-open-modules`, an array of module numbers, same as today), the stored list wins, including an empty list (all closed). The tracker reopened the current module when the list was empty; the app keeps the owner's choice. A search or filter match inside forces it open while the search or filter is active.
+- Optional: `hidden="until-found"` on the body, so the browser's find-in-page can open a closed module (on `beforematch`, open it and store the choice).
 
 **ItemRow** (every task, class, resource, paper, book and milestone). Rows are separated by a 1 px `line` top border. Anchor `id="item-{itemId}"` so "Up next" can link to it.
 
@@ -221,25 +266,26 @@ Shared rules: focus ring is `outline: 2px solid accent; outline-offset: 2px` on 
 ```
 - Grid: `[44px] [1fr] [auto]`; padding 4 px 16 px 4 px 4 px, so the box lines up with the 16 px card padding. Below `md` the grid is `[44px] [1fr]` and the note button sits under the text, left-aligned.
 - Tick box: a real `<input type="checkbox">` styled with `appearance: none`: 20 px square, 2 px `line-strong` border, 5 px radius, centred in a 44 by 44 px `<label>` cell. Checked: `accent` fill and an `accent-ink` tick. Accessible name "Mark done: {title}". It must stay visible in forced-colours mode.
-- Text column: optional index (`num`, `muted`: "M1·01", "1.", "Week of 30 Nov"), title (`body-strong`; a link when the item has a URL, `accent`, underline offset 2 px, opens in a new tab with a small "↗" and visually hidden "(opens in a new tab)"), meta (`small`, `muted`), "why" line (`small`, `muted`).
-- States: **default**; **done**: box checked, title `muted` with a line-through (links keep their underline); **focus**: ring around the 20 px box; **read-only** (M1, offline, signed out): box disabled, note button hidden in M1 and enabled elsewhere so notes can still be read; **saving**: none for ticks (they change at once); **save failed**: the tick goes back to its saved value and a line appears under the title in `small` `danger`: "Couldn't save this tick." with a "Try again" text button; **filtered out**: `hidden`.
+- Text column: optional index (`num`, `muted`: "M1·01", "1.", "Week of 30 Nov"), title (`body-strong`; a link when the item has a URL, `accent`, underline offset 2 px, opens in a new tab with a small "↗" and visually hidden "(opens in a new tab)"), meta (`small`, `muted`), "why" line (`small`, `muted`). Meta and why lines are capped at `max-w-[75ch]`; the title can use the full width.
+- States: **default**; **done**: box checked, title `muted` with a line-through (links keep their underline); **focus**: ring around the 20 px box; **read-only** (M1, offline, signed out): box disabled. M1 has no note button (NoteButton arrives in M2); offline and signed out keep the note button enabled so notes can still be read; **saving**: none for ticks (they change at once); **save failed**: the tick goes back to its saved value and a line appears under the title in `small` `danger`: "Couldn't save this tick." with a "Try again" text button; **filtered out**: `hidden`.
 
-**NoteButton.** Secondary small button: 32 px visible height inside a 44 px hit area, padding 0 12 px, `md` radius, `small` 500. Labels: "Add note" (1 px `line-strong` border, `muted` text), "Edit note" when a note or link exists (`accent-soft` background, `accent` text, no border), "Hide note" while the editor is open. `aria-expanded` and `aria-controls` point at the editor. Hover: border and text `accent`. Disabled: shared rule.
+**NoteButton** (built in M2). Secondary small button: 32 px visible height inside a 44 px hit area, padding 0 12 px, `md` radius, `small` 500. Labels: "Add note" (1 px `line-strong` border, `muted` text), "Edit note" when a note or link exists (`accent-soft` background, `accent` text, no border), "Hide note" while the editor is open. `aria-expanded` and `aria-controls` point at the editor. Hover: border and text `accent`. Disabled: shared rule.
 
 **NotePreview.** Under the title when a note exists and the editor is closed: `small`, `muted`, keeps line breaks, first 220 characters then "…"; the link on its own line, as a link only if it starts with `https://`.
 
-**NoteEditor.** Opens under the row. A textarea (min 96 px tall, resizes vertically) and a link field (`type="url"`, `inputmode="url"`, placeholder "https://…"), both 16 px, `surface`, 1 px `line-strong` border, `md` radius, padding 10 px 12 px, labels visually hidden: "Note for {title}" and "Link for {title}". A status line (`num`, `muted`, `aria-live="polite"`): "Saving…", then "Saved" (clears after 2.5 s), or "Not saved" in `danger` with a "Try again" button. Saves 800 ms after typing stops and on blur. Opening it focuses the textarea; Escape closes it and returns focus to the NoteButton. Link error (on blur, not empty and not `https://`): border `danger`, message under the field "Links must start with https://", `aria-invalid` and `aria-describedby`; the note text still saves, the link does not. Disabled: fields read-only with the shared disabled look.
+**NoteEditor** (built in M2). Opens under the row. A textarea (min 96 px tall, resizes vertically) and a link field (`type="url"`, `inputmode="url"`, placeholder "https://…"), both 16 px, `surface`, 1 px `line-strong` border, `md` radius, padding 10 px 12 px, labels visually hidden: "Note for {title}" and "Link for {title}". A status line (`num`, `muted`, `aria-live="polite"`): "Saving…", then "Saved" (clears after 2.5 s), or "Not saved" in `danger` with a "Try again" button. Saves 800 ms after typing stops and on blur. Opening it focuses the textarea; Escape closes it and returns focus to the NoteButton. Link error (on blur, not empty and not `https://`): border `danger`, message under the field "Links must start with https://", `aria-invalid` and `aria-describedby`; the note text still saves, the link does not. Disabled: fields read-only with the shared disabled look.
 
-**ResourceList** (inside roadmap task rows). A `<details>`: summary "› Learning resources x/y" in `small` 600 `accent`, at least 44 px tall. Inside: "**Start here:** {text}" (`small`, `muted`, label in `ink`), then a list box (`sunk`, 1 px `line` border, `md` radius) of ItemRows (index "1.", linked title, meta "by · type · length · level", why line). Remembered per device (`fde-open-res`). Opens when a search or filter matches inside.
+**ResourceList** (inside roadmap task rows). A `<details>`: summary "› Learning resources x/y" in `small` 600 `accent`, at least 44 px tall. Inside: "**Start here:** {text}" (`small`, `muted`, label in `ink`), then a list box (`sunk`, 1 px `line` border, `md` radius) of ItemRows (index "1.", linked title, meta "by · type · length · level", why line). Remembered per device (`fde-open-res`). Opens when a search or filter matches inside. It stays a native `<details>`, because there is no heading inside it.
 
-**Toolbar.** One row, gap 8 px: SearchField grows (minimum 180 px), StatusFilter about 150 px. Both fit on one row at 390 px (358 px of content) and wrap at 320 px.
-- SearchField: `type="search"`, 44 px tall, 16 px text, magnifier icon (decorative), label "Search this page" (visually hidden), placeholder per page (section 8). Matches titles, meta, why lines, resource titles, note text and links.
+**Toolbar.** One row, gap 8 px: SearchField takes the remaining width (minimum 180 px); StatusFilter takes its natural width (`flex: none; width: auto`, about 128 px with the longest option). At 390 px (358 px of content) that leaves about 170 px for placeholder text, so every placeholder must fit in 150 px at 16 px Inter: one or two words, about 16 characters (section 8). At 320 px the row wraps and the search takes the full width.
+- SearchField: `type="search"`, 44 px tall, 16 px text, magnifier icon (decorative), label "Search this page" (visually hidden), placeholder per page (section 8). Matches titles, meta, why lines, resource titles, note text and links. The placeholder is only a hint; the search still covers all of these.
 - StatusFilter: native `<select>`, 44 px, label "Show" (visually hidden): All items, Not done, Done, With notes.
 - Both stored in the URL (`?q=` and `?status=`, replace, don't push) so reload and Back keep them. A visually hidden live region says "{n} items shown" 400 ms after the last change.
+- "Clear search and filter" (in EmptyState) empties both, then moves focus to the search field: the button disappears with the empty state, and focus must not fall back to the page body.
 
-**EmptyState.** Centred `small` `muted` text on `surface` with a 1 px dashed `line` border, `lg` radius, padding 28 px, plus an optional secondary button. Examples in section 8.
+**EmptyState.** Centred `small` `muted` text on `surface` with a 1 px dashed `line` border, `lg` radius, padding 28 px, plus an optional secondary button. Which message shows (section 8): "With notes" and no notes → the no-notes message; "Done", search empty and nothing on the page done → "Nothing marked done yet." (no button); anything else → "Nothing matches this search or filter." with "Clear search and filter".
 
-**Skeleton.** `sunk` blocks with `sm` radius in the shape of the content. Pulses (opacity 1 to 0.6, 1.2 s) only with `motion-safe`. The wrapper has `aria-busy="true"` and a visually hidden "Loading".
+**Skeleton.** `sunk` blocks with `sm` radius in the shape of the content. It covers only what waits for data: the toolbar block and the cards (Home: six tiles and the panel). The page header is static, so it renders at once, with Facts showing "–" until the client has computed them. Pulses (opacity 1 to 0.6, 1.2 s) only with `motion-safe`. The wrapper has `aria-busy="true"` and a visually hidden "Loading".
 
 **Button.** 44 px tall, `md` radius, padding 0 16 px, `body-strong`. Primary: `accent` / `accent-ink`, hover `accent-hover`. Secondary: `surface`, 1 px `line-strong` border, `ink`, hover `hover`. Ghost: no border, `muted` text, hover `hover` background and `ink` text. Loading: label changes (for example "Opening GitHub…"), `aria-busy`, disabled. Disabled: shared rule.
 
@@ -272,13 +318,13 @@ Next class (Mon, Wed and Fri, 09:00 to 11:30 IST): "In class now (until 11:30 IS
 **`/reading`**
 1. PageHeader: `h1` "Reading"; description "One core paper a week, plus books. Tracked separately from roadmap progress."
 2. Banners. 3. Toolbar.
-4. Card "Research papers" (sub line as today, Count): rows with index "Week of {date}", linked title, meta "{authors} · Core or Optional", plus " · This week" for the current week, and the why line.
+4. Card "Research papers" (sub line as today, Count): rows with index "Week of {date}", linked title, meta "{authors} · Core or Optional", and the why line. Add " · This week" to the meta only while today (Asia/Kolkata) falls within the 7 days that start on that paper's week date. Outside those windows no paper is marked. The tracker kept marking the latest past week, even after the last paper week had ended.
 5. Card "Books" (sub line as today, Count): linked title, meta "{by} · Core or Optional", why line.
 
 **`/scaler`**
 1. PageHeader: `h1` "Scaler course"; description "14 modules: 10 core and 4 electives."; facts "Classes: Mon · Wed · Fri, 09:00–11:30 IST" and "Next class: {value}".
 2. Banners. 3. Toolbar.
-4. GroupLabel "Core modules", CollapsibleCards for modules 1 to 10; GroupLabel "Elective modules", modules 11 to 14. Summary: "Module {n} · {title}", sub "{subtitle} · {months} mo · {k} classes", StatusChip, Count. Rows: index "M{n}·{01}", title, no meta.
+4. GroupLabel "Core modules", CollapsibleCards for modules 1 to 10; GroupLabel "Elective modules", modules 11 to 14. Card head: `h2` button "Module {n} · {title}", sub "{subtitle} · {months} mo · {k} classes", StatusChip, Count. Rows: index "M{n}·{01}", title, no meta.
 
 **`/certs`**
 1. PageHeader: `h1` "Certifications"; description "In the order to take them. A certification counts as passed when its last step is ticked."
@@ -301,22 +347,28 @@ Next class (Mon, Wed and Fri, 09:00 to 11:30 IST): "In class now (until 11:30 IS
 - Eyebrow "AI Engineering & FDE", `h1` "FDE Journey", text "A private tracker for an AI engineering and Forward Deployed Engineer (FDE) learning journey. Only the owner's GitHub account can sign in."
 - Primary button, full width: GitHub mark plus "Sign in with GitHub". Loading: "Opening GitHub…".
 - Banner area under the button for the messages in section 8.
+- M1 only (removed in M2): the button is disabled, an info banner says "Sign-in isn't available yet. It comes with saving progress.", and a secondary "Go to Home" link-button sits under the banner, so the page is not a dead end.
+
+**Not found** (`not-found.tsx`; no sidebar or bottom bar; `<title>` "Page not found · FDE Journey")
+- The `/login` layout: one centred column, max 400 px.
+- Eyebrow "AI Engineering & FDE" (`label`, `accent`) and the app name "FDE Journey" (`title`, a paragraph, not a heading), so the owner can tell they are still in the app.
+- A card with `h1` "This page doesn't exist." (`title` size) and a primary "Go to Home" button.
 
 ## 6. States
 
 | State | When | What the owner sees | Behaviour |
 |---|---|---|---|
-| Read-only preview | M1 only | Info banner on every page: "Read-only preview. Ticks and notes can't be saved yet." | Tick boxes and weekly notes disabled, note buttons hidden. Search, filter, open and close, tiles and countdown work |
+| Read-only preview | M1 only | Info banner on every page: "Read-only preview. Ticks and notes can't be saved yet." | Tick boxes and weekly notes disabled; no note buttons (they arrive in M2). The first-visit banner is not shown. Search, filter, open and close, tiles and countdown work |
 | Signed out | Any page without a valid sign-in | Nothing from the page; goes straight to `/login?next={path}` | After sign-in, return to `next`. No flash of content |
 | Not the owner | Sign-in with another GitHub account | `/login` with the "not allowed" error | No account is kept for that user |
 | Signed out while using | A save is refused for sign-in reasons | Error banner with a "Sign in" action | Write controls disabled; typed note text stays in place until the page is left |
-| First visit, no progress | No progress saved yet | Zeros and empty bars; NowPanel shows today's phase with its first three tasks; info banner on Home only | Banner disappears once anything is saved (based on data, not a dismiss) |
-| Loading | A page is waiting for data | Skeleton: header block, toolbar block, three cards of four rows. After 3 s add the "still loading" line | Navigation stays usable. The free database sleeps after 5 idle minutes, so the first load can be slow |
+| First visit, no progress | No progress saved yet | Zeros and empty bars; NowPanel shows today's phase with its first three tasks; info banner on Home only, and not while the read-only banner shows (it asks for ticks that can't be saved yet) | Banner disappears once anything is saved (based on data, not a dismiss) |
+| Loading | A page is waiting for data | The page header renders at once (facts show "–" until computed). Skeleton for the rest: toolbar block, then three cards of four rows (Home: six tiles and the panel). After 3 s add the "still loading" line | Navigation stays usable. The free database sleeps after 5 idle minutes, so the first load can be slow |
 | Saving | Tick or note change | Ticks change at once; notes show "Saving…" | Ticks are optimistic |
 | Save failed | A save errors | Inline message on the item and one error banner for the page | Tick goes back to its saved value; note text is kept. Banner stays until every failed item is saved or the page is left |
 | Offline | Browser reports offline | Warning banner | Write controls disabled; reading, search and filter still work. A save in flight counts as failed. Back online: info banner for 4 s, controls enabled again |
 | Page error | Server error while rendering | Card "This page didn't load." with "Try again" (primary) and "Go to Home" (secondary) | `error.tsx` per route group |
-| Not found | Unknown address | "This page doesn't exist." and "Go to Home" | `not-found.tsx` |
+| Not found | Unknown address | The `/login` layout with the app name, then "This page doesn't exist." and "Go to Home" (section 5) | `not-found.tsx` |
 
 ## 7. Accessibility
 The conventions checklist, applied:
@@ -324,12 +376,12 @@ The conventions checklist, applied:
 | Check | How it applies here |
 |---|---|
 | Text contrast at least 4.5:1 | Every text pair in 2.2 passes in both schemes; lowest 4.52. Field borders, tick boxes, focus ring and progress fill are 3:1 or more |
-| Visible focus | 2 px `accent` ring with 2 px offset on every interactive element, including summaries, tiles, nav links and the tick box. Never `outline: none` without a replacement |
-| Full keyboard use | Skip link "Skip to content" first on every page. Tab order follows reading order. Space ticks; Enter and Space open and close summaries; Escape closes the More sheet and the note editor. After client navigation, focus moves to the page `h1` |
+| Visible focus | 2 px `accent` ring with 2 px offset on every interactive element, including summaries, tiles, nav links, the tick box and the Scaler card heads. It appears at once (no `outline-color` transition), is inset on bottom-bar cells, and hugs the `h1` (`w-fit`) after navigation. Never `outline: none` without a replacement |
+| Full keyboard use | SkipLink "Skip to content" first on every page, at least 44 px tall when focused. Tab order follows reading order. Space ticks; Enter and Space open and close summaries and the Scaler card buttons; Escape closes the More sheet and the note editor. After client navigation, focus moves to the page `h1`. After "Clear search and filter", focus moves to the search field |
 | Labelled controls | Tick boxes "Mark done: {title}" (contains the visible title). Search, filter, note and link fields have labels (visually hidden is fine). Icon-only controls do not exist; bottom-bar icons sit above visible labels |
-| Touch targets at least 44 px | Tick cell 44 by 44; note button, summaries, fields, select, buttons, nav links 44 px; bottom-bar cells 48 px; More sheet rows 52 px |
+| Touch targets at least 44 px | Applies to controls: tick cell 44 by 44; note button, summaries, fields, select, buttons, nav links, skip link 44 px; Scaler card heads 56 px; bottom-bar cells 48 px; More sheet rows 52 px. Text links in rows and sentences follow WCAG 2.5.8 (24 px, or spaced so a 24 px circle on each does not overlap another target); one-line title links pass by spacing |
 | Reduced motion | All transitions and the skeleton pulse are off under `prefers-reduced-motion` |
-| Structure | Landmarks: `nav` (sidebar or bottom bar, "Sections"), `main`. One `h1` per page; cards use `h2`. `<html lang="en">` |
+| Structure | Landmarks: `nav` (sidebar or bottom bar, "Sections"), `main`. One `h1` per page; cards use `h2`. On Scaler the `h2` holds the disclosure button; never put a heading inside a `<summary>`. `<html lang="en">` |
 | Status messages | Save status, filter result count and banners are announced (`aria-live="polite"`; error banner `role="alert"`). Counts read as "3 of 7 done" |
 | Not colour alone | Chips always carry text; done items have a checked box and a line-through; the current nav item also has a shape (pill or background), not just colour |
 | Reflow and zoom | Works at 320 px wide and at 200% text size with no sideways scrolling. Long titles wrap (`overflow-wrap: anywhere` for links and notes) |
@@ -353,13 +405,16 @@ Each check is part of the M1 screen review at 390x844 and 1280x900, light and da
 
 | Situation | Copy |
 |---|---|
-| Search placeholder, roadmap | "Search tasks, resources, notes…" |
-| Search placeholder, Scaler | "Search classes and notes…" |
-| Search placeholder, reading | "Search papers, books, notes…" |
+| Search placeholder, Roadmap (each must fit 150 px at 16 px; see Toolbar) | "Search tasks…" |
+| Search placeholder, Reading | "Search papers…" |
+| Search placeholder, Scaler | "Search classes…" |
+| Search placeholder, Certifications and Projects | "Search steps…" |
+| Search placeholder, Career | "Search milestones…" |
 | Note placeholder, task | "What did you build or learn? Key takeaways, questions, links…" (today's text; other placeholders also stay as today) |
 | Link placeholder | "https://…" |
 | No matches | "Nothing matches this search or filter." Button: "Clear search and filter" |
-| "With notes" and no notes yet | "No notes yet. Use Add note on any item." |
+| "With notes" and no notes yet | "No notes yet. Use Add note on any item." (M1, with no note buttons: "No notes yet.") |
+| "Done", search empty, nothing on the page done | "Nothing marked done yet." No button |
 | First visit banner (Home) | "Nothing ticked yet. Tick items as you finish them and your progress will show here." |
 | Read-only preview (M1) | "Read-only preview. Ticks and notes can't be saved yet." |
 | Still loading (after 3 s) | "Still loading. The first load after a quiet spell can take a few seconds." |
@@ -373,6 +428,8 @@ Each check is part of the M1 screen review at 390x844 and 1280x900, light and da
 | Login: not the owner | "This GitHub account can't sign in. The app is private to its owner." |
 | Login: GitHub failed | "Sign-in didn't finish. Try again." |
 | Login: after sign-out | "You're signed out." |
+| Login: M1 only (sign-in not built yet) | "Sign-in isn't available yet. It comes with saving progress." Link-button: "Go to Home" |
+| Not found | "This page doesn't exist." Button: "Go to Home" |
 | Example note in screenshots or tests | "Finished the quickstart. Next: try hybrid search on the sample set." with link "https://example.com/demo" |
 
 ## Later (not M1 to M3)
@@ -385,5 +442,7 @@ Each check is part of the M1 screen review at 390x844 and 1280x900, light and da
 - Toolbar: search plus a status filter (All, Active, Closed, then each status). Primary button "Add application" opens a form page; each row opens its edit page; delete needs a confirm step.
 - Made-up example row: "Example Corp · AI Engineer · Applied · Next: take-home task · 4 Dec".
 - Empty: "No applications yet." Button: "Add application".
+
+**Scaler: open the new current module once.** When the course moves on to the next module, add that module to the stored open list once (and remember that it was added), so the new module is open without undoing the owner's other choices. Today, once anything is stored, the new current module stays closed until the owner opens it, as in the tracker.
 
 **Other ideas, not planned:** a light, dark or system theme switch; a "Jump to current phase" link on `/roadmap`; a sticky toolbar on long pages; search across all sections; the installable phone app from the plan's list.
