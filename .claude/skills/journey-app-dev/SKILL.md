@@ -32,6 +32,7 @@ Loop per milestone: design (if UI changes) → build → review → the lead fix
 - Pin exact versions in `web/package.json`. Check npm for current versions before adding a dependency, and say why it is needed.
 - Fonts: do not use `next/font/google`, because the cloud sandbox cannot reach Google Fonts. Use `@fontsource` packages from npm or a system font stack.
 - Next.js 16 changed many APIs. Before writing Next.js code, read the relevant guide in `web/node_modules/next/dist/docs/` (see `web/AGENTS.md`). The scaffold enables Cache Components.
+- With Cache Components, Next keeps recently visited pages mounted but hidden, and can render a page before the URL changes. In a hidden page, `useSearchParams()` and `usePathname()` follow the current URL, so per-page URL state (search, filters) must be tied to the page's own path (see `web/lib/filter.ts`, `syncFromUrl`). Several pages' DOM can coexist: use `useId` for element ids, and role-based locators in tests.
 
 ## Folder layout
 ```

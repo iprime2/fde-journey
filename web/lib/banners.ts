@@ -1,0 +1,52 @@
+// Page banners: at most two, the most serious first (design spec, Banner).
+
+export type BannerTone = "error" | "warning" | "info";
+
+export interface BannerSpec {
+  id: string;
+  tone: BannerTone;
+  text: string;
+}
+
+const RANK: Record<BannerTone, number> = { error: 0, warning: 1, info: 2 };
+
+/** Highest first (error, warning, info), keeping the given order within a tone; at most `max`. */
+export function pickBanners(list: ReadonlyArray<BannerSpec | null | undefined | false>, max = 2): BannerSpec[] {
+  return list
+    .filter((b): b is BannerSpec => !!b)
+    .map((b, i) => ({ b, i }))
+    .sort((x, y) => RANK[x.b.tone] - RANK[y.b.tone] || x.i - y.i)
+    .slice(0, max)
+    .map((x) => x.b);
+}
+
+export const READ_ONLY_BANNER: BannerSpec = {
+  id: "read-only",
+  tone: "info",
+  text: "Read-only preview. Ticks and notes can't be saved yet.",
+};
+
+export const FIRST_VISIT_BANNER: BannerSpec = {
+  id: "first-visit",
+  tone: "info",
+  text: "Nothing ticked yet. Tick items as you finish them and your progress will show here.",
+};
+
+export const OFFLINE_BANNER: BannerSpec = {
+  id: "offline",
+  tone: "warning",
+  text: "You're offline. You can read and search, but changes won't save until you're back online.",
+};
+
+export const BACK_ONLINE_BANNER: BannerSpec = { id: "back-online", tone: "info", text: "Back online." };
+
+/**
+ * Banners a page starts with. The first-visit banner is for Home only, and not while the app is
+ * a read-only preview: it asks the owner to tick items, which can't be done yet.
+ */
+export function pageBanners(opts: { readOnly: boolean; isHome: boolean; hasProgress: boolean }): BannerSpec[] {
+  return pickBanners([
+    opts.readOnly && READ_ONLY_BANNER,
+    opts.isHome && !opts.readOnly && !opts.hasProgress && FIRST_VISIT_BANNER,
+  ]);
+}
