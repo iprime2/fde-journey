@@ -1,6 +1,6 @@
 # FDE Journey web app: plan (v0.1, for approval)
 
-Status: plan only. Nothing is built. Facts marked "checked" were looked up on 2026-11-25 and can change.
+Status: approved on 2026-11-25 (decisions in section 11). M0 in progress. Facts marked "checked" were looked up on 2026-11-25 and can change.
 
 ## 1. Goal
 One private web app, reachable from any device, that tracks the whole AI and FDE journey: roadmap, learning resources, Scaler classes, certifications, projects, career steps and notes. It replaces the current tracker (a single HTML page published as a Claude artifact) and leaves room for sections the artifact cannot hold.
@@ -83,8 +83,8 @@ Later tables arrive with their features (for example `applications`, `log_entrie
 ## 7. Milestones (one pull request each)
 | # | Milestone | Done when |
 |---|---|---|
-| M0 | Plan approved; role agents and a conventions skill added | This plan is merged and the agent files exist |
-| M1 | App skeleton and read-only parity: dashboard plus the five sections, rendered from `web/content/` | Runs locally, matches the tracker's content, id test passes, CI is green |
+| M0 | Plan approved; role agents, a conventions skill and the design spec added | This plan is approved, the agent files and `web/docs/DESIGN-SPEC.md` are merged |
+| M1 | App skeleton and read-only parity: dashboard plus the six sections (roadmap, reading, Scaler, certifications, projects, career), rendered from `web/content/` | Runs locally, matches the tracker's content, id test passes, CI is green |
 | M2 | Database, sign-in and saving: ticks, notes, links, weekly notes, resource ticks; import script for the existing records | End-to-end tests pass against the local database |
 | M3 | Go live: hosting, database and sign-in set up; export endpoint for Claude; cut-over | The owner uses the new app for a week with no gaps; then the artifact is frozen and `CLAUDE.md` is updated |
 | M4+ | New sections, one at a time | Each has its own short design note first |
@@ -125,10 +125,13 @@ The agent files live in `.claude/agents/` and the skill in `.claude/skills/`. A 
 - **Ownership.** Claude builds this, so it is a personal tool, not a portfolio piece. It should not be presented as the owner's own work unless they can explain it. Scaler Module 4 (front end) is a good time to take over parts of it.
 - **Two copies of the content during the move.** From M1 the content lives in both the old tracker and `web/content/`. Roadmap edits pause or are made in both until cut-over.
 
-## 11. Open questions
-1. Sign-in: GitHub (proposed) or email and password?
-2. First new section after go-live: job applications (proposed)?
-3. Role agents: the four above (proposed) or a larger set?
+## 11. Decisions (2026-11-25)
+The owner approved the plan with the proposed answers:
+1. Sign-in: GitHub, limited to the owner's account.
+2. First new section after go-live: job applications tracker.
+3. Team: four agents (`ux-designer`, `frontend-engineer`, `backend-engineer`, `code-reviewer`) plus the `journey-app-dev` conventions skill, with the main session as lead.
+
+Changes since v0.1: the tracker gained a Reading tab (papers and books, ids `pp{n}` and `bk{n}`), so M1 covers six sections.
 
 ## Sources (checked 2026-11-25)
 - Next.js releases and support policy: https://nextjs.org/blog/next-16-4 , https://nextjs.org/support-policy
