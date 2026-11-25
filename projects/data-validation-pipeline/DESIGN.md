@@ -1,6 +1,9 @@
 # Data Validation Pipeline: Design (v0.1, draft)
 
-Status: design agreed in chat on 2026-11-25. Nothing is implemented yet.
+Status: design agreed in chat on 2026-11-25. A browser prototype, `pipeline.html` (v0.1), implements stages 1 to 8, the standard rule types, extension checks XR-01 to XR-12 (advisory until switched on) and the question cards. Not built yet: the SQL tables (staging, publish) and the Python orchestration; the prototype keeps its ledger in the browser instead of `load_log`.
+
+## Running the prototype
+Download `pipeline.html` and open it in a browser; no install and no network needed. Load a rules file plus the source files (or press "Load sample data", which is synthetic). Files are matched to roles by name. If a rule is read wrongly, add a `params` column (JSON) to the rules file; the Validation tab shows what the engine understood for each rule.
 
 ## Purpose
 Check files received from a customer **before trusting them**. For every record the pipeline decides: pass, reject, send to a human, or warn. It explains each decision, publishes only trusted records, and produces a report the customer can read.
