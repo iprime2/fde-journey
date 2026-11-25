@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import { READ_ONLY_TEXT, SECTION_PAGES, expectNoSidewaysScroll, gotoReady, pageHeading } from "./helpers";
 
 test.describe("read-only preview", () => {

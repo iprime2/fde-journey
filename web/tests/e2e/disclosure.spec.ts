@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import { gotoReady } from "./helpers";
 
 test.describe("open and close, remembered on the device", () => {

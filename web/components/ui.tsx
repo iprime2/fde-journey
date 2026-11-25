@@ -2,6 +2,7 @@
 // GroupLabel, button styles and external links. Server Components.
 import type { ChipState } from "@/lib/status";
 import { cn } from "./cn";
+import { isHttpsUrl } from "@/lib/notes";
 
 /** "3/7" on screen; "3 of 7 done" for screen readers. */
 export function Count({ done, total, className }: { done: number; total: number; className?: string }) {
@@ -60,7 +61,9 @@ export const buttonStyles = {
 };
 
 /** A link that opens in a new tab, with "↗" and a hidden "(opens in a new tab)". */
+/** Opens https links in a new tab. Anything else (javascript:, http:, relative) renders as plain text. */
 export function ExternalLink({ href, children, className }: { href: string; children: React.ReactNode; className?: string }) {
+  if (!isHttpsUrl(href)) return <span className={cn("[overflow-wrap:anywhere]", className)}>{children}</span>;
   return (
     <a
       href={href}

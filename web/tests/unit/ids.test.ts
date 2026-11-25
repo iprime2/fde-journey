@@ -25,10 +25,14 @@ describe("item ids (saved progress depends on them)", () => {
     for (const item of items) expect(item.title, item.id).toBe(tracker.get(item.id));
   });
 
-  it("keep every id from the baseline (lists are append-only)", () => {
-    const current = new Set(items.map((i) => i.id));
-    const missing = baseline.ids.filter((id) => !current.has(id));
-    expect(missing).toEqual([]);
+  it("keep every baseline id with its baseline title (catches deletes, reorders and mid-list inserts)", () => {
+    const current = new Map(items.map((i) => [i.id, i.title]));
+    const missing = Object.keys(baseline.items).filter((id) => !current.has(id));
+    expect(missing, "ids removed").toEqual([]);
+    const moved = Object.entries(baseline.items)
+      .filter(([id, title]) => current.get(id) !== title)
+      .map(([id, title]) => `${id}: was "${title}", now "${current.get(id)}"`);
+    expect(moved, "an id now points at a different title: items were inserted or reordered, which would move saved progress").toEqual([]);
   });
 
   it("use the documented formats", () => {

@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import { SECTION_PAGES, gotoReady, isPhone, pageHeading } from "./helpers";
 
 test.describe("desktop sidebar", () => {

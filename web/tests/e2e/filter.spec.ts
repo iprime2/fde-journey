@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import { gotoReady, pageHeading } from "./helpers";
 
 test.describe("search and status filter", () => {
