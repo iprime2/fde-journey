@@ -31,6 +31,7 @@ Loop per milestone: design (if UI changes) → build → review → the lead fix
 - Vitest for logic, Playwright for end-to-end flows.
 - Pin exact versions in `web/package.json`. Check npm for current versions before adding a dependency, and say why it is needed.
 - Fonts: do not use `next/font/google`, because the cloud sandbox cannot reach Google Fonts. Use `@fontsource` packages from npm or a system font stack.
+- Next.js 16 changed many APIs. Before writing Next.js code, read the relevant guide in `web/node_modules/next/dist/docs/` (see `web/AGENTS.md`). The scaffold enables Cache Components.
 
 ## Folder layout
 ```
@@ -57,6 +58,15 @@ web/
 - Every page except `/login` requires sign-in. Every Server Action checks the session and that the user is the owner.
 - Validate all input on the server. Links must be `https`.
 - Escape user text when rendering, and never use `dangerouslySetInnerHTML` on it.
+
+## Commands (run in `web/`)
+| Command | What it does |
+|---|---|
+| `npm run dev` | Local server at http://localhost:3000 |
+| `npm run lint` / `npm run typecheck` | ESLint; route types plus TypeScript |
+| `npm test` | Unit tests, including the id and content-sync checks |
+| `npm run build` then `npm run test:e2e` | Production build, then Playwright at phone and desktop width |
+| `npm run content:sync` | Regenerate `content/tracker-data.ts` after the tracker changes |
 
 ## Quality bar (definition of done)
 - `npm run lint`, `npm run typecheck`, `npm test` and `npm run build` pass in `web/`.
