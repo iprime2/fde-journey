@@ -1,0 +1,1175 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Data Validation Pipeline</title>
+<style>
+:root{
+  --bg:#f5f6f8; --panel:#ffffff; --text:#1b2430; --muted:#566272; --line:#d9dee6; --accent:#1f4e79; --accent-soft:#e6eef7;
+  --ok:#17663a; --ok-bg:#e1f3e8; --warn:#7d5200; --warn-bg:#fcefcf; --bad:#9c1c1c; --bad-bg:#fae3e3;
+  --hr:#6e4300; --hr-bg:#ffe5b8; --pause:#ffffff; --pause-bg:#6b1414;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#0f1319; --panel:#171d26; --text:#e6ebf2; --muted:#9aa6b6; --line:#2b3441; --accent:#8ab9ea; --accent-soft:#1b2838;
+    --ok:#7bdca3; --ok-bg:#15301f; --warn:#f2c874; --warn-bg:#34290f; --bad:#ffa3a3; --bad-bg:#3a1a1a;
+    --hr:#ffd28d; --hr-bg:#3a2b10; --pause:#ffffff; --pause-bg:#8f2222;
+  }
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:1180px;margin:0 auto;padding:16px}
+header.top{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;margin-bottom:14px}
+h1{font-size:1.35rem;margin:0}
+h2{font-size:1.1rem;margin:0 0 8px}
+h3{font-size:1rem;margin:16px 0 6px}
+.sub{color:var(--muted);font-size:.9rem;margin:2px 0 0}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:14px}
+button,select,input[type=text],textarea{font:inherit;color:inherit}
+button.btn{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:8px 14px;cursor:pointer;font-weight:600}
+@media (prefers-color-scheme: dark){button.btn{color:#0f1319}}
+button.btn.ghost{background:transparent;color:var(--accent);border:1px solid var(--accent)}
+button.btn:disabled{opacity:.45;cursor:not-allowed}
+button.btn:focus-visible,.stage:focus-visible,.tab:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.muted{color:var(--muted)}
+.small{font-size:.85rem}
+code,.mono{font-family:var(--mono);font-size:.85em}
+/* stage bar */
+.stages{display:grid;grid-template-columns:repeat(8,1fr);gap:8px;margin-bottom:14px}
+.stage{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 8px 7px;text-align:left;cursor:pointer;display:flex;flex-direction:column;gap:2px;min-height:68px}
+.stage .n{font-size:.72rem;color:var(--muted)}
+.stage .t{font-weight:600;font-size:.86rem;line-height:1.2}
+.stage .st{font-size:.78rem;font-weight:600}
+.stage.s-ok{border-color:var(--ok)} .stage.s-ok .st{color:var(--ok)}
+.stage.s-warn{border-color:var(--warn)} .stage.s-warn .st{color:var(--warn)}
+.stage.s-fail{border-color:var(--bad)} .stage.s-fail .st{color:var(--bad)}
+.stage.s-pending .st{color:var(--muted)}
+@media (max-width:900px){.stages{grid-template-columns:repeat(4,1fr)}}
+@media (max-width:520px){.stages{grid-template-columns:repeat(2,1fr)}}
+/* drop zone */
+.drop{border:2px dashed var(--line);border-radius:10px;padding:16px;text-align:center;background:var(--accent-soft)}
+.drop.over{border-color:var(--accent)}
+.drop input{display:none}
+.drop label{cursor:pointer;color:var(--accent);font-weight:600;text-decoration:underline}
+/* tabs */
+.tabs{display:flex;flex-wrap:wrap;gap:4px;border-bottom:1px solid var(--line);margin-bottom:12px}
+.tab{background:transparent;border:0;border-bottom:3px solid transparent;padding:8px 12px;cursor:pointer;font-weight:600;color:var(--muted)}
+.tab[aria-selected=true]{color:var(--accent);border-bottom-color:var(--accent)}
+/* tables */
+.tw{overflow-x:auto;border:1px solid var(--line);border-radius:8px}
+table{border-collapse:collapse;width:100%;font-size:.88rem}
+th,td{padding:6px 9px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+th{background:var(--accent-soft);position:sticky;top:0;white-space:nowrap}
+tr:last-child td{border-bottom:0}
+tr.hl td{background:var(--bad-bg)}
+td.val{font-family:var(--mono);font-size:.82rem;word-break:break-word}
+/* badges */
+.badge{display:inline-block;border-radius:999px;padding:1px 9px;font-size:.76rem;font-weight:700;white-space:nowrap}
+.r-PAUSE_LOAD{background:var(--pause-bg);color:var(--pause)}
+.r-REJECT{background:var(--bad-bg);color:var(--bad)}
+.r-HUMAN_REVIEW{background:var(--hr-bg);color:var(--hr)}
+.r-LOAD_WARNING{background:var(--warn-bg);color:var(--warn)}
+.r-PASS,.b-ok{background:var(--ok-bg);color:var(--ok)}
+.b-muted{background:var(--accent-soft);color:var(--muted)}
+.b-info{background:var(--accent-soft);color:var(--accent)}
+.notice{border-left:4px solid var(--accent);background:var(--accent-soft);padding:8px 12px;border-radius:6px;margin:8px 0}
+.notice.warn{border-color:var(--warn);background:var(--warn-bg)}
+.notice.bad{border-color:var(--bad);background:var(--bad-bg)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.stat{border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+.stat b{display:block;font-size:1.4rem}
+textarea{width:100%;min-height:260px;font-family:var(--mono);font-size:.8rem;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px}
+input[type=text],select{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:5px 8px}
+details{margin:6px 0}
+summary{cursor:pointer;font-weight:600}
+ul.tight{margin:4px 0 4px 18px;padding:0}
+footer{color:var(--muted);font-size:.82rem;margin:18px 0 30px}
+@media print{
+  .stages,#intake,.tabs,.noprint,button{display:none!important}
+  body{background:#fff;color:#000}
+  .card{border:0}
+  #panel>*{display:block!important}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Data Validation Pipeline</h1>
+      <p class="sub">Load a customer's files and a rules file. See what passed, what failed and why. Runs only in this browser: nothing is uploaded.</p>
+    </div>
+    <div class="row noprint">
+      <button class="btn" data-action="sample">Load sample data</button>
+      <button class="btn ghost" data-action="clear">Clear everything</button>
+    </div>
+  </header>
+
+  <nav class="stages" id="stages" aria-label="Pipeline stages"></nav>
+
+  <section class="card" id="intake" aria-label="Intake">
+    <h2>Receive files</h2>
+    <div class="drop" id="drop">
+      <p style="margin:0 0 4px"><label for="fileInput">Choose CSV files</label> or drop them here.</p>
+      <p class="muted small" style="margin:0">Select your rules file (for example <code>validation_rules.csv</code>) together with the source files. Files are matched to roles by name; you can change a role below.</p>
+      <input type="file" id="fileInput" accept=".csv,text/csv" multiple>
+    </div>
+    <div id="fileList"></div>
+    <div class="row" style="margin-top:10px">
+      <label for="runTime"><b>Run time</b> (UTC)</label>
+      <input type="text" id="runTime" size="24" placeholder="blank = latest extract time" aria-describedby="runTimeHint">
+      <button class="btn ghost" data-action="applyRunTime">Apply</button>
+      <button class="btn" data-action="run">Run pipeline</button>
+      <span class="muted small" id="runTimeHint"></span>
+    </div>
+  </section>
+
+  <section class="card" aria-label="Evidence workspace">
+    <h2>Evidence workspace</h2>
+    <div class="tabs" role="tablist" id="tabs"></div>
+    <div id="panel" role="tabpanel"></div>
+  </section>
+
+  <footer>Design: <code>projects/data-validation-pipeline/DESIGN.md</code>. Core rules come from your rules file; extension checks XR-01 to XR-12 are advisory until you switch them on (Validation tab).</footer>
+</div>
+
+<script>
+(() => {
+'use strict';
+
+/* ================= constants ================= */
+const ROUTES = ['PAUSE_LOAD','REJECT','HUMAN_REVIEW','LOAD_WARNING','PASS'];
+const VALID_ROUTES = ROUTES.filter(r => r !== 'PASS');
+const RANK = Object.fromEntries(ROUTES.map((r,i)=>[r,i]));
+const RULE_TYPES = ['required','unique','conditional_required','allowed_values','date_format','cross_source_match','schema','freshness','idempotency'];
+const RULE_COLS = ['rule_id','applies_to_file','field_name','rule_type','failure_route','reason','enabled'];
+
+const STAGES = [
+  ['Receive files','files'],['Understand records','contract'],['Preserve raw','raw'],['Apply rules','validation'],
+  ['Route problems','exceptions'],['Publish tables','trusted'],['Judge load','report'],['Prepare SQL questions','sql']
+];
+const TABS = [
+  ['files','Source files'],['raw','Raw records'],['contract','Data contract'],['validation','Validation'],
+  ['exceptions','Exceptions'],['trusted','Trusted tables'],['report','Load report'],['sql','SQL questions']
+];
+
+const DEFAULT_CONTRACT = {
+  anchor: 'support_cases',
+  files: {
+    support_cases: { key:'case_id', required:['case_id','order_id','received_at','customer_question','case_type','review_status','extract_generated_at'] },
+    orders: { key:'order_id', required:['order_id','product','order_date','delivery_date','payment_status','extract_generated_at'] },
+    issue_records: { key:'case_id', required:['case_id','issue_type','issue_details','reported_delivery_date','evidence_status','extract_generated_at'] },
+    human_reviews: { key:'review_id', required:['review_id','case_id','reviewer_role','decision','decision_reason','reviewed_at','extract_generated_at'] }
+  },
+  links: [
+    { from:'support_cases.order_id', to:'orders.order_id' },
+    { from:'issue_records.case_id', to:'support_cases.case_id' },
+    { from:'human_reviews.case_id', to:'support_cases.case_id' }
+  ],
+  crossSource: { left:{file:'orders',field:'delivery_date'}, right:{file:'issue_records',field:'reported_delivery_date'} },
+  freshnessFiles: ['support_cases','orders','issue_records','human_reviews'],
+  oneToOne: ['issue_records'],
+  typeMap: {
+    caseField:'case_type', issueField:'issue_type',
+    allowed: {
+      RETURN:['RETURN_WINDOW','LATE_RETURN','RETURN_REQUEST','SIZE_EXCHANGE'],
+      DAMAGE:['DAMAGED_ITEM','WRONG_ITEM'],
+      GENERAL:['ACCOUNT_QUESTION','PRODUCT_INFORMATION']
+    }
+  },
+  statusCheck: { field:'review_status', decided:['APPROVED','REJECTED'], pending:['PENDING'] },
+  timeColumns: ['received_at','reviewed_at','extract_generated_at'],
+  textColumns: { support_cases:['customer_question'], issue_records:['issue_details'] },
+  reviewFreshnessHours: 24,
+  volumeDriftPct: 50
+};
+
+const XR = [
+  {id:'XR-01',title:'Orphan keys',route:'REJECT',what:'A key points to a record that is not in the other file.'},
+  {id:'XR-02',title:'Duplicate keys in the other files',route:'REJECT',what:'The key of a non-anchor file appears more than once.'},
+  {id:'XR-03',title:'Join fan-out guard',route:'PAUSE_LOAD',what:'A one-to-one join would multiply rows once rejected rows are removed.'},
+  {id:'XR-04',title:'Case type vs issue type',route:'HUMAN_REVIEW',what:'The issue type does not fit the case type (mapping in the contract).'},
+  {id:'XR-05',title:'Status vs review records',route:'HUMAN_REVIEW',what:'Status claims a decision with no review record, or a record exists while status is still pending.'},
+  {id:'XR-06',title:'Time logic',route:'HUMAN_REVIEW',what:'Review dated after its extract or before its case, delivery before order date, timestamps after the run time.'},
+  {id:'XR-07',title:'Review freshness',route:'LOAD_WARNING',what:'A review is too old to reuse as a current decision.'},
+  {id:'XR-08',title:'Hygiene',route:'LOAD_WARNING',what:'Stray spaces, ragged rows, header drift, mixed extract times inside a file.'},
+  {id:'XR-09',title:'Volume drift',route:'LOAD_WARNING',what:'Row count changed a lot compared with the last published load.'},
+  {id:'XR-10',title:'PII scan',route:'HUMAN_REVIEW',what:'Free text looks like it contains an email, phone or card number (value is redacted here).'},
+  {id:'XR-11',title:'Rules-file self-check',route:'PAUSE_LOAD',what:'Duplicate or blank rule ids, unknown types or routes, bad enabled flag, invalid params.'},
+  {id:'XR-12',title:'Rule coverage',route:'INFO',what:'Required columns that no rule looks at (report only).'}
+];
+
+/* ================= state ================= */
+const state = {
+  files: [],            // {name,text,hash}
+  assign: {},           // name -> role override
+  contractText: JSON.stringify(DEFAULT_CONTRACT, null, 2),
+  contractError: '',
+  runTimeText: '',
+  xrOn: Object.fromEntries(XR.map(x=>[x.id,false])),
+  result: null,
+  tab: 'files',
+  rawFile: null, rawOnlyIssues: false,
+  excRoute: 'EXCEPTIONS', excKind: 'ALL',
+  publishedFp: null,
+  msg: ''
+};
+
+/* ================= helpers ================= */
+const $ = (s,r=document)=>r.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const badge = r => `<span class="badge r-${r}">${esc(r.replace('_',' '))}</span>`;
+const best = list => { let b=null; for(const r of list){ if(b===null||RANK[r]<RANK[b]) b=r; } return b; };
+const t = (row,f) => { const v=row.v[f]; return v===undefined ? '' : String(v).trim(); };
+const plural = (n,w) => `${n} ${w}${n===1?'':'s'}`;
+
+function parseCSV(text){
+  if(text.charCodeAt(0)===0xFEFF) text=text.slice(1);
+  const rows=[]; let row=[], field='', inQ=false;
+  for(let i=0;i<text.length;i++){
+    const c=text[i];
+    if(inQ){
+      if(c==='"'){ if(text[i+1]==='"'){ field+='"'; i++; } else inQ=false; }
+      else field+=c;
+      continue;
+    }
+    if(c==='"'){ inQ=true; }
+    else if(c===','){ row.push(field); field=''; }
+    else if(c==='\r'){ /* ignore */ }
+    else if(c==='\n'){ row.push(field); rows.push(row); row=[]; field=''; }
+    else field+=c;
+  }
+  if(field!==''||row.length){ row.push(field); rows.push(row); }
+  while(rows.length && rows[rows.length-1].every(x=>x==='')) rows.pop();
+  return rows;
+}
+function toCSV(header,rows){
+  const q = v => { v=String(v??''); return /[",\n\r]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v; };
+  return [header.map(q).join(','), ...rows.map(r=>r.map(q).join(','))].join('\n')+'\n';
+}
+function buildDataset(text){
+  const raw=parseCSV(text);
+  const rawHeader=raw[0]||[];
+  const header=rawHeader.map(h=>h.trim());
+  const rows=raw.slice(1).map((r,i)=>{
+    const v={}; header.forEach((h,j)=>{ if(h!=='') v[h]=r[j]===undefined?'':r[j]; });
+    return {n:i+1, line:i+2, v, cells:r.length};
+  });
+  return {header, rawHeader, rows};
+}
+function validDate(s){
+  const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(s); if(!m) return false;
+  const y=+m[1],mo=+m[2],d=+m[3]; const dt=new Date(Date.UTC(y,mo-1,d));
+  return dt.getUTCFullYear()===y && dt.getUTCMonth()===mo-1 && dt.getUTCDate()===d;
+}
+function parseTs(s){
+  if(!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})$/.test(s)) return null;
+  const v=Date.parse(s); return isNaN(v)?null:v;
+}
+const fmtTs = ms => ms===null||ms===undefined ? '' : new Date(ms).toISOString().replace('.000Z','Z');
+async function sha256(text){
+  try{
+    if(window.crypto && crypto.subtle){
+      const d=await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+      return 'sha256:'+[...new Uint8Array(d)].map(b=>b.toString(16).padStart(2,'0')).join('');
+    }
+  }catch(e){}
+  let h1=0xdeadbeef^text.length,h2=0x41c6ce57^text.length;
+  for(let i=0;i<text.length;i++){ const c=text.charCodeAt(i); h1=Math.imul(h1^c,2654435761); h2=Math.imul(h2^c,1597334677); }
+  h1=Math.imul(h1^(h1>>>16),2246822507)^Math.imul(h2^(h2>>>13),3266489909);
+  h2=Math.imul(h2^(h2>>>16),2246822507)^Math.imul(h1^(h1>>>13),3266489909);
+  return 'fallback:'+(4294967296*(2097151&h2)+(h1>>>0)).toString(16).padStart(14,'0');
+}
+function download(name,text,type='text/plain'){
+  const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([text],{type:type+';charset=utf-8'}));
+  a.download=name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+}
+const shortHash = h => h ? h.replace(/^(sha256|fallback):/,'').slice(0,12) : '';
+
+/* ledger (idempotency memory) */
+const mem = { v:[] };
+const ledger = {
+  persistent:true,
+  get(){ try{ const v=JSON.parse(localStorage.getItem('dvp.ledger.v1')||'[]'); return Array.isArray(v)?v:[]; }catch(e){ this.persistent=false; return mem.v; } },
+  set(a){ try{ localStorage.setItem('dvp.ledger.v1',JSON.stringify(a)); }catch(e){ this.persistent=false; mem.v=a; } }
+};
+
+/* ================= sample data (synthetic) ================= */
+function sampleFiles(){
+  const X='extract_generated_at';
+  const cases=[['case_id','order_id','received_at','customer_question','case_type','review_status',X],
+    ['AC-101','OR-101','2026-11-20T07:05:00Z','Can I return this desk lamp?','RETURN','PENDING'],
+    ['AC-102','OR-102','2026-11-20T07:12:00Z','The kettle box arrived crushed.','DAMAGE','PENDING'],
+    ['AC-103','OR-103','2026-11-20T07:20:00Z','Is this scarf still returnable?','RETURN','PENDING'],
+    ['AC-104','','2026-11-20T07:31:00Z','I would like to return my headphones.','RETURN','PENDING'],
+    ['AC-105','OR-105','2026-11-20T07:40:00Z','How do I change my delivery address?','GENERAL','DONE'],
+    ['AC-110','OR-110','2026-11-20T07:52:00Z','Can I return this rug?','RETURN','PENDING'],
+    ['AC-110','OR-110','2026-11-20T07:52:00Z','Can I return this rug?','RETURN','PENDING'],
+    ['','OR-111','2026-11-20T08:01:00Z','Where is the washing guide?','GENERAL','PENDING'],
+    ['AC-106','OR-106','2026-11-20T08:10:00Z','Can I swap these curtains for a longer pair?','RETURN','APPROVED'],
+    ['AC-107','OR-107','2026-11-20T08:22:00Z','The vase is cracked. You can reach me at jo@example.com.','DAMAGE','PENDING'],
+    ['AC-108','OR-108','2026-11-20T08:30:00Z','What is this jacket made of?','GENERAL','PENDING'],
+    ['AC-109','OR-109','2026-11-20T08:41:00Z','I received the wrong colour towel.','DAMAGE','PENDING']
+  ].map((r,i)=> i===0 ? r : [...r,'2026-11-20T09:55:00Z']);
+  const orders=[['order_id','product','order_date','delivery_date','payment_status',X],
+    ['OR-101','Desk lamp','2026-11-08','2026-11-12','PAID'],['OR-102','Electric kettle','2026-11-09','2026-11-14','PAID'],
+    ['OR-103','Wool scarf','2026-11-10','19-11-2026','PAID'],['OR-105','Account service','2026-11-01','2026-11-03','PAID'],
+    ['OR-106','Cotton curtains','2026-11-07','2026-11-11','PAID'],['OR-107','Glass vase','2026-11-10','2026-11-15','PAID'],
+    ['OR-108','Denim jacket','2026-11-06','2026-11-10','PAID'],['OR-109','Bath towel','2026-11-09','2026-11-04','PAID'],
+    ['OR-110','Woven rug','2026-11-05','2026-11-09','PAID'],['OR-111','Care guide','2026-11-12','2026-11-16','PAID']
+  ].map((r,i)=> i===0 ? r : [...r,'2026-11-20T09:40:00Z']);
+  const issues=[['case_id','issue_type','issue_details','reported_delivery_date','evidence_status',X],
+    ['AC-101','RETURN_WINDOW','Customer asks about the return window','2026-11-12','NOT_REQUIRED'],
+    ['AC-102','DAMAGED_ITEM','Kettle box crushed, handle bent','2026-11-13','PHOTO_ATTACHED'],
+    ['AC-103','LATE_RETURN','Customer asks if the scarf is inside the window','2026-11-19','NOT_REQUIRED'],
+    ['AC-105','ACCOUNT_QUESTION','Customer wants to change an address','','NOT_REQUIRED'],
+    ['AC-106','PRODUCT_INFORMATION','Customer asks about curtain lengths','2026-11-11','NOT_REQUIRED'],
+    ['AC-107','DAMAGED_ITEM','Vase is cracked','2026-11-15','PHOTO_ATTACHED'],
+    ['AC-108','PRODUCT_INFORMATION','Customer asks about jacket material','','NOT_REQUIRED'],
+    ['AC-109','WRONG_ITEM','Towel colour differs from the order','2026-11-04','PHOTO_ATTACHED'],
+    ['AC-110','RETURN_WINDOW','Customer asks about returning a rug','2026-11-09','NOT_REQUIRED']
+  ].map((r,i)=> i===0 ? r : [...r,'2026-11-20T09:45:00Z']);
+  const reviews=[['review_id','case_id','reviewer_role','decision','decision_reason','reviewed_at',X],
+    ['HR-1','AC-101','Support lead','ALLOW_STANDARD_FLOW','Order and request match the return rule','2026-11-18T07:00:00Z'],
+    ['HR-2','AC-107','Support lead','ALLOW_DAMAGE_FLOW','Photo is readable','2026-11-18T09:30:00Z'],
+    ['HR-3','AC-108','Knowledge specialist','ANSWER_FROM_CATALOGUE','Material is in the catalogue','2026-11-18T07:30:00Z']
+  ].map((r,i)=> i===0 ? r : [...r,'2026-11-18T08:00:00Z']);
+  const J=JSON.stringify;
+  const rules=[['rule_id','applies_to_file','field_name','rule_type','condition','failure_route','reason','enabled','params'],
+    ['R-01','support_cases.csv','case_id','required','case_id is present','REJECT','A case without an id cannot be traced.','true',''],
+    ['R-02','support_cases.csv','case_id','unique','case_id is unique in the load; both duplicates fail','REJECT','We cannot tell which copy is the right one.','true',''],
+    ['R-03','support_cases.csv','order_id','conditional_required','order_id is present when case_type is RETURN or DAMAGE','REJECT','These case types need their order.','true',J({when_field:'case_type',values:['RETURN','DAMAGE']})],
+    ['R-04','support_cases.csv','review_status','allowed_values','review_status is PENDING, APPROVED or REJECTED','REJECT','Downstream systems only know these values.','true',J({values:['PENDING','APPROVED','REJECTED']})],
+    ['R-05','orders.csv','delivery_date','date_format','delivery_date is YYYY-MM-DD when present; a bad order blocks its linked cases','REJECT','A date cannot be compared until it is valid.','true',''],
+    ['R-06','orders.csv + issue_records.csv','delivery_date','cross_source_match','Both sources agree on the delivery date when both give one','HUMAN_REVIEW','No system owns the date, so a person decides.','true',''],
+    ['R-07','all supplied files','required files and columns','schema','Every required file and column exists','PAUSE_LOAD','Without them the question may not be answerable.','true',''],
+    ['R-08','all supplied files','extract_generated_at','freshness','extract_generated_at is within 24 hours of the run time','LOAD_WARNING','The question may depend on current data.','true',''],
+    ['R-09','published outputs','content hash','idempotency','Re-running the same content creates no new trusted records','PAUSE_LOAD','Duplicates would change counts without new evidence.','true','']
+  ];
+  return [
+    ['validation_rules.csv',toCSV(rules[0],rules.slice(1))],
+    ['support_cases.csv',toCSV(cases[0],cases.slice(1))],
+    ['orders.csv',toCSV(orders[0],orders.slice(1))],
+    ['issue_records.csv',toCSV(issues[0],issues.slice(1))],
+    ['human_reviews.csv',toCSV(reviews[0],reviews.slice(1))]
+  ];
+}
+
+/* ================= contract ================= */
+function getContract(){
+  try{
+    const o=JSON.parse(state.contractText);
+    if(!o || typeof o!=='object' || !o.files || typeof o.files!=='object') throw new Error('The contract needs a "files" object.');
+    state.contractError='';
+    return Object.assign({}, DEFAULT_CONTRACT, o);
+  }catch(e){
+    state.contractError=String(e.message||e);
+    return DEFAULT_CONTRACT;
+  }
+}
+function roleOf(name,contract){
+  if(state.assign[name]) return state.assign[name];
+  const n=name.toLowerCase();
+  for(const k of Object.keys(contract.files)) if(n.includes(k.toLowerCase())) return k;
+  if(n.includes('rule')) return 'rules';
+  return 'ignore';
+}
+
+/* ================= pipeline ================= */
+async function run(){
+  const contract=getContract();
+  const notes=[];
+  const sources={}; let rulesFile=null;
+  for(const f of state.files){
+    f.role=roleOf(f.name,contract);
+    if(f.role==='rules'){ if(rulesFile) notes.push(`More than one rules file; using ${rulesFile.name}, ignoring ${f.name}.`); else rulesFile=f; }
+    else if(f.role!=='ignore'){ if(sources[f.role]) notes.push(`Two files matched "${f.role}"; using ${sources[f.role].name}, ignoring ${f.name}.`); else sources[f.role]=f; }
+    else notes.push(`${f.name} was not matched to a role and is ignored. Pick a role in the list above if it should be used.`);
+  }
+  if(!state.files.length){ state.result=null; render(); return; }
+
+  const ds={};
+  for(const [role,f] of Object.entries(sources)) ds[role]=Object.assign(buildDataset(f.text),{name:f.name,hash:f.hash});
+  const rulesDs = rulesFile ? Object.assign(buildDataset(rulesFile.text),{name:rulesFile.name,hash:rulesFile.hash}) : null;
+
+  const ctx={ contract, ds, rulesDs, notes, findings:[], idxCache:{}, bundles:[], rowBundles:new Map(), rulesRaw:[] };
+  ctx.anchor=contract.anchor;
+  ctx.links=(contract.links||[]).map(l=>{ const [ff,fc]=String(l.from).split('.'); const [tf,tc]=String(l.to).split('.'); return {fromFile:ff,fromCol:fc,toFile:tf,toCol:tc}; });
+  ctx.idx=(file,col)=>{
+    const k=file+'|'+col; if(ctx.idxCache[k]) return ctx.idxCache[k];
+    const m=new Map(); const d=ds[file];
+    if(d && d.header.includes(col)) for(const r of d.rows){ const v=t(r,col); if(v){ if(!m.has(v)) m.set(v,[]); m.get(v).push(r); } }
+    return ctx.idxCache[k]=m;
+  };
+  ctx.keyOf=(file,row)=>{ const k=contract.files[file] && contract.files[file].key; return k && row ? t(row,k) : ''; };
+  ctx.add=f=>{ f.id=ctx.findings.length+1; ctx.findings.push(f); return f; };
+
+  // run time
+  const freshFiles=(contract.freshnessFiles||[]).filter(r=>ds[r]);
+  let autoRT=null;
+  for(const r of freshFiles){ if(!ds[r].header.includes('extract_generated_at')) continue; for(const row of ds[r].rows){ const v=parseTs(t(row,'extract_generated_at')); if(v!==null && (autoRT===null||v>autoRT)) autoRT=v; } }
+  let runTime=autoRT, runTimeSource='latest extract time in the files';
+  if(state.runTimeText.trim()){
+    const v=parseTs(state.runTimeText.trim());
+    if(v!==null){ runTime=v; runTimeSource='entered by you'; } else notes.push(`Run time "${state.runTimeText}" is not a valid ISO timestamp such as 2026-09-18T10:00:00Z; using the latest extract time instead.`);
+  }
+  ctx.runTime=runTime;
+
+  // fingerprint
+  const fpText=Object.entries(ds).sort(([a],[b])=>a<b?-1:1).map(([k,d])=>k+'='+d.hash).join('\n')+'\nrules='+(rulesDs?rulesDs.hash:'none');
+  const fingerprint=await sha256(fpText);
+  ctx.fingerprint=fingerprint;
+  const runId='run-'+shortHash(fingerprint).slice(0,8);
+
+  // rules
+  const rules=[];
+  if(rulesDs){
+    for(const row of rulesDs.rows){
+      const get=c=>t(row,c);
+      rules.push({ n:row.n, id:get('rule_id'), applies:get('applies_to_file'), field:get('field_name'), type:get('rule_type'),
+        condition:get('condition'), route:get('failure_route').toUpperCase(), reason:get('reason'), enabledRaw:get('enabled'),
+        enabled:!/^(false|0|no|n)$/i.test(get('enabled')), paramsRaw:get('params') });
+    }
+  }
+  ctx.rules=rules;
+  const ruleReports=[];
+  if(rulesDs){
+    for(const rule of rules) ruleReports.push(applyRule(ctx,rule));
+  }
+
+  // bundles
+  buildBundles(ctx);
+  for(const f of ctx.findings) attach(ctx,f);
+  for(const b of ctx.bundles) b.coreRoute=best(b.findings.filter(f=>f.kind==='core').map(f=>f.route))||'PASS';
+
+  // extension checks
+  const xrInfo=runExtensions(ctx,ruleReports);
+  for(const f of ctx.findings) if(f.kind==='ext') attach(ctx,f);
+
+  const result=finalize(ctx,{ruleReports,xrInfo,runId,runTime,runTimeSource,autoRT,rulesFile,sources});
+  state.result=result;
+  state.runTimeHint = runTime===null ? 'No run time could be worked out. Freshness checks are skipped.' : `Using ${fmtTs(runTime)} (${runTimeSource}).`;
+  if(!state.rawFile || !ds[state.rawFile]) state.rawFile=Object.keys(ds)[0]||null;
+  render();
+}
+
+/* ---- rule engine ---- */
+function datasetOf(applies){ const m=/([A-Za-z0-9_]+)\.csv/.exec(applies||''); return m?m[1]:null; }
+function splitValues(s){
+  return String(s||'').split(/,|\bor\b/i).map(x=>x.trim().replace(/^["'`]|["'`]$/g,'')).filter(Boolean);
+}
+function effectiveParams(ctx,rule){
+  const c=ctx.contract; const P={};
+  const file=datasetOf(rule.applies);
+  switch(rule.type){
+    case 'required': Object.assign(P,{file,field:rule.field}); break;
+    case 'unique': Object.assign(P,{file,field:rule.field,both:true}); break;
+    case 'conditional_required': {
+      const m=/\bwhen\s+(\w+)\s+is\s+(.+)$/i.exec(rule.condition||'');
+      Object.assign(P,{file,field:rule.field,when_field:m?m[1]:null,values:m?splitValues(m[2]):[]}); break; }
+    case 'allowed_values': {
+      const m=/\bis\b\s+(.+)$/i.exec(rule.condition||'');
+      Object.assign(P,{file,field:rule.field,values:m?splitValues(m[1]):[]}); break; }
+    case 'date_format': Object.assign(P,{file,field:rule.field,format:'YYYY-MM-DD',block_bundle:/\bblock/i.test(rule.condition||'')}); break;
+    case 'cross_source_match': Object.assign(P,{left:c.crossSource.left,right:c.crossSource.right}); break;
+    case 'schema': Object.assign(P,{files:Object.keys(c.files)}); break;
+    case 'freshness': { const m=/(\d+)\s*hours?/i.exec(rule.condition||''); Object.assign(P,{files:c.freshnessFiles,field:'extract_generated_at',hours:m?+m[1]:24}); break; }
+    case 'idempotency': break;
+  }
+  if(rule.paramsRaw){
+    try{ Object.assign(P,JSON.parse(rule.paramsRaw)); }
+    catch(e){ P._paramsError='params column is not valid JSON; using values worked out from the rule text'; }
+  }
+  return P;
+}
+function mk(ctx,rule,file,row,field,value,detail,extra){
+  return Object.assign({ rule_id:rule.id, ruleType:rule.type, kind:'core', file, row:row?row.n:null, line:row?row.line:null,
+    key:row?ctx.keyOf(file,row):'', field, value:value??'', route:rule.route, reason:rule.reason, detail:detail||'' }, extra||{});
+}
+function needCol(ctx,P){
+  if(!P.file) return {skip:'could not tell which file this rule applies to; add a params column with "file"'};
+  const d=ctx.ds[P.file]; if(!d) return {skip:`file "${P.file}" was not supplied`};
+  if(!d.header.includes(P.field)) return {skip:`column "${P.field}" is missing from ${P.file}`};
+  return null;
+}
+const HANDLERS = {
+  required(ctx,rule,P){
+    const s=needCol(ctx,P); if(s) return s;
+    for(const r of ctx.ds[P.file].rows) if(t(r,P.field)==='') ctx.add(mk(ctx,rule,P.file,r,P.field,'','value is empty or missing'));
+  },
+  unique(ctx,rule,P){
+    const s=needCol(ctx,P); if(s) return s;
+    const m=new Map();
+    for(const r of ctx.ds[P.file].rows){ const v=t(r,P.field); if(v){ if(!m.has(v)) m.set(v,[]); m.get(v).push(r); } }
+    for(const [v,rows] of m) if(rows.length>1) for(const r of rows) ctx.add(mk(ctx,rule,P.file,r,P.field,v,`appears ${rows.length} times (lines ${rows.map(x=>x.line).join(', ')}); every copy fails`));
+  },
+  conditional_required(ctx,rule,P){
+    const s=needCol(ctx,P); if(s) return s;
+    if(!P.when_field||!P.values.length) return {skip:'could not read the condition; add a params column with when_field and values'};
+    if(!ctx.ds[P.file].header.includes(P.when_field)) return {skip:`column "${P.when_field}" is missing from ${P.file}`};
+    const vals=P.values.map(v=>v.toUpperCase());
+    for(const r of ctx.ds[P.file].rows){
+      const w=t(r,P.when_field);
+      if(vals.includes(w.toUpperCase()) && t(r,P.field)==='') ctx.add(mk(ctx,rule,P.file,r,P.field,'',`${P.field} is required when ${P.when_field} is ${w}`));
+    }
+  },
+  allowed_values(ctx,rule,P){
+    const s=needCol(ctx,P); if(s) return s;
+    if(!P.values.length) return {skip:'could not read the allowed values; add a params column with values'};
+    for(const r of ctx.ds[P.file].rows){
+      const v=t(r,P.field);
+      if(!P.values.includes(v)) ctx.add(mk(ctx,rule,P.file,r,P.field,v,v===''?'value is empty':`"${v}" is not one of ${P.values.join(', ')}`));
+    }
+  },
+  date_format(ctx,rule,P){
+    const s=needCol(ctx,P); if(s) return s;
+    for(const r of ctx.ds[P.file].rows){
+      const v=t(r,P.field);
+      if(v!=='' && !validDate(v)) ctx.add(mk(ctx,rule,P.file,r,P.field,v,'not a valid calendar date in YYYY-MM-DD form',{blocks:!!P.block_bundle}));
+    }
+  },
+  cross_source_match(ctx,rule,P){
+    const L=P.left,R=P.right;
+    if(!L||!R) return {skip:'the contract has no crossSource mapping'};
+    for(const x of [L,R]){
+      if(!ctx.ds[x.file]) return {skip:`file "${x.file}" was not supplied`};
+      if(!ctx.ds[x.file].header.includes(x.field)) return {skip:`column "${x.field}" is missing from ${x.file}`};
+    }
+    const anchor=ctx.ds[ctx.anchor]; if(!anchor) return {skip:`anchor file "${ctx.anchor}" was not supplied`};
+    let skippedInvalid=0, compared=0;
+    for(const a of anchor.rows){
+      const lr=linkedRows(ctx,a,L.file)[0], rr=linkedRows(ctx,a,R.file)[0];
+      if(!lr||!rr) continue;
+      const lv=t(lr,L.field), rv=t(rr,R.field);
+      if(lv===''||rv==='') continue;
+      if(!validDate(lv)||!validDate(rv)){ skippedInvalid++; continue; }
+      compared++;
+      if(lv!==rv) ctx.add(mk(ctx,rule,ctx.anchor,a,L.field,`${L.file}: ${lv} | ${R.file}: ${rv}`,`${L.file}.${L.field} and ${R.file}.${R.field} disagree`));
+    }
+    return {note:`${compared} compared${skippedInvalid?`, ${skippedInvalid} not compared because a date was not valid`:''}`};
+  },
+  schema(ctx,rule,P){
+    for(const role of P.files){
+      const spec=ctx.contract.files[role]; if(!spec) continue;
+      const d=ctx.ds[role];
+      if(!d){ ctx.add(mk(ctx,rule,role,null,'(file)','','required file was not supplied',{loadLevel:true})); continue; }
+      for(const col of spec.required) if(!d.header.includes(col)) ctx.add(mk(ctx,rule,role,null,col,'','required column is missing',{loadLevel:true}));
+    }
+  },
+  freshness(ctx,rule,P){
+    if(ctx.runTime===null) return {skip:'no run time available'};
+    let any=false;
+    for(const role of P.files){
+      const d=ctx.ds[role]; if(!d||!d.header.includes(P.field)) continue; any=true;
+      const seen=new Map();
+      for(const r of d.rows){ const v=t(r,P.field); if(!seen.has(v)) seen.set(v,r); }
+      for(const [v,r] of seen){
+        const ts=parseTs(v);
+        if(ts===null){ ctx.add(mk(ctx,rule,role,r,P.field,v,'extract time is missing or not a valid timestamp',{loadLevel:true})); continue; }
+        const age=(ctx.runTime-ts)/3600000;
+        if(age>P.hours) ctx.add(mk(ctx,rule,role,r,P.field,v,`${age.toFixed(1)} hours before the run time (limit ${P.hours})`,{loadLevel:true,ageHours:age}));
+      }
+    }
+    if(!any) return {skip:'none of the files has an extract_generated_at column'};
+  },
+  idempotency(ctx,rule){
+    const prev=ledger.get().find(e=>e.fingerprint===ctx.fingerprint);
+    if(prev) ctx.add(mk(ctx,rule,'(load)',null,'content hash',shortHash(ctx.fingerprint),`the same files and rules were already published at ${prev.at} (${prev.runId})`,{loadLevel:true}));
+  }
+};
+function applyRule(ctx,rule){
+  const rep={rule,params:null,status:'ran',note:'',fails:0};
+  if(!rule.enabled){ rep.status='disabled'; return rep; }
+  if(!RULE_TYPES.includes(rule.type)){ rep.status='invalid'; rep.note=`unknown rule type "${rule.type}"`; return rep; }
+  if(!VALID_ROUTES.includes(rule.route)){ rep.status='invalid'; rep.note=`unknown route "${rule.route}"`; return rep; }
+  const P=effectiveParams(ctx,rule); rep.params=P;
+  const before=ctx.findings.length;
+  const out=HANDLERS[rule.type](ctx,rule,P)||{};
+  if(out.skip){ rep.status='skipped'; rep.note=out.skip; }
+  if(out.note) rep.note=out.note;
+  if(P._paramsError) rep.note=(rep.note?rep.note+'; ':'')+P._paramsError;
+  rep.fails=ctx.findings.length-before;
+  return rep;
+}
+
+/* ---- bundles ---- */
+function linkedRows(ctx,arow,file){
+  const a=ctx.anchor, out=[];
+  for(const l of ctx.links){
+    if(l.fromFile===a && l.toFile===file){ const v=t(arow,l.fromCol); if(v) out.push(...(ctx.idx(file,l.toCol).get(v)||[])); }
+    else if(l.toFile===a && l.fromFile===file){ const v=t(arow,l.toCol); if(v) out.push(...(ctx.idx(file,l.fromCol).get(v)||[])); }
+  }
+  return [...new Set(out)];
+}
+function buildBundles(ctx){
+  const a=ctx.ds[ctx.anchor]; if(!a) return;
+  const keyCol=ctx.contract.files[ctx.anchor].key;
+  for(const row of a.rows){
+    const b={ n:row.n, line:row.line, row, caseId:t(row,keyCol), linked:{}, findings:[], route:'PASS', coreRoute:'PASS', reasons:[] };
+    for(const file of Object.keys(ctx.contract.files)){
+      if(file===ctx.anchor||!ctx.ds[file]) continue;
+      b.linked[file]=linkedRows(ctx,row,file);
+      for(const lr of b.linked[file]){ const k=file+':'+lr.n; if(!ctx.rowBundles.has(k)) ctx.rowBundles.set(k,[]); ctx.rowBundles.get(k).push(b); }
+    }
+    ctx.bundles.push(b);
+  }
+}
+function attach(ctx,f){
+  if(!f.row) return;
+  if(f.file===ctx.anchor){ const b=ctx.bundles[f.row-1]; if(b && !b.findings.includes(f)) b.findings.push(f); return; }
+  if(f.blocks || (f.kind==='ext' && f.attach!==false)){
+    for(const b of (ctx.rowBundles.get(f.file+':'+f.row)||[])) if(!b.findings.includes(f)) b.findings.push(f);
+  }
+}
+
+/* ---- extensions ---- */
+function runExtensions(ctx,ruleReports){
+  const info={}; XR.forEach(x=>info[x.id]={count:0,note:''});
+  const meta=Object.fromEntries(XR.map(x=>[x.id,x]));
+  const ex=(id,file,row,field,value,detail,extra)=>{
+    const f=ctx.add(Object.assign({ rule_id:id, ruleType:'extension', kind:'ext', file, row:row?row.n:null, line:row?row.line:null,
+      key:row?ctx.keyOf(file,row):'', field, value:value??'', route:meta[id].route, reason:meta[id].title, detail:detail||'' }, extra||{}));
+    info[id].count++; return f;
+  };
+  const c=ctx.contract, ds=ctx.ds, anchor=ctx.anchor;
+
+  // XR-01 orphans
+  for(const o of scanOrphans(ctx)) ex('XR-01',o.file,o.row,o.field,o.value,`no matching ${o.toFile}.${o.toCol}`);
+
+  // XR-02 duplicate keys in other files
+  for(const role of Object.keys(c.files)){
+    if(role===anchor||!ds[role]) continue;
+    const kc=c.files[role].key; if(!ds[role].header.includes(kc)) continue;
+    const m=new Map();
+    for(const r of ds[role].rows){ const v=t(r,kc); if(v){ if(!m.has(v)) m.set(v,[]); m.get(v).push(r); } }
+    for(const [v,rows] of m) if(rows.length>1) for(const r of rows) ex('XR-02',role,r,kc,v,`key appears ${rows.length} times in ${role}`);
+  }
+
+  // XR-03 fan-out guard on surviving rows
+  const surv=ctx.bundles.filter(b=>b.coreRoute!=='REJECT' && b.coreRoute!=='PAUSE_LOAD');
+  for(const role of (c.oneToOne||[])){
+    if(!ds[role]) continue;
+    for(const l of ctx.links){
+      if(l.fromFile===role && l.toFile===anchor){
+        const cnt=new Map(); for(const b of surv){ const v=t(b.row,l.toCol); if(v) cnt.set(v,(cnt.get(v)||0)+1); }
+        for(const r of ds[role].rows){ const v=t(r,l.fromCol); if(v && (cnt.get(v)||0)>1) ex('XR-03',role,r,l.fromCol,v,`would join to ${cnt.get(v)} surviving ${anchor} rows (expected one)`,{loadLevel:true}); }
+      }
+    }
+  }
+
+  // XR-04 type vs issue
+  const tm=c.typeMap;
+  if(tm && ds[anchor] && ds.issue_records && ds[anchor].header.includes(tm.caseField) && ds.issue_records.header.includes(tm.issueField)){
+    for(const b of ctx.bundles){
+      const ct=t(b.row,tm.caseField), allowed=tm.allowed[ct]; if(!allowed) continue;
+      for(const ir of (b.linked.issue_records||[])){
+        const it=t(ir,tm.issueField);
+        if(it && !allowed.includes(it)) ex('XR-04',anchor,b.row,tm.caseField,`${ct} / ${it}`,`issue type ${it} does not fit case type ${ct}`);
+      }
+    }
+  } else info['XR-04'].note='needs support_cases + issue_records and a typeMap in the contract';
+
+  // XR-05 status vs reviews
+  const sc=c.statusCheck;
+  if(sc && ds[anchor] && ds[anchor].header.includes(sc.field) && ds.human_reviews){
+    for(const b of ctx.bundles){
+      const s=t(b.row,sc.field), has=(b.linked.human_reviews||[]).length>0;
+      if(sc.decided.includes(s) && !has) ex('XR-05',anchor,b.row,sc.field,s,`status says ${s} but there is no review record`);
+      if(sc.pending.includes(s) && has) ex('XR-05',anchor,b.row,sc.field,s,`a review record exists but status is still ${s}`);
+    }
+  } else info['XR-05'].note='needs support_cases, human_reviews and a statusCheck in the contract';
+
+  // XR-06 time logic
+  const hrs=ds.human_reviews;
+  if(hrs && hrs.header.includes('reviewed_at')){
+    const anchorRows=ds[anchor]?ds[anchor].rows:[];
+    for(const r of hrs.rows){
+      const rv=parseTs(t(r,'reviewed_at')), ex_=parseTs(t(r,'extract_generated_at'));
+      if(rv!==null && ex_!==null && rv>ex_) ex('XR-06','human_reviews',r,'reviewed_at',t(r,'reviewed_at'),`reviewed after the extract was generated (${t(r,'extract_generated_at')})`);
+      const cid=t(r,'case_id');
+      if(rv!==null && cid && ds[anchor]){
+        const times=anchorRows.filter(a=>t(a,c.files[anchor].key)===cid).map(a=>parseTs(t(a,'received_at'))).filter(x=>x!==null);
+        if(times.length && rv<Math.min(...times)) ex('XR-06','human_reviews',r,'reviewed_at',t(r,'reviewed_at'),`reviewed before the case was received (${fmtTs(Math.min(...times))}); the review may be about an older case`);
+      }
+    }
+  }
+  if(ds.orders && ds.orders.header.includes('order_date') && ds.orders.header.includes('delivery_date')){
+    for(const r of ds.orders.rows){
+      const o=t(r,'order_date'), d=t(r,'delivery_date');
+      if(validDate(o)&&validDate(d)&&d<o) ex('XR-06','orders',r,'delivery_date',d,`delivery date is before the order date (${o})`);
+    }
+  }
+  if(ctx.runTime!==null){
+    for(const role of Object.keys(ds)) for(const col of (c.timeColumns||[])){
+      if(!ds[role].header.includes(col)) continue;
+      for(const r of ds[role].rows){ const v=parseTs(t(r,col)); if(v!==null && v>ctx.runTime) ex('XR-06',role,r,col,t(r,col),'timestamp is later than the run time'); }
+    }
+  }
+
+  // XR-07 review freshness
+  if(hrs && ctx.runTime!==null && hrs.header.includes('reviewed_at')){
+    const lim=c.reviewFreshnessHours||24;
+    for(const r of hrs.rows){ const v=parseTs(t(r,'reviewed_at')); if(v!==null){ const age=(ctx.runTime-v)/3600000; if(age>lim) ex('XR-07','human_reviews',r,'reviewed_at',t(r,'reviewed_at'),`${age.toFixed(1)} hours old; do not reuse it as a current decision (limit ${lim})`); } }
+  }
+
+  // XR-08 hygiene
+  let wsCount=0, wsExtra=0;
+  for(const role of Object.keys(ds)){
+    const d=ds[role];
+    const seenH=new Set();
+    d.rawHeader.forEach((h,i)=>{
+      if(h!==h.trim()) ex('XR-08',role,null,h.trim()||`(column ${i+1})`,h,'header has leading or trailing spaces',{loadLevel:true});
+      if(h.trim()==='') ex('XR-08',role,null,`(column ${i+1})`,'','header cell is empty',{loadLevel:true});
+      else if(seenH.has(h.trim())) ex('XR-08',role,null,h.trim(),h,'duplicate header name',{loadLevel:true});
+      seenH.add(h.trim());
+    });
+    const spec=c.files[role];
+    if(spec){
+      const extra=d.header.filter(h=>h && !spec.required.includes(h));
+      if(extra.length) ex('XR-08',role,null,extra.join(', '),'','columns not in the data contract (header drift)',{loadLevel:true});
+    }
+    for(const r of d.rows){
+      if(r.cells!==d.rawHeader.length) ex('XR-08',role,r,'(row)',`${r.cells} cells`,`row has ${r.cells} cells but the header has ${d.rawHeader.length}`);
+      for(const h of d.header){
+        const raw=r.v[h]; if(raw!==undefined && raw!==raw.trim()){ if(wsCount<100){ wsCount++; ex('XR-08',role,r,h,raw,'value has leading or trailing spaces'); } else wsExtra++; }
+      }
+    }
+    if(d.header.includes('extract_generated_at')){
+      const vals=new Set(d.rows.map(r=>t(r,'extract_generated_at')));
+      if(vals.size>1) ex('XR-08',role,null,'extract_generated_at',[...vals].join(' | '),'more than one extract time inside one file',{loadLevel:true});
+    }
+  }
+  if(wsExtra) info['XR-08'].note=`${wsExtra} more spacing issues not listed`;
+
+  // XR-09 volume drift
+  const prev=ledger.get().slice(-1)[0];
+  if(prev){
+    for(const [role,d] of Object.entries(ds)){
+      const old=prev.files&&prev.files[role]&&prev.files[role].rows;
+      if(old>0){ const pct=Math.abs(d.rows.length-old)/old*100; if(pct>(c.volumeDriftPct||50)) ex('XR-09',role,null,'(row count)',`${old} -> ${d.rows.length}`,`row count changed by ${pct.toFixed(0)}% since the last published load`,{loadLevel:true}); }
+    }
+  } else info['XR-09'].note='no earlier published load to compare with';
+
+  // XR-10 PII
+  for(const [role,cols] of Object.entries(c.textColumns||{})){
+    const d=ds[role]; if(!d) continue;
+    for(const col of cols){
+      if(!d.header.includes(col)) continue;
+      for(const r of d.rows){
+        const s=t(r,col); const hits=[];
+        if(/[\w.+-]+@[\w-]+\.[\w.-]+/.test(s)) hits.push('email address');
+        for(const m of s.matchAll(/\+?\d[\d\s().-]{7,}\d/g)){ const n=m[0].replace(/\D/g,'').length; if(n>=13&&n<=19) hits.push('card-like number'); else if(n>=10&&n<=12) hits.push('phone-like number'); }
+        if(hits.length) ex('XR-10',role,r,col,`[redacted: ${[...new Set(hits)].join(', ')}]`,'free text may contain personal data');
+      }
+    }
+  }
+
+  // XR-11 rules self-check
+  if(ctx.rulesDs){
+    const miss=RULE_COLS.filter(h=>!ctx.rulesDs.header.includes(h));
+    for(const h of miss) ex('XR-11','validation_rules',null,h,'','rules file is missing a required column',{loadLevel:true});
+    const ids=new Map();
+    for(const rl of ctx.rules){
+      const row=ctx.rulesDs.rows[rl.n-1];
+      if(!rl.id) ex('XR-11','validation_rules',row,'rule_id','','rule has no id',{loadLevel:true});
+      else ids.set(rl.id,(ids.get(rl.id)||0)+1);
+      if(!RULE_TYPES.includes(rl.type)) ex('XR-11','validation_rules',row,'rule_type',rl.type,'unknown rule type; the rule was not applied',{loadLevel:true});
+      if(!VALID_ROUTES.includes(rl.route)) ex('XR-11','validation_rules',row,'failure_route',rl.route,'unknown route; the rule was not applied',{loadLevel:true});
+      if(!/^(true|false)$/i.test(rl.enabledRaw)) ex('XR-11','validation_rules',row,'enabled',rl.enabledRaw,'enabled should be true or false (treated as '+(rl.enabled?'true':'false')+')',{loadLevel:true});
+      if(rl.paramsRaw){ try{ JSON.parse(rl.paramsRaw); }catch(e){ ex('XR-11','validation_rules',row,'params',rl.paramsRaw,'params is not valid JSON',{loadLevel:true}); } }
+    }
+    for(const [id,n] of ids) if(n>1) ex('XR-11','validation_rules',null,'rule_id',id,`rule id used ${n} times`,{loadLevel:true});
+  }
+
+  // XR-12 coverage
+  const covered=new Set(), uncovered=[];
+  for(const rep of ruleReports){ if(rep.rule.enabled){ const f=datasetOf(rep.rule.applies); covered.add((f||'*')+'.'+rep.rule.field); if(rep.rule.type==='freshness') covered.add('*.extract_generated_at'); } }
+  for(const [role,spec] of Object.entries(c.files)){
+    if(!ds[role]) continue;
+    for(const col of spec.required) if(!covered.has(role+'.'+col) && !covered.has('*.'+col)) uncovered.push(`${role}.${col}`);
+  }
+  info['XR-12'].count=uncovered.length; info['XR-12'].list=uncovered;
+  return info;
+}
+function scanOrphans(ctx){
+  const out=[];
+  for(const l of ctx.links){
+    const a=ctx.ds[l.fromFile], b=ctx.ds[l.toFile];
+    if(!a||!b||!a.header.includes(l.fromCol)||!b.header.includes(l.toCol)) continue;
+    const idx=ctx.idx(l.toFile,l.toCol);
+    for(const r of a.rows){ const v=t(r,l.fromCol); if(v && !idx.has(v)) out.push({file:l.fromFile,row:r,field:l.fromCol,value:v,toFile:l.toFile,toCol:l.toCol}); }
+  }
+  return out;
+}
+
+/* ---- finalize ---- */
+function finalize(ctx,o){
+  const on=f=>f.kind==='core' || state.xrOn[f.rule_id];
+  const eff=ctx.findings.filter(on);
+  for(const b of ctx.bundles){
+    const fs=b.findings.filter(on);
+    b.route=best(fs.map(f=>f.route))||'PASS';
+    b.effective=fs;
+  }
+  const rowRoute=new Map();
+  for(const f of eff){ if(f.row){ const k=f.file+':'+f.row; const cur=rowRoute.get(k); if(!cur||RANK[f.route]<RANK[cur]) rowRoute.set(k,f.route); } }
+  for(const b of ctx.bundles){ const k=ctx.anchor+':'+b.n; if(!rowRoute.has(k)||RANK[b.route]<RANK[rowRoute.get(k)]) rowRoute.set(k,b.route); }
+  const paused=eff.some(f=>f.route==='PAUSE_LOAD');
+  const counts=Object.fromEntries(ROUTES.map(r=>[r,0])); ctx.bundles.forEach(b=>counts[b.route]++);
+  const publishable=ctx.bundles.filter(b=>b.route==='PASS'||b.route==='LOAD_WARNING');
+  const trusted={};
+  if(!paused){
+    for(const role of Object.keys(ctx.ds)){
+      const d=ctx.ds[role]; let rows=[];
+      if(role===ctx.anchor) rows=publishable.map(b=>b.row);
+      else { const s=new Set(); for(const b of publishable) for(const r of (b.linked[role]||[])) s.add(r); rows=[...s]; }
+      rows=rows.filter(r=>{ const rr=rowRoute.get(role+':'+r.n); return !rr || rr==='LOAD_WARNING'; });
+      trusted[role]={header:d.header,rows};
+    }
+  }
+  const byRoute=r=>eff.filter(f=>f.route===r).length;
+  const limitations=[];
+  if(paused) limitations.push('The load is paused, so nothing is published and the answers below describe decisions only.');
+  const stale=eff.filter(f=>f.ruleType==='freshness').map(f=>f.file);
+  if([...new Set(stale)].length) limitations.push(`Stale source${stale.length>1?'s':''}: ${[...new Set(stale)].join(', ')}. Claims about current state are not supported from them.`);
+  if(counts.REJECT||counts.HUMAN_REVIEW) limitations.push('Rejected and human-review rows are not in the trusted tables.');
+  const dupAnchor=eff.filter(f=>f.ruleType==='unique'&&f.file===ctx.anchor).length;
+  if(dupAnchor) limitations.push('Duplicate case ids are counted once per occurrence (row), not once per case.');
+  const skippedRules=o.ruleReports.filter(r=>r.status==='skipped'||r.status==='invalid');
+  if(skippedRules.length) limitations.push(`${plural(skippedRules.length,'rule')} could not be applied: ${skippedRules.map(r=>r.rule.id).join(', ')}.`);
+  const res=Object.assign({ctx,eff,counts,paused,publishable,trusted,rowRoute,limitations,fingerprint:ctx.fingerprint,
+    findingsByRoute:Object.fromEntries(ROUTES.map(r=>[r,byRoute(r)]))},o);
+  res.stage=stageStatus(res);
+  res.cards=makeCards(res);
+  return res;
+}
+function stageStatus(R){
+  const ctx=R.ctx, c=ctx.contract;
+  const S={};
+  const missingFiles=Object.keys(c.files).filter(r=>!ctx.ds[r]);
+  S.files = !ctx.rulesDs ? 'fail' : (missingFiles.length ? 'warn' : 'ok');
+  const schemaFail=R.eff.some(f=>f.ruleType==='schema');
+  const extras=ctx.findings.some(f=>f.rule_id==='XR-08'&&/header drift/.test(f.detail));
+  S.contract = (schemaFail||missingFiles.length) ? 'fail' : (extras ? 'warn' : 'ok');
+  S.raw = Object.keys(ctx.ds).length ? 'ok' : 'fail';
+  const w=best(R.eff.map(f=>f.route));
+  S.validation = !ctx.rulesDs ? 'pending' : (!w ? 'ok' : (w==='PAUSE_LOAD'||w==='REJECT') ? 'fail' : 'warn');
+  S.exceptions = !ctx.bundles.length ? 'pending' : (R.counts.REJECT||R.counts.PAUSE_LOAD ? 'fail' : (R.counts.HUMAN_REVIEW||R.counts.LOAD_WARNING ? 'warn' : 'ok'));
+  const pubRows=Object.values(R.trusted).reduce((n,t_)=>n+t_.rows.length,0);
+  S.trusted = R.paused ? 'fail' : (pubRows? 'ok':'warn');
+  S.report = R.paused ? 'fail' : (R.eff.length ? 'warn' : 'ok');
+  return S;
+}
+
+/* ---- SQL question cards ---- */
+function makeCards(R){
+  const ctx=R.ctx, cards=[];
+  const isStale=file=>R.eff.some(f=>f.ruleType==='freshness'&&f.file===file);
+  const anchor=ctx.anchor;
+  // 1
+  const c1=Object.fromEntries(ROUTES.map(r=>[r,0])); ctx.bundles.forEach(b=>c1[b.route]++);
+  cards.push({ question:`Among the ${anchor} occurrences in this load, how many ended on each final route?`,
+    grain:`One row per ${anchor} occurrence. A duplicated key counts once for every copy.`,
+    evidence:[{table:'bundle decisions (one row per occurrence)',field:'route',why:'The final route is the thing being counted.'},{table:anchor,field:'row number',why:'Identifies each occurrence even when the key is missing or duplicated.'}],
+    limits:R.limitations, status:'supported', check:'Count the PASS rows in the raw file by hand and compare.',
+    answer:{cols:['route','occurrences'],rows:ROUTES.filter(r=>c1[r]).map(r=>[r,c1[r]])} });
+  // 2
+  if(ctx.ds.issue_records){
+    const m=new Map();
+    for(const b of ctx.bundles){
+      if(b.route!=='HUMAN_REVIEW') continue;
+      const it=(b.linked.issue_records||[])[0]; const issue=it?t(it,'issue_type')||'(blank)':'(no issue record)';
+      for(const rid of new Set(b.effective.filter(f=>f.route==='HUMAN_REVIEW').map(f=>f.rule_id))){ const k=issue+'|'+rid; m.set(k,(m.get(k)||0)+1); }
+    }
+    cards.push({ question:`Among the ${anchor} occurrences in this load, which issue types were routed to human review, grouped by issue_type and rule_id?`,
+      grain:`One row per ${anchor} occurrence; each occurrence counted once per rule that sent it to review.`,
+      evidence:[{table:'validation results / record routes',field:'case key, route, rule_id',why:'Select the occurrences routed to human review and say why.'},{table:'issue_records',field:'case_id, issue_type',why:'Connect each routed case to its issue category.'},{table:'load report',field:'load limits and warnings',why:'Keep the conclusion inside what this load supports.'}],
+      limits:R.limitations, status:'supported', check:'Pick one routed case in the raw files and follow it through each table.',
+      answer:{cols:['issue_type','rule_id','human_review_occurrences'],rows:[...m].map(([k,v])=>[...k.split('|'),v])} });
+  } else cards.push({ question:'Which issue types were routed to human review?', status:'unsupported', reason:'issue_records was not supplied.', evidence:[], limits:[], grain:'', check:'' });
+  // 3
+  if(!ctx.ds.human_reviews) cards.push({ question:'What did human reviewers decide in this load?', status:'unsupported', reason:'human_reviews was not supplied.', evidence:[], limits:[], grain:'', check:'' });
+  else if(isStale('human_reviews')) cards.push({ question:'What did human reviewers decide today?', status:'unsupported', reason:'human_reviews is stale in this load (see the freshness finding), so no current claim about reviewer decisions can be made. Ask the customer for a fresh extract.', evidence:[{table:'human_reviews',field:'decision, reviewed_at, extract_generated_at',why:'Would answer the question if the extract were current.'}], limits:R.limitations, grain:'', check:'' });
+  else { const m=new Map(); for(const r of ctx.ds.human_reviews.rows){ const d=t(r,'decision'); m.set(d,(m.get(d)||0)+1); }
+    cards.push({ question:'What did human reviewers decide, by decision?', grain:'One row per review record.', evidence:[{table:'human_reviews',field:'decision',why:'The value being counted.'}], limits:R.limitations, status:'supported', check:'Count one decision by hand.', answer:{cols:['decision','reviews'],rows:[...m]} }); }
+  // 4
+  const rej=ctx.bundles.filter(b=>b.route==='REJECT'); const keys=new Set(rej.map(b=>b.caseId).filter(Boolean)); const blank=rej.filter(b=>!b.caseId).length;
+  cards.push({ question:'How many distinct cases were rejected, compared with rejected occurrences?', grain:'Occurrence = one row. Distinct case = one non-blank key.', evidence:[{table:'bundle decisions',field:'route, case key',why:'Count rows and distinct keys.'}], limits:R.limitations, status:'supported', check:'List the rejected keys and remove repeats by hand.',
+    answer:{cols:['measure','value'],rows:[['rejected occurrences',rej.length],['distinct non-blank case keys',keys.size],['rows with a blank key',blank]]} });
+  // 5
+  const blockers=new Map();
+  for(const f of R.eff){ if(f.blocks){ const k=f.file+'|'+f.key+'|'+f.rule_id; const n=(ctx.rowBundles.get(f.file+':'+f.row)||[]).length; blockers.set(k,n); } }
+  cards.push({ question:'Which source records block case bundles, and how many bundles does each block?', grain:'One row per blocking record.', evidence:[{table:'validation results',field:'rule_id, blocks flag',why:'Shows which failures block linked bundles.'},{table:'links between files',field:'foreign keys',why:'Counts how many bundles hang off the blocking record.'}], limits:R.limitations, status:'supported', check:'Find the blocking record and count the cases that use it.',
+    answer:{cols:['file','key','rule_id','bundles_blocked'],rows:[...blockers].map(([k,n])=>[...k.split('|'),n])} });
+  return cards;
+}
+
+/* ================= rendering ================= */
+const STATUS_TXT={ok:'✓ done',warn:'! check',fail:'✗ problem',pending:'– waiting'};
+function render(){
+  const R=state.result;
+  $('#stages').innerHTML = STAGES.map(([name,tab],i)=>{
+    let s='pending';
+    if(R){
+      if(tab==='sql') s=R.cards.some(c=>c.status==='unsupported')?'warn':'ok';
+      else s=R.stage[tab]||'pending';
+    } else if(state.files.length && tab==='raw') s='ok';
+    return `<button class="stage s-${s}" data-action="tab" data-tab="${tab}"><span class="n">Stage ${i+1}</span><span class="t">${esc(name)}</span><span class="st">${STATUS_TXT[s]}</span></button>`;
+  }).join('');
+  $('#tabs').innerHTML = TABS.map(([k,l])=>`<button class="tab" role="tab" aria-selected="${state.tab===k}" data-action="tab" data-tab="${k}">${esc(l)}</button>`).join('');
+  renderFileList();
+  $('#runTimeHint').textContent = R ? (state.runTimeHint||'') : '';
+  const fn={files:tabFiles,raw:tabRaw,contract:tabContract,validation:tabValidation,exceptions:tabExceptions,trusted:tabTrusted,report:tabReport,sql:tabSql}[state.tab];
+  $('#panel').innerHTML = (state.msg?`<div class="notice">${esc(state.msg)}</div>`:'') + fn();
+  state.msg='';
+}
+function renderFileList(){
+  const el=$('#fileList');
+  if(!state.files.length){ el.innerHTML=''; return; }
+  const contract=getContract();
+  const roles=['rules',...Object.keys(contract.files),'ignore'];
+  el.innerHTML=`<div class="tw" style="margin-top:10px"><table><thead><tr><th>File</th><th>Role</th><th>Rows</th><th></th></tr></thead><tbody>${
+    state.files.map(f=>{
+      const n=Math.max(0,parseCSV(f.text).length-1);
+      return `<tr><td class="mono">${esc(f.name)}</td><td><select data-action="role" data-name="${esc(f.name)}" aria-label="Role for ${esc(f.name)}">${roles.map(r=>`<option value="${esc(r)}"${f.role===r?' selected':''}>${esc(r)}</option>`).join('')}</select></td><td>${n}</td><td><button class="btn ghost" data-action="remove" data-name="${esc(f.name)}" aria-label="Remove ${esc(f.name)}">Remove</button></td></tr>`;
+    }).join('')}</tbody></table></div>`;
+}
+const needRun = () => `<div class="notice">Choose the rules file and the source files above, or press <b>Load sample data</b>, then run the pipeline.</div>`;
+const tbl = (cols,rows,cls='') => `<div class="tw"><table class="${cls}"><thead><tr>${cols.map(c=>`<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>${rows.join('')||`<tr><td colspan="${cols.length}" class="muted">Nothing to show.</td></tr>`}</tbody></table></div>`;
+
+function tabFiles(){
+  const R=state.result; if(!R) return needRun()+`<h3>How it works</h3><ol class="tight"><li>Load a rules file and the source files.</li><li>The pipeline checks the files, applies every enabled rule and routes each case bundle.</li><li>Trusted rows go to the publish tables; everything else is explained in Exceptions.</li><li>The Load report says whether the load is safe to publish.</li></ol>`;
+  const ctx=R.ctx;
+  const rows=[];
+  if(ctx.rulesDs) rows.push(`<tr><td class="mono">${esc(ctx.rulesDs.name)}</td><td>rules</td><td>${ctx.rulesDs.rows.length}</td><td>${ctx.rulesDs.header.length}</td><td class="mono">${esc(shortHash(ctx.rulesDs.hash))}</td><td></td></tr>`);
+  for(const [role,d] of Object.entries(ctx.ds)){
+    const times=[...new Set(d.rows.map(r=>t(r,'extract_generated_at')).filter(Boolean))];
+    rows.push(`<tr><td class="mono">${esc(d.name)}</td><td>${esc(role)}</td><td>${d.rows.length}</td><td>${d.header.length}</td><td class="mono">${esc(shortHash(d.hash))}</td><td class="mono">${esc(times.join(', '))}</td></tr>`);
+  }
+  return (ctx.rulesDs?'':`<div class="notice bad">No rules file found. Add one named like <code>validation_rules.csv</code>, or set a file's role to <b>rules</b>.</div>`)
+   + tbl(['File','Role','Rows','Columns','Fingerprint','extract_generated_at'],rows)
+   + (ctx.notes.length?`<h3>Notes</h3><ul class="tight">${ctx.notes.map(n=>`<li>${esc(n)}</li>`).join('')}</ul>`:'')
+   + `<p class="muted small">The fingerprint is a hash of the file content. The same content always gives the same fingerprint, which is how the pipeline recognises a repeat load.</p>`;
+}
+function rowBadge(R,file,n){ const r=R.rowRoute.get(file+':'+n); return r?badge(r):`<span class="badge r-PASS">PASS</span>`; }
+function tabRaw(){
+  const R=state.result; if(!R) return needRun();
+  const ctx=R.ctx, roles=Object.keys(ctx.ds); if(!roles.length) return '<p class="muted">No source files loaded.</p>';
+  const file=state.rawFile&&ctx.ds[state.rawFile]?state.rawFile:roles[0], d=ctx.ds[file];
+  const limit=500; let rows=d.rows;
+  if(state.rawOnlyIssues) rows=rows.filter(r=>R.rowRoute.has(file+':'+r.n));
+  const shown=rows.slice(0,limit);
+  return `<div class="row" style="margin-bottom:8px">${roles.map(r=>`<button class="btn ${r===file?'':'ghost'}" data-action="rawFile" data-file="${esc(r)}">${esc(r)}</button>`).join('')}
+    <label><input type="checkbox" data-action="rawOnly" ${state.rawOnlyIssues?'checked':''}> only rows with findings</label></div>
+    <p class="muted small">Raw means untouched: the values below are exactly what was in the file. Line numbers match the file (the header is line 1).</p>`
+    + tbl(['Line','Status',...d.header],shown.map(r=>`<tr class="${R.rowRoute.has(file+':'+r.n)&&R.rowRoute.get(file+':'+r.n)!=='LOAD_WARNING'?'hl':''}"><td>${r.line}</td><td>${rowBadge(R,file,r.n)}</td>${d.header.map(h=>`<td class="val">${esc(r.v[h]??'')}</td>`).join('')}</tr>`))
+    + (rows.length>limit?`<p class="muted small">Showing the first ${limit} of ${rows.length} rows.</p>`:'');
+}
+function tabContract(){
+  const R=state.result, contract=getContract();
+  let out=`<p>The data contract says which files, columns and links to expect. Edit it as JSON if your data is shaped differently, then press Apply.</p>
+   ${state.contractError?`<div class="notice bad">Contract not applied: ${esc(state.contractError)}. The default contract is in use.</div>`:''}
+   <textarea id="contractBox" spellcheck="false" aria-label="Data contract JSON">${esc(state.contractText)}</textarea>
+   <div class="row" style="margin:8px 0"><button class="btn" data-action="applyContract">Apply contract</button><button class="btn ghost" data-action="resetContract">Reset to default</button></div>`;
+  if(!R) return out+needRun();
+  const ctx=R.ctx;
+  const rows=Object.entries(contract.files).map(([role,spec])=>{
+    const d=ctx.ds[role];
+    if(!d) return `<tr><td>${esc(role)}</td><td><span class="badge r-REJECT">missing</span></td><td></td><td>${esc(spec.key)}</td><td colspan="2" class="muted">file not supplied</td></tr>`;
+    const miss=spec.required.filter(h=>!d.header.includes(h)), extra=d.header.filter(h=>h&&!spec.required.includes(h));
+    return `<tr><td>${esc(role)}</td><td><span class="badge ${miss.length?'r-REJECT':'b-ok'}">${miss.length?'columns missing':'ok'}</span></td><td>${d.rows.length}</td><td>${esc(spec.key)}${d.header.includes(spec.key)?'':' <span class="badge r-REJECT">key column missing</span>'}</td><td>${esc(miss.join(', '))||'<span class="muted">none</span>'}</td><td>${esc(extra.join(', '))||'<span class="muted">none</span>'}</td></tr>`;
+  });
+  const orphanCounts={}; for(const o of scanOrphans(ctx)){ const k=`${o.file}.${o.field} → ${o.toFile}.${o.toCol}`; orphanCounts[k]=(orphanCounts[k]||0)+1; }
+  const linkRows=(contract.links||[]).map(l=>{ const n=orphanCounts[`${l.from} → ${l.to}`]||0; return `<tr><td class="mono">${esc(l.from)} → ${esc(l.to)}</td><td>${n?`<span class="badge r-HUMAN_REVIEW">${plural(n,'orphan')}</span>`:'<span class="badge b-ok">all linked</span>'}</td></tr>`; });
+  return out+`<h3>Files</h3>`+tbl(['File','Status','Rows','Key','Missing columns','Extra columns'],rows)+`<h3>Links between files</h3>`+tbl(['Link','Check'],linkRows)
+   +`<p class="muted small">The anchor file (<code>${esc(contract.anchor)}</code>) defines a bundle: one row plus every record linked to it.</p>`;
+}
+function tabValidation(){
+  const R=state.result; if(!R) return needRun();
+  const ctx=R.ctx;
+  const stTxt={ran:['b-ok','ran'],skipped:['r-LOAD_WARNING','skipped'],disabled:['b-muted','disabled'],invalid:['r-REJECT','invalid']};
+  const ruleRows=R.ruleReports.map(rep=>{
+    const [cls,txt]=stTxt[rep.status];
+    const P=rep.params?JSON.stringify(rep.params):'';
+    return `<tr><td class="mono">${esc(rep.rule.id)}</td><td>${esc(rep.rule.type)}</td><td>${esc(rep.rule.applies)}<br><span class="muted small">${esc(rep.rule.field)}</span></td><td>${VALID_ROUTES.includes(rep.rule.route)?badge(rep.rule.route):esc(rep.rule.route)}</td><td><span class="badge ${cls}">${txt}</span>${rep.note?`<br><span class="small muted">${esc(rep.note)}</span>`:''}</td><td><b>${rep.fails}</b></td><td class="val small">${esc(P)}</td></tr>`;
+  });
+  const xrRows=XR.map(x=>{
+    const i=R.xrInfo[x.id];
+    return `<tr><td><input type="checkbox" data-action="xr" data-id="${x.id}" ${state.xrOn[x.id]?'checked':''} ${x.id==='XR-12'?'disabled':''} aria-label="Include ${x.id} in routing"></td><td class="mono">${x.id}</td><td><b>${esc(x.title)}</b><br><span class="muted small">${esc(x.what)}</span>${i.note?`<br><span class="small muted">${esc(i.note)}</span>`:''}</td><td>${x.route==='INFO'?'<span class="badge b-info">REPORT ONLY</span>':badge(x.route)}</td><td><b>${i.count}</b></td><td>${x.route==='INFO'?'':(state.xrOn[x.id]?'<span class="badge b-ok">in routing</span>':'<span class="badge b-muted">advisory</span>')}</td></tr>`;
+  });
+  const unc=R.xrInfo['XR-12'].list||[];
+  return `<h2>Rules from your rules file</h2>
+   <p class="muted">"Params" shows what the engine understood from each rule. If a rule was read wrongly, add a <code>params</code> column (JSON) to your rules file.</p>`
+   + tbl(['Rule','Type','Applies to','Route','Status','Failures','Effective params'],ruleRows)
+   + `<h2 style="margin-top:20px">Extension checks (beyond the rules file)</h2>
+   <p class="muted">These are advisory by default: findings are listed but do not change routing. Tick a check to include it in routing.</p>
+   <div class="row" style="margin-bottom:6px"><button class="btn ghost" data-action="xrAll" data-on="1">Include all</button><button class="btn ghost" data-action="xrAll" data-on="0">Advisory only</button></div>`
+   + tbl(['On','ID','Check','Route if on','Findings','Status'],xrRows)
+   + `<h3>Rule coverage (XR-12)</h3>`+(unc.length?`<p>No enabled rule looks at these required columns:</p><p class="mono">${unc.map(esc).join(', ')}</p>`:'<p class="muted">Every required column has at least one rule.</p>');
+}
+function findingRow(R,f){
+  const incl=f.kind==='core'||state.xrOn[f.rule_id];
+  const where=f.row?`line ${f.line}`:'file level';
+  return `<tr><td>${badge(f.route)}</td><td class="mono">${esc(f.rule_id)}</td><td>${esc(f.file)}</td><td>${esc(where)}</td><td class="mono">${esc(f.key)}</td><td>${esc(f.field)}</td><td class="val">${esc(f.value)}</td><td>${esc(f.detail)}${f.blocks?' <span class="badge b-info">blocks its bundles</span>':''}<br><span class="muted small">${esc(f.reason)}</span></td><td>${f.kind==='core'?'<span class="badge b-ok">rule</span>':(incl?'<span class="badge b-ok">in routing</span>':'<span class="badge b-muted">advisory</span>')}</td></tr>`;
+}
+function tabExceptions(){
+  const R=state.result; if(!R) return needRun();
+  const ctx=R.ctx;
+  const sel=state.excRoute;
+  const bundles=ctx.bundles.filter(b=>sel==='ALL'?true:sel==='EXCEPTIONS'?b.route!=='PASS':b.route===sel);
+  const brow=bundles.map(b=>{
+    const why=b.effective.slice(0,3).map(f=>`<div class="small"><span class="mono">${esc(f.rule_id)}</span> ${esc(f.detail)}${f.file!==ctx.anchor&&f.row?` <span class="muted">(${esc(f.file)} ${esc(f.key)})</span>`:''}</div>`).join('')+(b.effective.length>3?`<div class="small muted">+ ${b.effective.length-3} more</div>`:'');
+    const o=(b.linked.orders||[])[0];
+    return `<tr><td>${b.line}</td><td class="mono">${esc(b.caseId)||'<span class="muted">(blank)</span>'}</td><td class="mono">${esc(o?ctx.keyOf('orders',o):t(b.row,'order_id'))||'<span class="muted">(none)</span>'}</td><td>${badge(b.route)}</td><td>${why||'<span class="muted">no findings</span>'}</td></tr>`;
+  });
+  const fs=ctx.findings.filter(f=>state.excKind==='ALL'?true:state.excKind==='core'?f.kind==='core':f.kind==='ext').sort((a,b)=>RANK[a.route]-RANK[b.route]||a.id-b.id);
+  return `<h2>Bundle decisions</h2>
+   <p class="muted">One row per ${esc(ctx.anchor)} occurrence. The final route is the most severe route among its findings: PAUSE LOAD, then REJECT, then HUMAN REVIEW, then LOAD WARNING, then PASS.</p>
+   <div class="row" style="margin-bottom:8px"><label for="excRoute">Show</label><select id="excRoute" data-action="excRoute">${[['EXCEPTIONS','All exceptions'],['ALL','Everything'],...ROUTES.map(r=>[r,r.replace('_',' ')])].map(([v,l])=>`<option value="${v}"${sel===v?' selected':''}>${esc(l)}</option>`).join('')}</select></div>`
+   + tbl(['Line','Case','Order','Final route','Why'],brow)
+   + `<h2 style="margin-top:20px">All findings</h2><div class="row" style="margin-bottom:8px"><label for="excKind">Source</label><select id="excKind" data-action="excKind">${[['ALL','Rules and extensions'],['core','Rules file only'],['ext','Extension checks only']].map(([v,l])=>`<option value="${v}"${state.excKind===v?' selected':''}>${esc(l)}</option>`).join('')}</select>
+   <button class="btn ghost" data-action="dlExceptions">Download findings (CSV)</button></div>`
+   + tbl(['Route','Rule','File','Where','Key','Field','Value','What happened','Counts'],fs.map(f=>findingRow(R,f)));
+}
+function tabTrusted(){
+  const R=state.result; if(!R) return needRun();
+  if(R.paused) return `<div class="notice bad"><b>Nothing is published.</b> The load is paused (see the Load report). Fix the cause and run again.</div>`;
+  const ctx=R.ctx; const roles=Object.keys(R.trusted);
+  const fp=R.fingerprint, already=ledger.get().some(e=>e.fingerprint===fp)||state.publishedFp===fp;
+  return `<p>Trusted tables hold only rows that passed (or passed with a warning). In a real system these would be the publish tables.</p>
+   <div class="row" style="margin-bottom:10px"><button class="btn" data-action="publish" ${already?'disabled':''}>Publish this load</button>
+   <span class="muted small">${already?'Already recorded. Running the same files again will pause the load (idempotency).':`Records this load in this browser's ledger${ledger.persistent?'':' (memory only: browser storage is unavailable)'}.`}</span></div>`
+   + roles.map(role=>{
+     const t_=R.trusted[role];
+     return `<h3>pub_${esc(role)} <span class="badge b-info">${plural(t_.rows.length,'row')}</span> <button class="btn ghost" data-action="dlTable" data-role="${esc(role)}">Download CSV</button></h3>`
+      + tbl(['Line',...t_.header],t_.rows.slice(0,200).map(r=>`<tr><td>${r.line}</td>${t_.header.map(h=>`<td class="val">${esc(r.v[h]??'')}</td>`).join('')}</tr>`));
+   }).join('');
+}
+function decisionText(R){
+  const ctx=R.ctx; const pub=R.publishable.length, total=ctx.bundles.length;
+  if(R.paused) return {cls:'bad',title:'Load paused',text:'A rule that pauses the whole load fired. Nothing is published until the cause is fixed.'};
+  const warn=R.eff.some(f=>f.route==='LOAD_WARNING');
+  const held=R.counts.REJECT+R.counts.HUMAN_REVIEW;
+  if(!held && !warn) return {cls:'',title:'Ready to publish',text:`All ${total} bundles passed.`};
+  return {cls:warn||held?'warn':'',title:'Publish the trusted rows',text:`${pub} of ${total} bundles can be published${held?`; ${held} held back for rejection or human review`:''}${warn?'. There are warnings the customer should know about':''}.`};
+}
+function tabReport(){
+  const R=state.result; if(!R) return needRun();
+  const ctx=R.ctx, d=decisionText(R);
+  const byRule=new Map(); for(const f of R.eff){ byRule.set(f.rule_id,(byRule.get(f.rule_id)||0)+1); }
+  const ledgerRows=ledger.get().slice().reverse().map(e=>`<tr><td class="mono">${esc(e.runId)}</td><td>${esc(e.at)}</td><td>${esc(e.decision)}</td><td>${e.published}/${e.total}</td></tr>`);
+  const skipped=R.ruleReports.filter(r=>r.status==='skipped'||r.status==='invalid');
+  return `<div class="notice ${d.cls}"><b>${esc(d.title)}.</b> ${esc(d.text)}</div>
+   <div class="grid" style="margin:10px 0">${ROUTES.map(r=>`<div class="stat">${badge(r)}<b>${R.counts[r]}</b><span class="muted small">bundles</span></div>`).join('')}</div>
+   <div class="row noprint" style="margin-bottom:10px"><button class="btn" data-action="dlReport">Download report (JSON)</button><button class="btn ghost" data-action="dlExceptions">Download findings (CSV)</button><button class="btn ghost" data-action="print">Print / save as PDF</button></div>
+   <h3>Run</h3>`
+   + tbl(['Item','Value'],[
+      ['Run id',R.runId],['Run time',R.runTime===null?'(none)':fmtTs(R.runTime)+' ('+R.runTimeSource+')'],['Content fingerprint',shortHash(R.fingerprint)],
+      ['Rules file',ctx.rulesDs?`${ctx.rulesDs.name} (${shortHash(ctx.rulesDs.hash)})`:'(none)'],
+      ...Object.entries(ctx.ds).map(([r,x])=>[r,`${x.name}: ${plural(x.rows.length,'row')}, ${shortHash(x.hash)}`])
+     ].map(([a,b])=>`<tr><td>${esc(a)}</td><td class="mono">${esc(b)}</td></tr>`))
+   + `<h3>Findings by rule (counted in routing)</h3>`+tbl(['Rule','Findings'],[...byRule].map(([k,v])=>`<tr><td class="mono">${esc(k)}</td><td>${v}</td></tr>`))
+   + `<h3>What this load cannot tell you</h3>`+(R.limitations.length?`<ul class="tight">${R.limitations.map(l=>`<li>${esc(l)}</li>`).join('')}</ul>`:'<p class="muted">No known limits.</p>')
+   + (skipped.length?`<h3>Rules that were not applied</h3><ul class="tight">${skipped.map(r=>`<li><span class="mono">${esc(r.rule.id)}</span>: ${esc(r.note)}</li>`).join('')}</ul>`:'')
+   + `<h3>Published loads in this browser</h3>`+tbl(['Run','Published at','Decision','Rows'],ledgerRows)
+   + `<div class="row noprint" style="margin-top:8px"><button class="btn ghost" data-action="clearLedger">Clear ledger</button><span class="muted small">Clearing the ledger lets the same files be published again.</span></div>`;
+}
+function tabSql(){
+  const R=state.result; if(!R) return needRun();
+  return `<div class="notice">Write the question card <b>before</b> any SQL. A bounded question states its population, grain and evidence, and says what the load cannot support. Then write the SQL yourself and compare with the answer shown under each card.</div>`
+   + R.cards.map((c,i)=>{
+      if(c.status==='unsupported') return `<div class="card"><h3 style="margin-top:0">${i+1}. ${esc(c.question)} <span class="badge r-REJECT">NOT SUPPORTED</span></h3><p>${esc(c.reason)}</p>${c.evidence.length?tbl(['starting table','field','why'],c.evidence.map(e=>`<tr><td>${esc(e.table)}</td><td>${esc(e.field)}</td><td>${esc(e.why)}</td></tr>`)):''}</div>`;
+      return `<div class="card"><h3 style="margin-top:0">${i+1}. ${esc(c.question)} <span class="badge b-ok">SUPPORTED</span></h3>
+       <p><b>Grain:</b> ${esc(c.grain)}</p>
+       ${tbl(['starting table','field','why'],c.evidence.map(e=>`<tr><td>${esc(e.table)}</td><td>${esc(e.field)}</td><td>${esc(e.why)}</td></tr>`))}
+       ${c.limits.length?`<div class="notice warn"><b>Limitations:</b><ul class="tight">${c.limits.map(l=>`<li>${esc(l)}</li>`).join('')}</ul></div>`:''}
+       <p><b>Check:</b> ${esc(c.check)}</p>
+       <details><summary>Show the answer to compare with your own SQL</summary>${tbl(c.answer.cols,c.answer.rows.map(r=>`<tr>${r.map(x=>`<td>${esc(x)}</td>`).join('')}</tr>`))}</details></div>`;
+    }).join('');
+}
+
+/* ================= downloads ================= */
+function buildReportJSON(){
+  const R=state.result, ctx=R.ctx;
+  return JSON.stringify({
+    tool:'Data Validation Pipeline', version:'0.1', runId:R.runId, runTime:R.runTime===null?null:fmtTs(R.runTime), runTimeSource:R.runTimeSource,
+    fingerprint:R.fingerprint, decision:decisionText(R).title, paused:R.paused, bundleCounts:R.counts,
+    files:Object.fromEntries(Object.entries(ctx.ds).map(([r,d])=>[r,{name:d.name,rows:d.rows.length,hash:d.hash}])),
+    rulesFile:ctx.rulesDs?{name:ctx.rulesDs.name,hash:ctx.rulesDs.hash}:null,
+    rules:R.ruleReports.map(x=>({id:x.rule.id,type:x.rule.type,route:x.rule.route,status:x.status,failures:x.fails,note:x.note,params:x.params})),
+    extensionsIncluded:Object.keys(state.xrOn).filter(k=>state.xrOn[k]),
+    limitations:R.limitations,
+    findings:ctx.findings.map(f=>({rule:f.rule_id,kind:f.kind,route:f.route,file:f.file,line:f.line,key:f.key,field:f.field,value:f.value,detail:f.detail,countedInRouting:f.kind==='core'||!!state.xrOn[f.rule_id]})),
+    bundles:ctx.bundles.map(b=>({line:b.line,caseId:b.caseId,route:b.route,rules:[...new Set(b.effective.map(f=>f.rule_id))]}))
+  },null,2);
+}
+function buildFindingsCSV(){
+  const R=state.result, ctx=R.ctx;
+  return toCSV(['route','rule_id','kind','counted_in_routing','file','line','key','field','value','detail'],
+    ctx.findings.map(f=>[f.route,f.rule_id,f.kind,(f.kind==='core'||state.xrOn[f.rule_id])?'yes':'no',f.file,f.line??'',f.key,f.field,f.value,f.detail]));
+}
+
+/* ================= events ================= */
+async function addFiles(list){
+  for(const file of list){
+    const text=await file.text(); const hash=await sha256(text);
+    const i=state.files.findIndex(f=>f.name===file.name);
+    const rec={name:file.name,text,hash};
+    if(i>=0) state.files[i]=rec; else state.files.push(rec);
+  }
+  await run();
+}
+document.addEventListener('click',async e=>{
+  const el=e.target.closest('[data-action]'); if(!el||el.tagName==='SELECT'||el.tagName==='INPUT') return;
+  const a=el.dataset.action;
+  if(a==='tab'){ state.tab=el.dataset.tab; render(); }
+  else if(a==='sample'){
+    state.files=[]; state.assign={}; state.runTimeText=''; $('#runTime').value='';
+    for(const [name,text] of sampleFiles()) state.files.push({name,text,hash:await sha256(text)});
+    state.tab='files'; state.msg='Sample data loaded. It is synthetic and contains a deliberate mix of problems.'; await run();
+  }
+  else if(a==='clear'){ state.files=[]; state.assign={}; state.result=null; state.runTimeText=''; $('#runTime').value=''; state.tab='files'; state.publishedFp=null; render(); }
+  else if(a==='run') await run();
+  else if(a==='applyRunTime'){ state.runTimeText=$('#runTime').value; await run(); }
+  else if(a==='remove'){ state.files=state.files.filter(f=>f.name!==el.dataset.name); await run(); render(); }
+  else if(a==='rawFile'){ state.rawFile=el.dataset.file; render(); }
+  else if(a==='applyContract'){ state.contractText=$('#contractBox').value; await run(); if(!state.contractError) state.msg='Contract applied.'; render(); }
+  else if(a==='resetContract'){ state.contractText=JSON.stringify(DEFAULT_CONTRACT,null,2); await run(); state.msg='Contract reset to the default.'; render(); }
+  else if(a==='xrAll'){ XR.forEach(x=>{ if(x.id!=='XR-12') state.xrOn[x.id]=el.dataset.on==='1'; }); await run(); }
+  else if(a==='dlReport') download(`validation-report-${state.result.runId}.json`,buildReportJSON(),'application/json');
+  else if(a==='dlExceptions') download(`validation-findings-${state.result.runId}.csv`,buildFindingsCSV(),'text/csv');
+  else if(a==='dlTable'){ const t_=state.result.trusted[el.dataset.role]; download(`pub_${el.dataset.role}.csv`,toCSV(t_.header,t_.rows.map(r=>t_.header.map(h=>r.v[h]??''))),'text/csv'); }
+  else if(a==='print') window.print();
+  else if(a==='publish'){
+    const R=state.result; if(!R||R.paused) return;
+    const led=ledger.get();
+    led.push({ runId:R.runId, at:new Date().toISOString(), fingerprint:R.fingerprint, decision:decisionText(R).title, published:R.publishable.length, total:R.ctx.bundles.length,
+      files:Object.fromEntries(Object.entries(R.ctx.ds).map(([r,d])=>[r,{rows:d.rows.length,hash:d.hash}])) });
+    ledger.set(led); state.publishedFp=R.fingerprint; state.msg='Load recorded. Running these same files again will now pause the load.'; render();
+  }
+  else if(a==='clearLedger'){ ledger.set([]); state.publishedFp=null; await run(); state.msg='Ledger cleared.'; render(); }
+});
+document.addEventListener('change',async e=>{
+  const el=e.target.closest('[data-action]'); if(!el) return; const a=el.dataset.action;
+  if(a==='role'){ state.assign[el.dataset.name]=el.value; await run(); }
+  else if(a==='rawOnly'){ state.rawOnlyIssues=el.checked; render(); }
+  else if(a==='excRoute'){ state.excRoute=el.value; render(); }
+  else if(a==='excKind'){ state.excKind=el.value; render(); }
+  else if(a==='xr'){ state.xrOn[el.dataset.id]=el.checked; await run(); }
+});
+$('#fileInput').addEventListener('change',async e=>{ await addFiles([...e.target.files]); e.target.value=''; });
+const drop=$('#drop');
+['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{ e.preventDefault(); drop.classList.add('over'); }));
+['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{ e.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop',async e=>{ await addFiles([...e.dataTransfer.files].filter(f=>/\.csv$/i.test(f.name))); });
+$('#runTime').addEventListener('keydown',async e=>{ if(e.key==='Enter'){ state.runTimeText=e.target.value; await run(); } });
+
+render();
+})();
+</script>
+</body>
+</html>
