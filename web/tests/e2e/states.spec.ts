@@ -67,7 +67,8 @@ test.describe("other pages", () => {
     await gotoReady(page, "/login");
     await expect(pageHeading(page)).toHaveText("FDE Journey");
     await expect(page.getByRole("button", { name: "Sign in with GitHub" })).toBeDisabled();
-    await expect(page.getByText("Sign-in isn't available yet. It arrives together with saving.")).toBeVisible();
+    await expect(page.getByText("Sign-in isn't available yet. It comes with saving progress.")).toBeVisible();
+    await expect(page.getByRole("link", { name: "Go to Home" })).toHaveAttribute("href", "/");
     await expect(page.getByRole("navigation")).toHaveCount(0);
     await expectNoSidewaysScroll(page);
   });

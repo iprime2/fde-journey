@@ -10,12 +10,12 @@
 // URL changes while it is the current page; hidden, it keeps its filter for when Back returns.
 import { usePathname, useSearchParams } from "next/navigation";
 import {
-  type RefObject,
   createContext,
   use,
   useDeferredValue,
   useEffect,
   useEffectEvent,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -44,8 +44,8 @@ interface FilterContextValue {
   visibility: Visibility;
   anyNotes: boolean;
   anyDone: boolean;
-  /** The search field, so focus can return to it (after "Clear search and filter"). */
-  searchRef: RefObject<HTMLInputElement | null>;
+  /** Id of the search field, so focus can return to it (after "Clear search and filter"). */
+  searchId: string;
   setQuery(q: string): void;
   setStatus(status: StatusFilter): void;
   clear(): void;
@@ -86,21 +86,30 @@ export function FilterProvider({
   }
 
   const timer = useRef<number | undefined>(undefined);
-  const searchRef = useRef<HTMLInputElement>(null);
+  const searchId = useId();
+
+  /** Puts `next` in this page's URL. Returns the key written, or null if nothing changed. */
+  function replaceUrl(next: FilterState): string | null {
+    window.clearTimeout(timer.current);
+    if (window.location.pathname !== path) return null;
+    const search = filterSearch(next, window.location.search);
+    if (search === window.location.search) return null;
+    window.history.replaceState(null, "", `${window.location.pathname}${search}${window.location.hash}`);
+    return filterKey(next);
+  }
 
   function writeUrl(next: FilterState) {
-    window.clearTimeout(timer.current);
-    if (window.location.pathname !== path) return;
-    const search = filterSearch(next, window.location.search);
-    if (search === window.location.search) return;
-    setSync((s) => ({ ...s, pending: [...s.pending, filterKey(next)] }));
-    window.history.replaceState(null, "", `${window.location.pathname}${search}${window.location.hash}`);
+    const written = replaceUrl(next);
+    if (written) setSync((s) => ({ ...s, pending: [...s.pending, written] }));
   }
 
   // Runs on the first render and every time the page is shown again. Hiding the page cancels a
   // pending URL write (so it can't land on another page); if a search was typed just before
-  // leaving, it never reached the URL, so put it there now that the page is back.
-  const restoreUrl = useEffectEvent(() => writeUrl(state));
+  // leaving, it never reached the URL, so put it there now that the page is back. When that
+  // write lands, the URL matches the input, so following it changes nothing.
+  const restoreUrl = useEffectEvent(() => {
+    replaceUrl(state);
+  });
   useEffect(() => {
     restoreUrl();
     return () => window.clearTimeout(timer.current);
@@ -119,7 +128,7 @@ export function FilterProvider({
     visibility,
     anyNotes,
     anyDone,
-    searchRef,
+    searchId,
     setQuery(q) {
       const next = { ...state, q };
       setState(next);
@@ -135,7 +144,7 @@ export function FilterProvider({
       setState(EMPTY_FILTER);
       writeUrl(EMPTY_FILTER);
       // The button that called this disappears; keep keyboard focus on the page.
-      searchRef.current?.focus();
+      document.getElementById(searchId)?.focus();
     },
   };
 
@@ -149,7 +158,7 @@ const NO_FILTER: FilterContextValue = {
   visibility: { items: new Set(), sections: new Set(), groups: new Set(), openParents: new Set() },
   anyNotes: false,
   anyDone: false,
-  searchRef: { current: null },
+  searchId: "",
   setQuery: () => {},
   setStatus: () => {},
   clear: () => {},

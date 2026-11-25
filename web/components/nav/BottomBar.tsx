@@ -106,6 +106,7 @@ export function BottomBar() {
             </li>
           );
         })}
+        {/* Teal and the pill mark the current page only; an open sheet just shows More in ink. */}
         <li className="flex">
           <button
             ref={moreButton}
@@ -113,7 +114,6 @@ export function BottomBar() {
             aria-expanded={open}
             aria-controls={sheetId}
             onClick={() => setOpen((o) => !o)}
-            // Teal and the pill mark the current page only; an open sheet just shows More in ink.
             className={cn(CELL, moreIsCurrent ? "text-accent" : open ? "text-ink" : "text-muted hover:text-ink")}
           >
             {moreIsCurrent && <Pill />}

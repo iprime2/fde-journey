@@ -10,7 +10,6 @@ const ANNOUNCE_DELAY_MS = 400;
 /** Search field and status filter (design spec 4, Toolbar). */
 export function Toolbar({ placeholder }: { placeholder: string }) {
   const f = useFilter();
-  const searchId = useId();
   const statusId = useId();
   const shown = f.visibility.items.size;
 
@@ -27,13 +26,12 @@ export function Toolbar({ placeholder }: { placeholder: string }) {
   return (
     <div className="flex flex-wrap gap-2">
       <div className="relative min-w-[180px] flex-[1_1_180px]">
-        <label htmlFor={searchId} className="sr-only">
+        <label htmlFor={f.searchId} className="sr-only">
           Search this page
         </label>
         <SearchIcon size={18} className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted" />
         <input
-          ref={f.searchRef}
-          id={searchId}
+          id={f.searchId}
           type="search"
           value={f.state.q}
           onChange={(e) => f.setQuery(e.target.value)}

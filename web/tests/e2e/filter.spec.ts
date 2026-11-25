@@ -31,6 +31,8 @@ test.describe("search and status filter", () => {
     await page.getByRole("button", { name: "Clear search and filter" }).click();
     await expect(page).toHaveURL(/\/roadmap$/);
     await expect(page.getByRole("searchbox", { name: "Search this page" })).toHaveValue("");
+    // The button is gone, so focus moves to the search field rather than the page body.
+    await expect(page.getByRole("searchbox", { name: "Search this page" })).toBeFocused();
     await expect(show).toHaveValue("all");
     await expect(page.getByRole("heading", { name: "Phase 8 · Portfolio and career" })).toBeVisible();
 
@@ -40,6 +42,25 @@ test.describe("search and status filter", () => {
 
     await show.selectOption("noted");
     await expect(page.getByText("No notes yet.")).toBeVisible();
+
+    // Nothing is ticked on the page and there is no search: say so, rather than "no match".
+    await show.selectOption("done");
+    await expect(page.getByText("Nothing marked done yet.")).toBeVisible();
+    await expect(page.getByText("Nothing matches this search or filter.")).toBeHidden();
+  });
+
+  test("a search typed just before leaving is in the URL after Back", async ({ page }) => {
+    await gotoReady(page, "/roadmap");
+    // Leave within the 300 ms the URL waits for typing to stop.
+    await page.getByRole("searchbox", { name: "Search this page" }).fill("rag");
+    await page.getByRole("navigation", { name: "Sections" }).getByRole("link", { name: /^Reading/ }).click();
+    await expect(pageHeading(page)).toHaveText("Reading");
+    await page.goBack();
+    await expect(page).toHaveURL(/\/roadmap\?q=rag$/);
+    await expect(page.getByRole("searchbox", { name: "Search this page" })).toHaveValue("rag");
+    await page.reload();
+    await page.waitForLoadState("networkidle");
+    await expect(page.getByRole("searchbox", { name: "Search this page" })).toHaveValue("rag");
   });
 
   test("Back returns to the filtered page", async ({ page }) => {

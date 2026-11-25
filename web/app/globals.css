@@ -213,6 +213,28 @@
       appearance: auto;
     }
   }
+
+  /* Collapsible card head: the h2's button stretches over the whole head (the tap target), and
+     the focus ring is drawn around the head instead of the button. */
+  .card-head {
+    position: relative;
+  }
+  .card-head button {
+    cursor: pointer;
+  }
+  .card-head button::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+  }
+  .card-head button:focus-visible {
+    outline: none;
+  }
+  .card-head:has(button:focus-visible) {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

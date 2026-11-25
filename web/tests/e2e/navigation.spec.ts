@@ -33,7 +33,13 @@ test.describe("desktop sidebar", () => {
   test("offers a skip link first", async ({ page }) => {
     await gotoReady(page, "/roadmap");
     await page.keyboard.press("Tab");
-    await expect(page.getByRole("link", { name: "Skip to content" })).toBeFocused();
+    const skip = page.getByRole("link", { name: "Skip to content" });
+    await expect(skip).toBeFocused();
+    // A full-size target, clear of the sidebar and the heading.
+    const box = await skip.boundingBox();
+    expect(box?.height).toBeGreaterThanOrEqual(44);
+    expect(box?.x).toBe(12);
+    expect(box?.y).toBe(12);
   });
 });
 
