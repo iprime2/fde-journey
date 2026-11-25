@@ -16,7 +16,7 @@ This repo is Sushil's AI Engineering & Forward Deployed Engineer (FDE) learning 
 - Keep explanations clear and conversational; define jargon on first use.
 
 ## Progress tracker
-"FDE Journey Tracker": https://claude.ai/artifact/5fxqMB19wn3roVoJKRwNsc. Its source is `tracker/fde-journey-tracker.html`; progress lives in the artifact's database (collection `progress`). Doc ids: `l{phase}-{task}`, `c{cert}-{task}`, `p{project}-{task}`, `k{n}` (career), `s{module}-{class}` (Scaler), `journal` (weekly notes). Fields: `done`, `note`, `link`, `doneAt`, `updatedAt`. Read it with the ArtifactData tool when that tool is available in the session. Only the owner writes to it; don't write to it unless the user asks.
+"FDE Journey Tracker": https://claude.ai/artifact/5fxqMB19wn3roVoJKRwNsc. Its source is `tracker/fde-journey-tracker.html`; progress lives in the artifact's database (collection `progress`). Doc ids: `l{phase}-{task}`, `c{cert}-{task}`, `p{project}-{task}`, `k{n}` (career), `s{module}-{class}` (Scaler), `r{phase}-{task}-{n}` (a learning resource inside a roadmap task, e.g. `r1-1-3`; tracked separately from roadmap progress), `journal` (weekly notes). Fields: `done`, `note`, `link`, `doneAt`, `updatedAt`. Read it with the ArtifactData tool when that tool is available in the session. Only the owner writes to it; don't write to it unless the user asks.
 
 To change the tracker page, edit `tracker/fde-journey-tracker.html` and republish to the same URL (`url` parameter). Keep the existing milestones and ids, or saved progress will no longer match.
 

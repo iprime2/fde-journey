@@ -6,6 +6,8 @@ A staged path. It complements the Scaler course rather than replacing it — map
 1. **Evals first.** Build the eval set before tuning retrieval or prompts, and add tracing from the first prototype. Without them you can't tell whether a change helped.
 2. **Ship a v1 early.** A public, demoable version (deployed, README, short demo, real numbers) comes before you start applying. Polish and cloud deployment come after.
 3. **FDE artefacts per project.** A one-page design doc before coding, then a handover doc and a 5-minute demo script after. Rehearse the design doc as a mock discovery call.
+4. **Security before action.** As soon as an agent can act, scope its tool permissions, validate inputs and outputs, and test it with prompt-injection attempts. Depth comes later.
+5. **Interview reps start with the applications.** One timed coding problem and one AI system-design walkthrough a week from the first month, not only in the final weeks.
 
 ## Stage 0 — Engineering foundations
 - Python fluency: typing, async, packaging, virtualenvs, pytest
