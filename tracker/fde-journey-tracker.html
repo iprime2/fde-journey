@@ -135,6 +135,7 @@ footer{color:var(--muted);font-size:.8rem}
 
   <nav class="tabs" role="tablist" aria-label="Sections">
     <button class="tab" role="tab" id="tab-roadmap" data-tab="roadmap">Roadmap</button>
+    <button class="tab" role="tab" id="tab-reading" data-tab="reading">Reading</button>
     <button class="tab" role="tab" id="tab-scaler" data-tab="scaler">Scaler course</button>
     <button class="tab" role="tab" id="tab-certs" data-tab="certs">Certifications</button>
     <button class="tab" role="tab" id="tab-projects" data-tab="projects">Projects</button>
@@ -194,7 +195,9 @@ const PHASES = [
   ["Microsoft Foundry and Azure AI labs","Azure"],
   ["Prompt-injection and permission basics: scope each tool, validate inputs and outputs, test with attack prompts","Security basics"],
   ["Workflow vs agent: decide for three sample tasks and write down why","Agents · Judgement"],
-  ["Build a small agent test suite: 10 tasks with expected outcomes and a tool-call log","Agents · Evaluation"]]},
+  ["Build a small agent test suite: 10 tasks with expected outcomes and a tool-call log","Agents · Evaluation"],
+  ["Claude SDKs: the Python SDK for the Messages API, then the Claude Agent SDK. Build a small agent with tools","SDKs · Claude"],
+  ["OpenAI SDKs: the Agents SDK and the Codex SDK. Rebuild the same agent and compare the two","SDKs · OpenAI"]]},
  {n:5,title:"Project 2 — AI SRE Agent",start:"2027-01-06",end:"2027-01-12",tasks:[
   ["Prometheus and log integrations","Observability"],
   ["Incident investigation and root-cause analysis","Agent workflow"],
@@ -225,13 +228,13 @@ const PHASES = [
 ];
 
 const CERTS = [
- {name:"AWS Certified AI Practitioner (AIF-C01)",priority:"First",date:"December 2026",desc:"AI/ML and GenAI fundamentals, AWS AI services, responsible AI and governance.",status:"Target exam",tasks:["Review official exam guide and domains","Complete practice questions and review weak areas","Pass exam and confirm 50% benefit is available"]},
- {name:"Claude Certified Architect – Foundations (CCAR-F)",priority:"Second",date:"December 2026 – January 2027",desc:"Claude application and agent architecture, tools, MCP, context and reliability. Verify exam eligibility with the Claude Partner Network.",status:"Eligibility-dependent",tasks:["Verify organization and exam eligibility","Study official preparation materials","Practice architecture and agent scenarios","Pass exam if eligible"]},
- {name:"AWS Certified Generative AI Developer – Professional (AIP-C01)",priority:"Third",date:"February–March 2027 or later",desc:"Production GenAI, Bedrock, RAG, agents, security, evaluation and optimization.",status:"Advanced target",tasks:["Study Bedrock, RAG and agent domains","Complete hands-on AWS implementation","Take timed mock exams","Book only when ready; apply 50% benefit if valid","Pass exam"]},
- {name:"Microsoft Azure AI Apps and Agents Developer Associate (AI-103)",priority:"Fourth",date:"After primary three",desc:"Microsoft Foundry, AI applications, agents and Azure AI services.",status:"Target",tasks:["Study official skills outline","Complete Microsoft Learn modules and labs","Build an Azure AI application","Pass exam"]},
- {name:"NVIDIA Certified Associate – Generative AI LLMs (NCA-GENL)",priority:"Fifth",date:"After primary three",desc:"LLM concepts and generative AI application development in the NVIDIA ecosystem.",status:"Target",tasks:["Review official exam objectives","Study LLM and GenAI application concepts","Complete practice assessment","Pass exam"]},
- {name:"Google Cloud Generative AI Leader",priority:"Sixth",date:"After primary three",desc:"GenAI fundamentals, Google Cloud AI offerings, Gemini and business adoption.",status:"Target",tasks:["Study official exam guide","Review Gemini and Google Cloud AI offerings","Complete practice questions","Pass exam"]},
- {name:"AWS Solutions Architect – Associate (SAA-C03)",priority:"Seventh",date:"March–May 2027",desc:"Cloud architecture, IAM, networking, resilience, storage, compute and cost optimization.",status:"Target",tasks:["Study official exam domains","Complete architecture labs","Take timed mock exams","Pass exam"]}
+ {name:"AWS Certified AI Practitioner (AIF-C01)",rank:1,priority:"First",date:"December 2026",desc:"AI/ML and GenAI fundamentals, AWS AI services, responsible AI and governance.",status:"Target exam",tasks:["Review official exam guide and domains","Complete practice questions and review weak areas","Pass exam and confirm 50% benefit is available"]},
+ {name:"Claude Certified Architect – Foundations (CCAR-F)",rank:5,priority:"When eligible",date:"After joining a Claude partner company",desc:"Claude application and agent architecture, tools, MCP, context and reliability. Exams are open only to members of the Claude Partner Network, which organisations join, so plan it once an employer makes you eligible.",status:"Eligibility-dependent",tasks:["Verify organization and exam eligibility","Study official preparation materials","Practice architecture and agent scenarios","Pass exam if eligible"]},
+ {name:"AWS Certified Generative AI Developer – Professional (AIP-C01)",rank:3,priority:"Third",date:"April 2027 or later, when practice exams say ready",desc:"Production GenAI, Bedrock, RAG, agents, security, evaluation and optimization.",status:"Advanced target",tasks:["Study Bedrock, RAG and agent domains","Complete hands-on AWS implementation","Take timed mock exams","Book only when ready; apply 50% benefit if valid","Pass exam"]},
+ {name:"Microsoft Azure AI Apps and Agents Developer Associate (AI-103)",rank:6,priority:"Parked",date:"After job applications are going",desc:"Microsoft Foundry, AI applications, agents and Azure AI services.",status:"Parked",tasks:["Study official skills outline","Complete Microsoft Learn modules and labs","Build an Azure AI application","Pass exam"]},
+ {name:"NVIDIA Certified Associate – Generative AI LLMs (NCA-GENL)",rank:4,priority:"Optional",date:"February–March 2027, after Phase 7, if time allows",desc:"LLM concepts and generative AI application development in the NVIDIA ecosystem.",status:"Optional",tasks:["Review official exam objectives","Study LLM and GenAI application concepts","Complete practice assessment","Pass exam"]},
+ {name:"Google Cloud Generative AI Leader",rank:7,priority:"Parked",date:"After job applications are going",desc:"GenAI fundamentals, Google Cloud AI offerings, Gemini and business adoption.",status:"Parked",tasks:["Study official exam guide","Review Gemini and Google Cloud AI offerings","Complete practice questions","Pass exam"]},
+ {name:"AWS Solutions Architect – Associate (SAA-C03)",rank:2,priority:"Second",date:"February–March 2027, after Phase 6",desc:"Cloud architecture, IAM, networking, resilience, storage, compute and cost optimization.",status:"Target",tasks:["Study official exam domains","Complete architecture labs","Take timed mock exams","Pass exam"]}
 ];
 
 const PROJECTS = [
@@ -361,10 +364,51 @@ const RESOURCES = {
   {"title":"Classification: Accuracy, recall, precision, and related metrics","url":"https://developers.google.com/machine-learning/crash-course/classification/accuracy-precision-recall","by":"Google for Developers (Machine Learning Crash Course)","type":"course","length":"one lesson","level":"beginner","why":"Plain definitions of accuracy, precision and recall, and why accuracy alone can mislead."},
   {"title":"Define success criteria and build evaluations","url":"https://platform.claude.com/docs/en/test-and-evaluate/develop-tests","by":"Anthropic (Claude docs)","type":"docs","length":"","level":"beginner","why":"Turn vague goals into measurable criteria and build graded test cases, including simple correct/incorrect grading."},
   {"title":"Your AI Product Needs Evals","url":"https://hamel.dev/blog/posts/evals/","by":"Hamel Husain (2024)","type":"article","length":"","level":"intermediate","why":"The practical case for starting with simple assertion tests and growing your test set from real failures."},
-  {"title":"Eval Driven System Design - From Prototype to Production","url":"https://developers.openai.com/cookbook/examples/partners/eval_driven_system_design/receipt_inspection","by":"OpenAI Cookbook","type":"article","length":"","level":"intermediate","why":"Per-field scoring of extracted receipt data. Read for the idea only; check OpenAI's current status before building on its Evals platform."}]}
+  {"title":"Eval Driven System Design - From Prototype to Production","url":"https://developers.openai.com/cookbook/examples/partners/eval_driven_system_design/receipt_inspection","by":"OpenAI Cookbook","type":"article","length":"","level":"intermediate","why":"Per-field scoring of extracted receipt data. Read for the idea only; check OpenAI's current status before building on its Evals platform."}]},
+ "l4-5": {"start":"Do Anthropic's free Claude Code in Action course first; it ends with a quiz and a completion badge.","items":[
+  {"title":"Claude Code in Action","url":"https://academy.claude.com/courses/claude-code-in-action","by":"Anthropic Academy","type":"course","length":"~1 h, 9 lessons","level":"intermediate","why":"CLAUDE.md, permission modes, hooks, scheduled tasks and plugins, with a completion badge. Free; needs a Skilljar account."}]},
+ "l4-10": {"start":"Start with the Agent SDK overview, then build the quickstart agent. Take the longer Claude API course alongside if you want its completion badge.","items":[
+  {"title":"Agent SDK overview","url":"https://code.claude.com/docs/en/agent-sdk/overview","by":"Anthropic (Claude Code docs)","type":"docs","length":"","level":"intermediate","why":"What the Agent SDK is: the agent loop, tools and context management behind Claude Code, as a Python or TypeScript library."},
+  {"title":"Agent SDK quickstart","url":"https://code.claude.com/docs/en/agent-sdk/quickstart","by":"Anthropic (Claude Code docs)","type":"docs","length":"","level":"intermediate","why":"Build a small agent that finds and fixes bugs in a file, using the Read, Edit and Glob tools."},
+  {"title":"Agent SDK reference: Python","url":"https://code.claude.com/docs/en/agent-sdk/python","by":"Anthropic (Claude Code docs)","type":"docs","length":"","level":"intermediate","why":"Multi-turn conversations, permission callbacks, hooks and custom tools through in-process MCP servers."},
+  {"title":"Building with the Claude API","url":"https://academy.claude.com/courses/building-with-the-claude-api","by":"Anthropic Academy","type":"course","length":"~9 h, 67 lessons","level":"intermediate","why":"API access, prompt evaluation, MCP, agents and workflows, with quizzes, a final assessment and a completion badge."}]},
+ "l4-11": {"start":"Do the Agents SDK quickstart, then rebuild your Claude agent with it. Add the Codex SDK last.","items":[
+  {"title":"SDKs and CLI","url":"https://developers.openai.com/api/docs/libraries","by":"OpenAI (API docs)","type":"docs","length":"","level":"beginner","why":"The map of OpenAI's official SDKs, so you know which package does what before you install anything."},
+  {"title":"Quickstart: OpenAI Agents SDK","url":"https://openai.github.io/openai-agents-python/quickstart/","by":"OpenAI (Agents SDK docs)","type":"docs","length":"","level":"intermediate","why":"Define an agent, run it with Runner, add function tools and hand off between agents."},
+  {"title":"Tools: OpenAI Agents SDK","url":"https://openai.github.io/openai-agents-python/tools/","by":"OpenAI (Agents SDK docs)","type":"docs","length":"","level":"intermediate","why":"Function tools, hosted tools and agents as tools: the part to compare with the Claude Agent SDK."},
+  {"title":"Codex SDK","url":"https://developers.openai.com/codex/sdk","by":"OpenAI (Codex docs)","type":"docs","length":"","level":"intermediate","why":"Start Codex from code, create a thread and run a prompt, with sandbox presets such as read-only."}]}
 };
 const resMeta = r => [r.by, TYPE_LABEL[r.type] || r.type, r.length, r.level ? r.level[0].toUpperCase()+r.level.slice(1) : ""].filter(Boolean).join(" · ");
 const resId = (taskId, j) => `r${taskId.slice(1)}-${j+1}`;
+
+/* ---------- Reading: weekly papers (ids pp{n}) and books (ids bk{n}); append only, never reorder ---------- */
+const PAPERS = [
+ {"week":"2026-11-30","core":true,"title":"How to Read a Paper","url":"https://www.cs.princeton.edu/courses/archive/fall10/cos597B/papers/howtoread-keshav.pdf","by":"S. Keshav (2007)","why":"Two pages on the three-pass method: skim, read for the ideas, then read deeply. Use it for every paper below."},
+ {"week":"2026-11-30","core":true,"title":"Attention Is All You Need","url":"https://arxiv.org/abs/1706.03762","by":"Vaswani et al. (2017)","why":"The transformer. Do a first pass only: abstract, architecture figure and conclusion. Pairs with the 3Blue1Brown videos."},
+ {"week":"2026-12-07","core":true,"title":"Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks","url":"https://arxiv.org/pdf/2005.11401","by":"Lewis et al. (2020)","why":"The paper that named RAG: a retriever plus a generator. Read it while you build the NexusRAG retrieval prototype."},
+ {"week":"2026-12-07","core":false,"title":"Sentence-BERT: Sentence Embeddings using Siamese BERT-Networks","url":"https://arxiv.org/abs/1908.10084","by":"Reimers and Gurevych (2019)","why":"Why sentence embeddings can be compared with cosine similarity: the idea behind the embedding models you will use."},
+ {"week":"2026-12-14","core":true,"title":"Ragas: Automated Evaluation of Retrieval Augmented Generation","url":"https://arxiv.org/abs/2309.15217","by":"Es et al. (2023)","why":"Where faithfulness and answer relevance come from. Read it in the week you do your first RAGAS run."},
+ {"week":"2026-12-14","core":false,"title":"Lost in the Middle: How Language Models Use Long Contexts","url":"https://arxiv.org/abs/2307.03172","by":"Liu et al. (2023)","why":"Models miss facts placed in the middle of a long prompt, which is why retrieval order and chunk count matter."},
+ {"week":"2026-12-21","core":true,"title":"Language Models are Few-Shot Learners","url":"https://arxiv.org/abs/2005.14165","by":"Brown et al. (2020)","why":"GPT-3 and few-shot prompting. Read the introduction and the few-shot sections; skip the long benchmark tables."},
+ {"week":"2026-12-21","core":false,"title":"Chain-of-Thought Prompting Elicits Reasoning in Large Language Models","url":"https://arxiv.org/pdf/2201.11903","by":"Wei et al. (2022)","why":"Why asking for step-by-step reasoning helps on hard tasks. Short and readable."},
+ {"week":"2026-12-28","core":true,"title":"ReAct: Synergizing Reasoning and Acting in Language Models","url":"https://arxiv.org/abs/2210.03629","by":"Yao et al. (2022)","why":"The reason-then-act loop behind most agents. Read it as Phase 4 starts."},
+ {"week":"2027-01-04","core":true,"title":"Reflexion: Language Agents with Verbal Reinforcement Learning","url":"https://arxiv.org/abs/2303.11366","by":"Shinn et al. (2023)","why":"Agents that improve by writing feedback to themselves instead of retraining. Useful for your agent projects."},
+ {"week":"2027-01-04","core":false,"title":"Retrieval-Augmented Generation for Large Language Models: A Survey","url":"https://arxiv.org/pdf/2312.10997","by":"Gao et al. (2023)","why":"A map of RAG techniques. Skim the overview and figures; keep the rest as a reference."},
+ {"week":"2027-01-11","core":true,"title":"Training language models to follow instructions with human feedback","url":"https://arxiv.org/abs/2203.02155","by":"Ouyang et al. (2022)","why":"InstructGPT: how a base model becomes an assistant through human feedback, which explains how chat models behave."},
+ {"week":"2027-01-18","core":true,"title":"Self-RAG: Learning to Retrieve, Generate, and Critique through Self-Reflection","url":"https://arxiv.org/abs/2310.11511","by":"Asai et al. (2023)","why":"A model that decides when to retrieve and checks its own answers. Good material for advanced-RAG interview questions."},
+ {"week":"2027-01-25","core":true,"title":"Judging LLM-as-a-Judge with MT-Bench and Chatbot Arena","url":"https://arxiv.org/abs/2306.05685","by":"Zheng et al. (2023)","why":"When one LLM can grade another, and the biases to watch for. Read it before the Phase 7 evaluation work."},
+ {"week":"2027-02-01","core":true,"title":"LoRA: Low-Rank Adaptation of Large Language Models","url":"https://arxiv.org/abs/2106.09685","by":"Hu et al. (2021)","why":"How fine-tuning became cheap. Helps you answer the \"RAG or fine-tuning?\" question customers ask."}
+];
+const BOOKS = [
+ {"core":true,"title":"AI Engineering","by":"Chip Huyen (O'Reilly, 2025)","url":"https://www.oreilly.com/library/view/ai-engineering/9781098166298/","why":"The closest book to your target roles: prompting, RAG, agents, fine-tuning, evaluation, cost and latency. Start here."},
+ {"core":true,"title":"Hands-On Large Language Models","by":"Jay Alammar and Maarten Grootendorst (O'Reilly, 2024)","url":"https://www.oreilly.com/library/view/hands-on-large-language/9781098150952/","why":"Visual, practical intuition for embeddings, semantic search and RAG. Good alongside Phases 1 and 2."},
+ {"core":true,"title":"The Mom Test","by":"Rob Fitzpatrick (2013)","url":"https://www.amazon.com/Mom-Test-customers-business-everyone/dp/1492180742","why":"A short book on talking to customers so you learn what they really need. A core FDE skill for discovery calls."},
+ {"core":false,"title":"LLM Engineer's Handbook","by":"Paul Iusztin and Maxime Labonne (Packt, 2024)","url":"https://www.packtpub.com/en-us/product/llm-engineers-handbook-9781836200062","why":"An end-to-end LLM system from data to deployment and monitoring. Read it during NexusRAG and the AWS phase."},
+ {"core":false,"title":"Designing Data-Intensive Applications, 2nd edition","by":"Martin Kleppmann and Chris Riccomini (O'Reilly, 2026)","url":"https://www.oreilly.com/library/view/designing-data-intensive-applications/9781098119058/","why":"The backend and data-systems foundation under every AI system. Pairs with Scaler Modules 3 and 7."},
+ {"core":false,"title":"System Design Interview: An Insider's Guide, Volume 1","by":"Alex Xu (2020)","url":"https://us.amazon.com/System-Design-Interview-insiders-Second/dp/B08CMF2CQF","why":"Beginner-friendly system design practice for interviews in January and February."},
+ {"core":false,"title":"Generative AI System Design Interview","by":"ByteByteGo","url":"https://blog.bytebytego.com/p/our-new-book-generative-ai-system","why":"System design questions for GenAI systems, for AI system design interview practice."},
+ {"core":false,"title":"Build a Large Language Model (From Scratch)","by":"Sebastian Raschka (Manning, 2024)","url":"https://www.manning.com/books/build-a-large-language-model-from-scratch","why":"Optional deep dive: code a small GPT yourself. Only if you want model internals; your target roles focus on applications."}
+];
 
 /* ---------- Ids and groups ---------- */
 const GROUPS = {}; // key -> [item ids]
@@ -377,9 +421,13 @@ CAREER.forEach((c,i) => reg("career", `k${i+1}`, c.title, `${c.date} · ${c.desc
 SCALER.forEach(m => m.classes.forEach((t,j) => reg("mod-"+m.n, `s${m.n}-${j+1}`, t, `Module ${m.n} · ${m.title}`)));
 const RES_BY_ID = {};
 Object.entries(RESOURCES).forEach(([taskId, g]) => g.items.forEach((r,j) => { const id = resId(taskId,j); RES_BY_ID[id] = r; reg("res-"+taskId, id, r.title, resMeta(r)); }));
+PAPERS.forEach((x,i) => reg("papers", `pp${i+1}`, x.title, x.by));
+BOOKS.forEach((x,i) => reg("books", `bk${i+1}`, x.title, x.by));
 const ids = prefix => Object.keys(GROUPS).filter(k => k.startsWith(prefix)).flatMap(k => GROUPS[k]);
 const LEARNING_IDS = ids("phase-"), CERT_IDS = ids("cert-"), PROJECT_IDS = ids("proj-"), CAREER_IDS = GROUPS.career, SCALER_IDS = ids("mod-");
 const ROADMAP_IDS = [...LEARNING_IDS, ...CERT_IDS, ...PROJECT_IDS, ...CAREER_IDS];
+const READING_IDS = [...(GROUPS.papers || []), ...(GROUPS.books || [])]; // tracked separately from roadmap progress
+const CERT_ORDER = CERTS.map((c,i) => i).sort((a,b) => (CERTS[a].rank ?? 99) - (CERTS[b].rank ?? 99)); // display order only; ids keep array positions
 const RES_IDS = ids("res-"); // resources are tracked separately and do not count toward roadmap progress
 
 /* ---------- State ---------- */
@@ -391,7 +439,7 @@ let openModules = new Set();
 const openRes = new Set();
 try { JSON.parse(localStorage.getItem("fde-open-res") || "[]").forEach(k => openRes.add(k)); } catch {}
 let activeTab = "roadmap";
-const TABS = ["roadmap","scaler","certs","projects","career"];
+const TABS = ["roadmap","reading","scaler","certs","projects","career"];
 try { openModules = new Set(JSON.parse(localStorage.getItem("fde-open-modules") || "[]")); } catch {}
 
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -500,8 +548,18 @@ function renderScaler(){
   return `<p class="group-label">Core modules</p>${SCALER.filter(m=>m.kind==="core").map(mod).join("")}
           <p class="group-label">Elective modules</p>${SCALER.filter(m=>m.kind==="elective").map(mod).join("")}`;
 }
+function renderReading(){
+  const wk = w => new Date(w+"T00:00:00").toLocaleDateString("en-IN",{day:"numeric",month:"short"});
+  const thisWeek = [...new Set(PAPERS.map(x => x.week))].filter(w => w <= todayISO).pop();
+  return `<section class="block" data-section>
+    <div class="block-head"><div class="grow"><h2>Research papers</h2><div class="sub">One core paper a week, plus an optional second if you have time. Use the three-pass method from week 1 and write a one-line takeaway in each note.</div></div><span class="count" data-count="papers"></span></div>
+    <ul class="items">${PAPERS.map((x,i) => itemHTML(`pp${i+1}`, {url:x.url, why:x.why, idx:`Week of ${wk(x.week)}`, meta:`${x.by} · ${x.core?"Core":"Optional"}${x.week===thisWeek?" · This week":""}`, placeholder:"Your takeaway in one or two lines, and one question it raised…"})).join("")}</ul></section>
+    <section class="block" data-section>
+    <div class="block-head"><div class="grow"><h2>Books</h2><div class="sub">Core books first, in this order. Books are paid, so check a library or an O'Reilly subscription first.</div></div><span class="count" data-count="books"></span></div>
+    <ul class="items">${BOOKS.map((x,i) => itemHTML(`bk${i+1}`, {url:x.url, why:x.why, meta:`${x.by} · ${x.core?"Core":"Optional"}`, placeholder:"Chapters read, key ideas, what you will use…"})).join("")}</ul></section>`;
+}
 function renderCerts(){
-  return `<div class="grid2">${CERTS.map((c,i) => `<section class="block" data-section>
+  return `<div class="grid2">${CERT_ORDER.map(i => [CERTS[i], i]).map(([c,i]) => `<section class="block" data-section>
     <div class="block-head"><div class="grow"><h3>${esc(c.name)}</h3><div class="sub">${esc(c.date)} · ${esc(c.status)}</div></div>
     <span class="chip" data-chip="cert-${i}"></span><span class="count" data-count="cert-${i}"></span></div>
     <p class="desc">${esc(c.desc)}</p>
@@ -533,7 +591,7 @@ function journalHTML(){
 
 function render(){
   const c = $("#content");
-  c.innerHTML = ({roadmap:renderRoadmap, scaler:renderScaler, certs:renderCerts, projects:renderProjects, career:renderCareer})[activeTab]();
+  c.innerHTML = ({roadmap:renderRoadmap, reading:renderReading, scaler:renderScaler, certs:renderCerts, projects:renderProjects, career:renderCareer})[activeTab]();
   TABS.forEach(t => { const b = $("#tab-"+t); b.setAttribute("aria-selected", String(t===activeTab)); b.tabIndex = t===activeTab ? 0 : -1; });
   updateCounts(); applyFilters();
 }
@@ -583,7 +641,7 @@ function updateSummary(){
   const days = Math.ceil((new Date("2027-02-15T00:00:00") - new Date(todayISO+"T00:00:00"))/86400e3);
   $("#countdown").textContent = days > 0 ? `15 Feb 2027 · ${days} days left` : days === 0 ? "Today" : "15 Feb 2027 (passed)";
   $("#nextClass").textContent = nextClassIST();
-  const counts = {roadmap:`${ld}/${LEARNING_IDS.length}`, scaler:`${sd}/${SCALER_IDS.length}`, certs:`${passed}/7`, projects:`${pdone}/3`, career:`${countDone(CAREER_IDS)}/${CAREER_IDS.length}`};
+  const counts = {roadmap:`${ld}/${LEARNING_IDS.length}`, reading:`${countDone(READING_IDS)}/${READING_IDS.length}`, scaler:`${sd}/${SCALER_IDS.length}`, certs:`${passed}/7`, projects:`${pdone}/3`, career:`${countDone(CAREER_IDS)}/${CAREER_IDS.length}`};
   TABS.forEach(t => { const b = $("#tab-"+t); const label = b.dataset.label || (b.dataset.label = b.textContent); b.innerHTML = `${esc(label)}<span class="mono">${counts[t]}</span>`; });
 }
 
