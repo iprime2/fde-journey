@@ -1,0 +1,601 @@
+<title>FDE Journey Tracker</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;600&family=Space+Grotesk:wght@500;600;700&display=swap">
+<style>
+/* Layout: a field logbook — summary strip, the phase you're in now, then tabbed ledgers (roadmap, Scaler, certs, projects, career). */
+:root{
+  --bg:#f3f6f5; --surface:#ffffff; --sunk:#eaefed; --ink:#14201c; --muted:#5a6a64; --line:#d9e1de;
+  --accent:#0b7a68; --accent-ink:#ffffff; --accent-soft:#dcf1ec;
+  --warn:#9a5600; --warn-soft:#fbeed8; --focus:#0b7a68;
+  --display:"Space Grotesk",ui-sans-serif,system-ui,sans-serif;
+  --body:"Inter",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --r:12px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0e1412; --surface:#151d1a; --sunk:#1b2521; --ink:#e4ece9; --muted:#93a39d; --line:#27332f;
+  --accent:#3fcfb3; --accent-ink:#06211b; --accent-soft:#143a32;
+  --warn:#f0b35a; --warn-soft:#3a2b13; --focus:#3fcfb3; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0e1412; --surface:#151d1a; --sunk:#1b2521; --ink:#e4ece9; --muted:#93a39d; --line:#27332f;
+  --accent:#3fcfb3; --accent-ink:#06211b; --accent-soft:#143a32;
+  --warn:#f0b35a; --warn-soft:#3a2b13; --focus:#3fcfb3; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:15px/1.55 var(--body)}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:6px}
+.wrap{max-width:1120px;margin:0 auto;padding-block:28px 64px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:20px}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.eyebrow{font-family:var(--mono);font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);font-weight:600}
+h1{font-family:var(--display);font-size:clamp(1.8rem,4.2vw,2.5rem);line-height:1.1;margin:6px 0 10px;text-wrap:balance;letter-spacing:-.01em}
+h2{font-family:var(--display);font-size:1.08rem;margin:0;text-wrap:balance}
+h3{font-family:var(--display);font-size:1rem;margin:0}
+.facts{display:flex;flex-wrap:wrap;gap:8px 18px;margin:0;color:var(--muted);font-size:.88rem}
+.facts div{display:flex;gap:6px;align-items:baseline}
+.facts dt{font-family:var(--mono);font-size:.7rem;text-transform:uppercase;letter-spacing:.08em}
+.facts dd{margin:0;color:var(--ink);font-weight:500}
+.banner{padding:10px 14px;border-radius:10px;background:var(--warn-soft);color:var(--warn);font-size:.88rem}
+.banner.info{background:var(--sunk);color:var(--muted)}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;display:grid;gap:4px;min-width:0}
+.tile .num{font-family:var(--mono);font-size:1.6rem;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.2}
+.tile .label{color:var(--muted);font-size:.82rem}
+.bar{height:6px;border-radius:99px;background:var(--sunk);overflow:hidden;margin-top:6px}
+.bar>span{display:block;height:100%;width:0;background:var(--accent);border-radius:99px;transition:width .3s}
+.now{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:18px;display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:20px}
+.now .nexts{display:grid;gap:6px;margin:0;padding:0;list-style:none}
+.now .nexts li{display:flex;gap:8px;font-size:.9rem}
+.now .nexts li::before{content:"→";color:var(--accent);font-family:var(--mono)}
+.now .kicker{font-family:var(--mono);font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.tabs{display:flex;gap:4px;flex-wrap:wrap;background:var(--sunk);padding:4px;border-radius:12px;width:fit-content;max-width:100%}
+.tab{border:0;background:transparent;color:var(--muted);padding:8px 14px;border-radius:9px;font-weight:500;font-size:.9rem}
+.tab[aria-selected="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.tab .mono{font-size:.74rem;color:var(--muted);margin-left:6px}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap}
+.field{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:9px 12px;min-width:0}
+#search{flex:1 1 220px}
+#content{display:grid;gap:12px}
+.block{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);min-width:0}
+.block-head{display:flex;gap:10px 14px;align-items:center;flex-wrap:wrap;padding:14px 16px}
+.block-head .grow{flex:1 1 220px;min-width:0}
+.block-head .sub{color:var(--muted);font-size:.84rem}
+.count{font-family:var(--mono);font-size:.8rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.desc{color:var(--muted);font-size:.88rem;margin:0;padding:0 16px 10px}
+.chip{font-family:var(--mono);font-size:.7rem;font-weight:600;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:99px;background:var(--sunk);color:var(--muted);white-space:nowrap}
+.chip.ok{background:var(--accent-soft);color:var(--accent)}
+.chip.now{background:var(--accent);color:var(--accent-ink)}
+.chip.warn{background:var(--warn-soft);color:var(--warn)}
+.items{list-style:none;margin:0;padding:0}
+.item{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:4px 12px;align-items:start;padding:10px 16px;border-top:1px solid var(--line)}
+.item input[type=checkbox]{width:18px;height:18px;margin:2px 0 0;accent-color:var(--accent)}
+.item .title{font-weight:500}
+.item .meta{display:block;font-size:.78rem;color:var(--muted);margin-top:1px}
+.item .idx{font-family:var(--mono);font-size:.72rem;color:var(--muted);margin-right:6px}
+.item.done .title{text-decoration:line-through;text-decoration-color:var(--muted);color:var(--muted)}
+.note-btn{border:1px solid var(--line);background:transparent;border-radius:8px;padding:3px 9px;font-size:.78rem;color:var(--muted);white-space:nowrap}
+.note-btn:hover{border-color:var(--accent);color:var(--accent)}
+.note-btn.has{border-color:transparent;background:var(--accent-soft);color:var(--accent)}
+.note-btn:disabled{opacity:.5;cursor:default}
+.preview{grid-column:2 / 4;font-size:.84rem;color:var(--muted);white-space:pre-wrap;overflow-wrap:anywhere}
+.preview a{color:var(--accent)}
+.editor{grid-column:2 / 4;display:grid;gap:6px;margin-top:4px}
+.editor textarea{min-height:92px;resize:vertical;width:100%}
+.editor .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.editor input{flex:1 1 220px}
+.saved{font-family:var(--mono);font-size:.72rem;color:var(--muted)}
+details.module>summary{list-style:none;cursor:pointer}
+details.module>summary::-webkit-details-marker{display:none}
+details.module>summary .caret{font-family:var(--mono);color:var(--muted);transition:transform .2s;display:inline-block}
+details.module[open]>summary .caret{transform:rotate(90deg)}
+.group-label{font-family:var(--mono);font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin:8px 2px 0}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.empty{color:var(--muted);padding:28px;text-align:center;background:var(--surface);border:1px dashed var(--line);border-radius:var(--r)}
+footer{color:var(--muted);font-size:.8rem}
+@media (max-width:760px){.now{grid-template-columns:1fr}.grid2{grid-template-columns:1fr}.item{grid-template-columns:auto minmax(0,1fr)}.item .note-btn{grid-column:2;justify-self:start}.preview,.editor{grid-column:1 / 3}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">AI Engineering &amp; FDE · 24 Nov 2026 → 15 Feb 2027</div>
+    <h1>FDE Journey Tracker</h1>
+    <dl class="facts">
+      <div><dt>Scaler classes</dt><dd>Mon · Wed · Fri, 09:00–11:30 IST</dd></div>
+      <div><dt>Next class</dt><dd id="nextClass">—</dd></div>
+      <div><dt>Readiness review</dt><dd id="countdown">—</dd></div>
+    </dl>
+  </header>
+
+  <div id="banner" class="banner info">Loading your saved progress…</div>
+
+  <section class="stats" aria-label="Summary">
+    <div class="tile"><span class="num" id="stRoadmap">0%</span><span class="label" id="stRoadmapLbl">Roadmap milestones</span><div class="bar"><span id="barRoadmap"></span></div></div>
+    <div class="tile"><span class="num" id="stLearning">0/0</span><span class="label">Technical learning</span><div class="bar"><span id="barLearning"></span></div></div>
+    <div class="tile"><span class="num" id="stScaler">0/0</span><span class="label" id="stScalerLbl">Scaler classes</span><div class="bar"><span id="barScaler"></span></div></div>
+    <div class="tile"><span class="num" id="stCerts">0/7</span><span class="label">Certifications passed</span><div class="bar"><span id="barCerts"></span></div></div>
+    <div class="tile"><span class="num" id="stProjects">0/3</span><span class="label">Portfolio projects complete</span><div class="bar"><span id="barProjects"></span></div></div>
+  </section>
+
+  <section class="now" id="now" aria-label="Current phase"></section>
+
+  <nav class="tabs" role="tablist" aria-label="Sections">
+    <button class="tab" role="tab" id="tab-roadmap" data-tab="roadmap">Roadmap</button>
+    <button class="tab" role="tab" id="tab-scaler" data-tab="scaler">Scaler course</button>
+    <button class="tab" role="tab" id="tab-certs" data-tab="certs">Certifications</button>
+    <button class="tab" role="tab" id="tab-projects" data-tab="projects">Projects</button>
+    <button class="tab" role="tab" id="tab-career" data-tab="career">Career</button>
+  </nav>
+
+  <div class="toolbar">
+    <input id="search" class="field" type="search" placeholder="Search classes, topics, notes…" aria-label="Search">
+    <select id="statusFilter" class="field" aria-label="Filter by status">
+      <option value="all">All items</option>
+      <option value="open">Not done</option>
+      <option value="done">Done</option>
+      <option value="noted">With notes</option>
+    </select>
+  </div>
+
+  <main id="content"></main>
+
+  <footer>Progress and notes are saved to this artifact, so they follow you across devices and Claude can read them to plan your week. February 15 is a portfolio and job-readiness milestone, not a deadline to pass every certification. Claude Certified Architect access depends on Claude Partner Network eligibility, so verify before planning that exam.</footer>
+</div>
+
+<script>
+/* ---------- Data ---------- */
+const PHASES = [
+ {n:1,title:"Foundations",start:"2026-11-24",end:"2026-12-01",tasks:[
+  ["Python for AI, FastAPI, Pydantic and async programming","Python · FastAPI"],
+  ["LLM fundamentals, transformers, tokens and inference","LLM foundations"],
+  ["Prompt engineering and context engineering","Prompts · Context"],
+  ["LLM APIs, streaming and structured outputs","API integration"],
+  ["Build a multi-provider LLM playground","Hands-on"]]},
+ {n:2,title:"RAG and retrieval",start:"2026-12-02",end:"2026-12-15",tasks:[
+  ["Embeddings and vector databases","Embeddings · Qdrant"],
+  ["Document extraction, chunking and metadata","Ingestion"],
+  ["Semantic, keyword and hybrid search","Retrieval"],
+  ["Reranking and RAG evaluation","Evaluation"],
+  ["Build the NexusRAG retrieval prototype","Hands-on"]]},
+ {n:3,title:"Project 1 — NexusRAG",start:"2026-12-16",end:"2026-12-22",tasks:[
+  ["FastAPI architecture and ingestion API","Backend"],
+  ["Celery, Redis and asynchronous workers","Distributed processing"],
+  ["PostgreSQL and Qdrant integration","Data layer"],
+  ["LLM generation, citations and streaming","Generation"],
+  ["Architecture diagrams, tests and documentation","Portfolio"]]},
+ {n:4,title:"Agents and harnesses",start:"2026-12-23",end:"2027-01-05",tasks:[
+  ["Agent loops, planning and tool calling","Agents"],
+  ["LangGraph, state and orchestration","LangGraph"],
+  ["MCP clients, servers and tool integration","MCP"],
+  ["Memory, context management and compaction","Context engineering"],
+  ["Claude Code, Codex, Cursor, skills and hooks","Coding agents"],
+  ["Microsoft Foundry and Azure AI labs","Azure"]]},
+ {n:5,title:"Project 2 — AI SRE Agent",start:"2027-01-06",end:"2027-01-12",tasks:[
+  ["Prometheus and log integrations","Observability"],
+  ["Incident investigation and root-cause analysis","Agent workflow"],
+  ["Human approval and audit logs","Safety"],
+  ["Recovery verification and evaluation","Reliability"]]},
+ {n:6,title:"AWS cloud and deployment",start:"2027-01-13",end:"2027-01-26",tasks:[
+  ["Amazon Bedrock and foundation models","AWS"],
+  ["Knowledge Bases, agents and Guardrails","AWS GenAI"],
+  ["IAM, S3, ECR, ECS and Lambda","Cloud infrastructure"],
+  ["CloudWatch, security and cost optimization","Operations"],
+  ["Deploy NexusRAG or major components to AWS","Deployment"]]},
+ {n:7,title:"Evaluation and Project 3",start:"2027-01-27",end:"2027-02-09",tasks:[
+  ["RAG and agent evaluation metrics","Evaluation"],
+  ["Prompt injection, tenant isolation and guardrails","Security"],
+  ["Load testing, reliability and performance","Production engineering"],
+  ["Build AI Research Agent","Portfolio"],
+  ["AWS GenAI Professional mock exams and labs","Certification preparation"]]},
+ {n:8,title:"Portfolio and career",start:"2027-02-10",end:"2027-02-15",tasks:[
+  ["Polish GitHub repositories and READMEs","GitHub"],
+  ["Prepare project demos and architecture diagrams","Portfolio"],
+  ["Publish reproducible benchmark results","Evidence"],
+  ["AI system design and interview preparation","Interviews"],
+  ["Apply to AI Engineer, GenAI and FDE positions","Job search"]]}
+];
+
+const CERTS = [
+ {name:"AWS Certified AI Practitioner (AIF-C01)",priority:"First",date:"December 2026",desc:"AI/ML and GenAI fundamentals, AWS AI services, responsible AI and governance.",status:"Target exam",tasks:["Review official exam guide and domains","Complete practice questions and review weak areas","Pass exam and confirm 50% benefit is available"]},
+ {name:"Claude Certified Architect – Foundations (CCAR-F)",priority:"Second",date:"December 2026 – January 2027",desc:"Claude application and agent architecture, tools, MCP, context and reliability. Verify exam eligibility with the Claude Partner Network.",status:"Eligibility-dependent",tasks:["Verify organization and exam eligibility","Study official preparation materials","Practice architecture and agent scenarios","Pass exam if eligible"]},
+ {name:"AWS Certified Generative AI Developer – Professional (AIP-C01)",priority:"Third",date:"February–March 2027 or later",desc:"Production GenAI, Bedrock, RAG, agents, security, evaluation and optimization.",status:"Advanced target",tasks:["Study Bedrock, RAG and agent domains","Complete hands-on AWS implementation","Take timed mock exams","Book only when ready; apply 50% benefit if valid","Pass exam"]},
+ {name:"Microsoft Azure AI Apps and Agents Developer Associate (AI-103)",priority:"Fourth",date:"After primary three",desc:"Microsoft Foundry, AI applications, agents and Azure AI services.",status:"Target",tasks:["Study official skills outline","Complete Microsoft Learn modules and labs","Build an Azure AI application","Pass exam"]},
+ {name:"NVIDIA Certified Associate – Generative AI LLMs (NCA-GENL)",priority:"Fifth",date:"After primary three",desc:"LLM concepts and generative AI application development in the NVIDIA ecosystem.",status:"Target",tasks:["Review official exam objectives","Study LLM and GenAI application concepts","Complete practice assessment","Pass exam"]},
+ {name:"Google Cloud Generative AI Leader",priority:"Sixth",date:"After primary three",desc:"GenAI fundamentals, Google Cloud AI offerings, Gemini and business adoption.",status:"Target",tasks:["Study official exam guide","Review Gemini and Google Cloud AI offerings","Complete practice questions","Pass exam"]},
+ {name:"AWS Solutions Architect – Associate (SAA-C03)",priority:"Seventh",date:"March–May 2027",desc:"Cloud architecture, IAM, networking, resilience, storage, compute and cost optimization.",status:"Target",tasks:["Study official exam domains","Complete architecture labs","Take timed mock exams","Pass exam"]}
+];
+
+const PROJECTS = [
+ {name:"Project 1 — NexusRAG",subtitle:"Distributed Enterprise RAG Platform",desc:"A scalable document ingestion and retrieval system using FastAPI, Celery, Redis, PostgreSQL and Qdrant.",tasks:["Complete system requirements and architecture","Implement document ingestion and asynchronous processing","Implement embeddings, indexing and hybrid retrieval","Add multi-tenancy, authorization and deletion handling","Add evaluation, observability and load testing","Deploy and publish a reproducible demo"]},
+ {name:"Project 2 — AI SRE / Incident Management Agent",subtitle:"Agentic incident investigation and response",desc:"An agent that investigates alerts, retrieves logs, recommends remediation and verifies recovery with human approval.",tasks:["Integrate Prometheus metrics and application logs","Build incident investigation workflow","Add tool permissions and human approval","Implement audit logs and recovery verification","Test failure scenarios and document results"]},
+ {name:"Project 3 — AI Research Agent",subtitle:"Multi-tool research and report generation",desc:"An agent that plans research, retrieves sources, evaluates evidence and produces structured reports.",tasks:["Build research planning and tool registry","Integrate search and source retrieval","Implement context management and memory","Generate structured reports with citations","Evaluate quality, test and publish demonstration"]}
+];
+
+const CAREER = [
+ {title:"Start job applications",date:"December 2026",desc:"Target Junior GenAI Engineer, AI Application Engineer, Backend AI Engineer and FDE roles."},
+ {title:"Publish portfolio progress",date:"January 2027",desc:"Share project architecture, demos, tests, decisions and measured results."},
+ {title:"Prepare for technical interviews",date:"January–February 2027",desc:"Practice Python, backend engineering, AI system design, RAG, agents, cloud and debugging."},
+ {title:"February readiness review",date:"February 10–15, 2027",desc:"Review portfolio quality, interview readiness, applications and remaining certification gaps."}
+];
+
+const SCALER = [
+ {n:1,title:"The FDE Launchpad",sub:"Role, SQL & the Legacy Data Problem",months:1.25,kind:"core",classes:["Your Playbook for Every Client Room","The Artifact Toolkit That Runs Every Engagement","Meet the Schema - From Entities to Queries","Reporting Views That Run the Dashboard","Find the Bottleneck, Fix the Query","No Half-Measures - Atomic Updates That Don't Corrupt","Designing a Schema the Client Won't Outgrow","Building Meridian's Full Data Model","Lock It Down - PII, Encryption & Audit Trails","Reaching Across the Firewall - Legacy Data Access","Picking the Right Engine for the Job","Quick Diagnostics Before the Pipeline Exists","Designing the Pipeline - ETL Thinking","Explaining Your Schema to the VP Who Signs Off","Turning Query Results into Client-Ready Insight"]},
+ {n:2,title:"The Ingestion Pipeline",sub:"Production Python",months:1.25,kind:"core",classes:["Your Workbench - Python Toolchain Done Right","Stream It, Don't Load It","Reusable Building Blocks - Decorators & Context Managers","Modeling the Real World in Code","Make It Fast - Concurrency & Async","When the Data Fights Back - Error Handling & Resilience","Validate Everything, Log Everything","Prove It Works - Testing & CI","Code That Survives the Next Engineer","PySpark - When Python Meets Big Data","Pipeline Day - Full PySpark Ingestion Build","Under Pressure - Timed Python Build","PR Reviews That Build Trust, Not Walls","Write the Doc They'll Actually Read"]},
+ {n:3,title:"The Platform's Backend",sub:"Orders, Payments & Real-Time Systems",months:1.75,kind:"core",classes:["Your First Production API","Routing the First Request","Making FastAPI Do the Heavy Lifting","Consuming APIs Like a Professional","Who Gets In - Auth Done Right with OAuth2 & JWT","Locking Doors by Role - RBAC, OIDC & Multi-Tenant Auth","The Order Lifecycle - State Machines in Production","Money and Messages - Payments & Notifications","The Contract Between Backend & Frontend","Break the Contract, Break the Build","Push, Don't Poll - WebSockets & Server-Sent Events","Queues, Cache, Invalidate - Redis & Message Patterns","See Everything - Observability & Tracing","Beyond Rows - JSONB, Full-Text Search & Vector Storage","Under the Hood - Why Your Query Is Slow","The Warehouse Layer - dbt, DuckDB & Dimensional Modeling","Orchestrating the Nightly Pipeline","When Events Beat Requests - Kafka Fundamentals","Pipeline Under Fire - Timed Debug Challenge","Running the Room - API Reviews & Incident Updates"]},
+ {n:4,title:"The Client-Facing Layer",sub:"Frontend Engineering for FDEs",months:1,kind:"core",classes:["How the Web Works: From DOM to Dashboard","Async, Typed and Connected: Talking to the Backend","Thinking in Components: Building the Dashboard One Boundary at a Time","Forms That Don't Frustrate: Validation, Control and Reuse","Wiring the Dashboard Live: APIs, Caching and Server State","KPIs, Tables and Filters: The Dashboard Takes Shape","Defending the Architecture: React Decisions and Next.js Awareness","Gating the Dashboard: Authentication, Roles and Protected Routes","When the Dashboard Comes Alive: Real-Time and AI-Ready Interfaces","Fast, Reliable and Ready: Testing and Performance","From Working Code to Leadership Confidence: Defending the Solution","The Handover Moment: Walking the Ops Team Through Their Dashboard"]},
+ {n:5,title:"The New Ask",sub:"Production RAG for Customer Support",months:1,kind:"core",classes:["The AI Landscape - Picking Your Weapons","Your First System Prompt - And Why It'll Break","Choosing How to Serve - APIs, Context & Parameters","Prompts as Code - Versioning & Regression Testing","Building the Knowledge Pipeline - RAG End to End","Does It Actually Find the Right Answer?","Does It Tell the Truth? - Generation Eval & RAGAS","Guardrails That Actually Work - PII Leak Prevention","Red Team Your Own Copilot","Spend Less, Answer Faster","Ship It - Timed RAG Build","Explaining AI Risk Without Scaring the Room","Making Eval Numbers Mean Something to the Board"]},
+ {n:6,title:"From Answering to Acting",sub:"Agents & Enterprise Integration",months:1.25,kind:"core",classes:["From Chatbot to Coworker","Giving the Agent Real Tools","Orchestrating Agent Intelligence with LangGraph","Production Agent Patterns","When the Agent Breaks","MCP - The Universal Tool Protocol","The Agent Team - Multi-Agent & Human-in-the-Loop","Mapping the Client's System Landscape","Data Integration with Legacy Enterprise Systems","Wiring It Together - API Connectors & Webhooks","When the Integration Breaks","Ship Day - The Full Agentic Copilot Goes Live","Red-Team War Room","Explaining What the Agent Will and Won't Do Alone","Getting the Client's IT Team on Your Side"]},
+ {n:7,title:"The Scale Question",sub:"System Design for Black Friday",months:1.25,kind:"core",classes:["The System Design Playbook","Spreading the Load","Cache Everything","Consistency vs Availability","When One Database Isn't Enough","Shard It and Build It","When Your Table Hits 10TB","The Event Backbone - Kafka at Scale","Search That Scales","Rate Limiting & Unique IDs","Monolith or Microservices","Distributed Transactions - Saga vs 2PC","Whiteboarding With the Client's Architects","System Design Under Pressure"]},
+ {n:8,title:"Scaling the AI Layer",sub:"Enterprise AI Architecture",months:1,kind:"core",classes:["Serving AI at Scale","One Gateway, Many Models","GPU Math - Capacity Planning","When to Fine-Tune - And When Not To","Embedding Pipelines at Scale","Vector Search at Billion Scale","Evals as Infrastructure","Tracking Experiments - MLflow & Model Registries","Ship Without Breaking - Canary Rollouts for AI","Is the AI Drifting?","Defend Your AI Architecture","Selling the AI Stack to the Board"]},
+ {n:9,title:"Prepping the Ground",sub:"Linux, Networking & Shell",months:1,kind:"core",classes:["Your First Server","Who Gets Access","What's Running and Why","Finding the Needle","How Packets Flow","Locking Down the Network","TCP vs. UDP: Below the Surface","Automate the Boring Stuff","Scripts That Keep the Lights On","The log parser","Write the Runbook the 3AM Engineer Will Thank You For"]},
+ {n:10,title:"Containerizing Meridian",sub:"Docker & Kubernetes",months:1.25,kind:"core",classes:["Containers 101","Slim, Fast and Secure Images in Production","Containers Talking to Each Other","Hardening Containers","Why You Need an Orchestrator","Deploy It","Wiring Services Together","Scale/Update Under Pressure","Lock It Down","Production K8s","The Pod Won't Start","Deploying AI Models on a Cluster","GitOps - Declarative Deployments with ArgoCD","Do We Really Need Kubernetes?","Coordinating the Rollout"]},
+ {n:11,title:"Going Live",sub:"AWS Production Deployment with Terraform",months:2.25,kind:"elective",classes:["Designing Your Cloud Network","Compute on AWS","Load Balancing Across AZs","Store It, Serve It, Cache It","Object Storage in the Cloud","Understanding the networking","SQL Database in the Cloud","NoSQL Database in the Cloud","Caching in cloud","Locking Down the Cloud","Breach Drill","Kubernetes in Cloud - I","Kubernetes in Cloud - II","Kubernetes in Cloud - III","Securing Meridian's cluster - I","Securing Meridian's data","Securing Meridian's application","Cert Manager & Route 53 (SSL + DNS Management) for Meridian","AWS Capstone Kickoff (Project Roadmap & Setup)","EKS Capstone: Part 1 (Cluster Design & Deployment)","EKS Capstone: Part 2 (Scaling & Production Readiness)","Cloud Rosetta Stone (AWS ↔ GCP ↔ Azure Service Mapping)","Boardroom Cloud Talk (Cost & Architecture Strategy)","War-Room 101 (Real-Time Incident Response & Communication)","IaC - Terraform Fundamentals","Terraform in Action","Creating a CI Pipeline","Deploying the Docker Image into an EKS"]},
+ {n:12,title:"Making It Bulletproof",sub:"Reliability, HA & Disaster Recovery",months:1,kind:"elective",classes:["SRE - When 99.9% Isn't Enough","Surviving Region Failure - HA Architecture","The DR Plan Nobody Tests (Until It's Too Late)","Sharding in Production - Not Just on a Whiteboard","Breaking to ensure it doesn't break","CRDs, Operators & Admission Webhooks in Kubernetes","Advanced AWS Networking","NoSQL & Caching on AWS","Load Testing at Scale - Proving It Before Black Friday","The Reliability Check","Selling Reliability to the CFO"]},
+ {n:13,title:"Enterprise Sign-Off",sub:"Security Hardening & Incident Response",months:0.75,kind:"elective",classes:["Threat Modeling - Where Will They Attack?","OWASP Top 10 - Hands-On Exploitation & Defence","Securing the AI Layer","Secrets, Keys & Certificates - The Lifecycle Nobody Gets Right","Compliance Frameworks - SOC2, GDPR & What FDEs Actually Do","Penetration Testing Your Own Platform","The Incident Response Playbook","Incident Simulation - Full Red Team Exercise","The Security Briefing the Board Actually Needs"]},
+ {n:14,title:"Capstone & Hiring Readiness",sub:"New Client, Full Simulation",months:0.75,kind:"elective",classes:["New Brief, Day One - The Capstone Kickoff","Build Sprint 1 - Data & Backend","Build Sprint 2 - Frontend & AI Feature","Red Team Day - Classmates Break Your Build","Portfolio Day - Packaging Meridian for Interviews","System Design Interview Prep","Behavioral & FDE Interview Prep","Capstone Demo Day - Graduation"]}
+];
+
+/* ---------- Ids and groups ---------- */
+const GROUPS = {}; // key -> [item ids]
+const ITEMS = {};  // id -> {title, meta}
+function reg(group, id, title, meta){ (GROUPS[group] ||= []).push(id); ITEMS[id] = {title, meta: meta || ""}; }
+PHASES.forEach(p => p.tasks.forEach((t,j) => reg("phase-"+p.n, `l${p.n}-${j+1}`, t[0], t[1])));
+CERTS.forEach((c,i) => c.tasks.forEach((t,j) => reg("cert-"+i, `c${i+1}-${j+1}`, t, c.name)));
+PROJECTS.forEach((p,i) => p.tasks.forEach((t,j) => reg("proj-"+i, `p${i+1}-${j+1}`, t, p.name)));
+CAREER.forEach((c,i) => reg("career", `k${i+1}`, c.title, `${c.date} · ${c.desc}`));
+SCALER.forEach(m => m.classes.forEach((t,j) => reg("mod-"+m.n, `s${m.n}-${j+1}`, t, `Module ${m.n} · ${m.title}`)));
+const ids = prefix => Object.keys(GROUPS).filter(k => k.startsWith(prefix)).flatMap(k => GROUPS[k]);
+const LEARNING_IDS = ids("phase-"), CERT_IDS = ids("cert-"), PROJECT_IDS = ids("proj-"), CAREER_IDS = GROUPS.career, SCALER_IDS = ids("mod-");
+const ROADMAP_IDS = [...LEARNING_IDS, ...CERT_IDS, ...PROJECT_IDS, ...CAREER_IDS];
+
+/* ---------- State ---------- */
+let db = null, col = null;
+let ready = false, writable = true;
+const progress = new Map();          // id -> {done, note, link, doneAt, updatedAt}
+const openNotes = new Set();
+let openModules = new Set();
+let activeTab = "roadmap";
+const TABS = ["roadmap","scaler","certs","projects","career"];
+try { openModules = new Set(JSON.parse(localStorage.getItem("fde-open-modules") || "[]")); } catch {}
+
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const get = id => progress.get(id) || {};
+const isDone = id => !!get(id).done;
+const hasNote = id => !!(get(id).note || get(id).link);
+const countDone = list => list.filter(isDone).length;
+const pct = (a,b) => b ? Math.round(a/b*100) : 0;
+const $ = sel => document.querySelector(sel);
+
+/* ---------- Dates ---------- */
+const today = new Date();
+const todayISO = new Date(today.getTime() - today.getTimezoneOffset()*60000).toISOString().slice(0,10);
+function fmtRange(a,b){
+  const o = {day:"numeric",month:"short"};
+  const da = new Date(a+"T00:00:00"), dbb = new Date(b+"T00:00:00");
+  return `${da.toLocaleDateString("en-IN",o)} – ${dbb.toLocaleDateString("en-IN",o)} ${dbb.getFullYear()}`;
+}
+function nextClassIST(){
+  const nowIST = new Date(Date.now() + 5.5*3600e3); // shift so UTC getters read IST
+  for (let d = 0; d < 8; d++){
+    const t = new Date(nowIST.getTime() + d*86400e3);
+    const wd = t.getUTCDay();
+    if (![1,3,5].includes(wd)) continue;
+    const mins = nowIST.getUTCHours()*60 + nowIST.getUTCMinutes();
+    if (d === 0 && mins >= 11*60+30) continue;
+    const live = d === 0 && mins >= 9*60;
+    const label = t.toLocaleDateString("en-IN",{weekday:"short",day:"numeric",month:"short",timeZone:"UTC"});
+    return live ? `In class now (${label}, until 11:30 IST)` : `${d===0?"Today":label}, 09:00 IST`;
+  }
+  return "—";
+}
+function phaseState(p){
+  const list = GROUPS["phase-"+p.n], done = countDone(list);
+  if (done === list.length) return ["ok","Complete"];
+  if (todayISO >= p.start && todayISO <= p.end) return ["now","This phase"];
+  if (todayISO > p.end) return ["warn","Behind"];
+  return ["","Upcoming"];
+}
+function currentPhase(){
+  return PHASES.find(p => todayISO >= p.start && todayISO <= p.end)
+      || (todayISO < PHASES[0].start ? PHASES[0] : PHASES.find(p => countDone(GROUPS["phase-"+p.n]) < GROUPS["phase-"+p.n].length) || PHASES[PHASES.length-1]);
+}
+function currentModule(){ return SCALER.find(m => countDone(GROUPS["mod-"+m.n]) < m.classes.length) || SCALER[SCALER.length-1]; }
+
+/* ---------- Rendering ---------- */
+function itemHTML(id, opts = {}){
+  const p = get(id), it = ITEMS[id], open = openNotes.has(id);
+  const dis = (!ready || !writable) ? "disabled" : "";
+  const idx = opts.idx ? `<span class="idx">${esc(opts.idx)}</span>` : "";
+  const meta = opts.meta === false ? "" : (opts.meta ?? it.meta);
+  return `<li class="item${p.done?" done":""}" data-id="${id}" data-search="${esc((it.title+" "+meta+" "+(opts.idx||"")).toLowerCase())}">
+    <input type="checkbox" id="cb-${id}" data-act="toggle" ${p.done?"checked":""} ${dis} aria-label="Mark done: ${esc(it.title)}">
+    <label for="cb-${id}">${idx}<span class="title">${esc(it.title)}</span>${meta?`<span class="meta">${esc(meta)}</span>`:""}</label>
+    <button class="note-btn${hasNote(id)?" has":""}" data-act="note" aria-expanded="${open}" ${!ready?"disabled":""}>${noteBtnLabel(id, opts.noteLabel)}</button>
+    <div class="preview" ${open||!hasNote(id)?"hidden":""}>${previewHTML(id)}</div>
+    <div class="editor" ${open?"":"hidden"}>
+      <textarea id="nt-${id}" class="field" data-act="note-text" placeholder="${esc(opts.placeholder || "What did you build or learn? Key takeaways, questions, links…")}" ${dis}>${esc(p.note||"")}</textarea>
+      <div class="row">
+        <input id="ln-${id}" class="field" type="url" data-act="note-link" placeholder="Link to repo, PR or demo (https://…)" value="${esc(p.link||"")}" ${dis}>
+        <span class="saved" aria-live="polite"></span>
+      </div>
+    </div>
+  </li>`;
+}
+function noteBtnLabel(id, label){ return hasNote(id) ? "Note ✓" : (label || "Add note"); }
+function previewHTML(id){
+  const p = get(id); let out = "";
+  if (p.note) out += esc(p.note.length > 220 ? p.note.slice(0,220)+"…" : p.note);
+  if (p.link && /^https:\/\//i.test(p.link)) out += `${out?"\n":""}<a href="${esc(p.link)}" target="_blank" rel="noopener">${esc(p.link)}</a>`;
+  else if (p.link) out += `${out?"\n":""}${esc(p.link)}`;
+  return out;
+}
+
+function renderRoadmap(){
+  return PHASES.map(p => {
+    const [cls,label] = phaseState(p);
+    return `<section class="block" data-section>
+      <div class="block-head"><div class="grow"><h2>Phase ${p.n} · ${esc(p.title)}</h2><div class="sub mono">${fmtRange(p.start,p.end)}</div></div>
+      <span class="chip ${cls}" data-chip="phase-${p.n}">${label}</span><span class="count" data-count="phase-${p.n}"></span></div>
+      <ul class="items">${GROUPS["phase-"+p.n].map(id => itemHTML(id)).join("")}</ul></section>`;
+  }).join("");
+}
+function renderScaler(){
+  const cur = currentModule();
+  const mod = m => {
+    const open = openModules.has(m.n) || (openModules.size === 0 && m.n === cur.n);
+    return `<details class="block module" data-section data-mod="${m.n}" ${open?"open":""}>
+      <summary class="block-head"><span class="caret">›</span><div class="grow"><h2>Module ${m.n} · ${esc(m.title)}</h2><div class="sub">${esc(m.sub)} · <span class="mono">${m.months} mo</span> · ${m.classes.length} classes</div></div>
+      <span class="chip" data-chip="mod-${m.n}"></span><span class="count" data-count="mod-${m.n}"></span></summary>
+      <ul class="items">${GROUPS["mod-"+m.n].map((id,j) => itemHTML(id, {idx:`M${m.n}·${String(j+1).padStart(2,"0")}`, meta:false, noteLabel:"Add note", placeholder:"What did you build in this class? Project, assignment, key takeaways…"})).join("")}</ul>
+    </details>`;
+  };
+  return `<p class="group-label">Core modules</p>${SCALER.filter(m=>m.kind==="core").map(mod).join("")}
+          <p class="group-label">Elective modules</p>${SCALER.filter(m=>m.kind==="elective").map(mod).join("")}`;
+}
+function renderCerts(){
+  return `<div class="grid2">${CERTS.map((c,i) => `<section class="block" data-section>
+    <div class="block-head"><div class="grow"><h3>${esc(c.name)}</h3><div class="sub">${esc(c.date)} · ${esc(c.status)}</div></div>
+    <span class="chip" data-chip="cert-${i}"></span><span class="count" data-count="cert-${i}"></span></div>
+    <p class="desc">${esc(c.desc)}</p>
+    <ul class="items">${GROUPS["cert-"+i].map(id => itemHTML(id,{meta:false})).join("")}</ul></section>`).join("")}</div>`;
+}
+function renderProjects(){
+  return PROJECTS.map((p,i) => `<section class="block" data-section>
+    <div class="block-head"><div class="grow"><h2>${esc(p.name)}</h2><div class="sub">${esc(p.subtitle)}</div></div>
+    <span class="chip" data-chip="proj-${i}"></span><span class="count" data-count="proj-${i}"></span></div>
+    <p class="desc">${esc(p.desc)}</p>
+    <ul class="items">${GROUPS["proj-"+i].map(id => itemHTML(id,{meta:false})).join("")}</ul></section>`).join("");
+}
+function renderCareer(){
+  return `<section class="block" data-section>
+    <div class="block-head"><div class="grow"><h2>Career milestones</h2><div class="sub">Apply while learning; don't wait for every certification.</div></div><span class="count" data-count="career"></span></div>
+    <ul class="items">${CAREER_IDS.map(id => itemHTML(id)).join("")}</ul></section>
+    <section class="block" data-section data-journal>
+      <div class="block-head"><div class="grow"><h2>Weekly notes</h2><div class="sub">Blockers, next actions, exam dates, weekly reflections.</div></div></div>
+      <ul class="items">${journalHTML()}</ul></section>`;
+}
+function journalHTML(){
+  const p = get("journal"), dis = (!ready || !writable) ? "disabled" : "";
+  return `<li class="item" data-id="journal" data-search="weekly notes journal" style="grid-template-columns:1fr">
+    <div class="editor" style="grid-column:1/-1">
+      <textarea id="nt-journal" class="field" data-act="note-text" placeholder="What did you complete this week? What is blocking you?" ${dis} style="min-height:140px">${esc(p.note||"")}</textarea>
+      <div class="row"><span class="saved" aria-live="polite"></span></div>
+    </div></li>`;
+}
+
+function render(){
+  const c = $("#content");
+  c.innerHTML = ({roadmap:renderRoadmap, scaler:renderScaler, certs:renderCerts, projects:renderProjects, career:renderCareer})[activeTab]();
+  TABS.forEach(t => { const b = $("#tab-"+t); b.setAttribute("aria-selected", String(t===activeTab)); b.tabIndex = t===activeTab ? 0 : -1; });
+  updateCounts(); applyFilters();
+}
+
+function updateCounts(){
+  document.querySelectorAll("[data-count]").forEach(el => { const l = GROUPS[el.dataset.count]; el.textContent = `${countDone(l)}/${l.length}`; });
+  document.querySelectorAll("[data-chip]").forEach(el => {
+    const key = el.dataset.chip, list = GROUPS[key], done = countDone(list);
+    let cls = "", label = "";
+    if (key.startsWith("phase-")) [cls,label] = phaseState(PHASES[+key.split("-")[1]-1]);
+    else if (key.startsWith("cert-")) { const last = list[list.length-1]; if (isDone(last)) {cls="ok";label="Passed";} else {label=CERTS[+key.split("-")[1]].priority;} }
+    else if (key.startsWith("mod-")) { const n = +key.split("-")[1];
+      if (done === list.length) {cls="ok";label="Complete";} else if (n === currentModule().n) {cls="now";label="Current";} else if (done) {label="In progress";} else {label="Not started";} }
+    else { if (done === list.length) {cls="ok";label="Complete";} else if (done) {label="In progress";} else {label="Not started";} }
+    el.className = "chip " + cls; el.textContent = label;
+  });
+}
+
+function updateSummary(){
+  const set = (id, txt) => { $(id).textContent = txt; };
+  const bar = (id, v) => { $(id).style.width = v + "%"; };
+  const rd = countDone(ROADMAP_IDS);
+  set("#stRoadmap", pct(rd, ROADMAP_IDS.length) + "%"); set("#stRoadmapLbl", `${rd} of ${ROADMAP_IDS.length} roadmap milestones`); bar("#barRoadmap", pct(rd, ROADMAP_IDS.length));
+  const ld = countDone(LEARNING_IDS); set("#stLearning", `${ld}/${LEARNING_IDS.length}`); bar("#barLearning", pct(ld, LEARNING_IDS.length));
+  const sd = countDone(SCALER_IDS); set("#stScaler", `${sd}/${SCALER_IDS.length}`); bar("#barScaler", pct(sd, SCALER_IDS.length));
+  set("#stScalerLbl", `Scaler classes · now Module ${currentModule().n}`);
+  const passed = CERTS.filter((c,i) => isDone(GROUPS["cert-"+i].at(-1))).length; set("#stCerts", `${passed}/${CERTS.length}`); bar("#barCerts", pct(passed, CERTS.length));
+  const pdone = PROJECTS.filter((p,i) => countDone(GROUPS["proj-"+i]) === p.tasks.length).length; set("#stProjects", `${pdone}/${PROJECTS.length}`); bar("#barProjects", pct(pdone, PROJECTS.length));
+
+  const p = currentPhase(), list = GROUPS["phase-"+p.n], done = countDone(list), [cls,label] = phaseState(p);
+  const nexts = list.filter(id => !isDone(id)).slice(0,3);
+  const m = currentModule(), mList = GROUPS["mod-"+m.n], nextClass = mList.find(id => !isDone(id));
+  $("#now").innerHTML = `<div style="display:grid;gap:8px;min-width:0">
+      <span class="kicker">Roadmap · ${fmtRange(p.start,p.end)}</span>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><h2 style="font-size:1.3rem">Phase ${p.n} · ${esc(p.title)}</h2><span class="chip ${cls}">${label}</span></div>
+      <div class="count">${done}/${list.length} tasks done</div>
+      <div class="bar"><span style="width:${pct(done,list.length)}%"></span></div>
+      <span class="kicker" style="margin-top:8px">Scaler · Module ${m.n}</span>
+      <div>${esc(m.title)}: ${esc(m.sub)}</div>
+      <div class="count">${countDone(mList)}/${mList.length} classes${nextClass?` · next: ${esc(ITEMS[nextClass].title)}`:""}</div>
+    </div>
+    <div style="min-width:0"><span class="kicker">Up next this phase</span>
+      ${nexts.length ? `<ul class="nexts" style="margin-top:8px">${nexts.map(id => `<li>${esc(ITEMS[id].title)}</li>`).join("")}</ul>` : `<p class="count" style="margin-top:8px">All tasks in this phase are done.</p>`}
+    </div>`;
+  const days = Math.ceil((new Date("2027-02-15T00:00:00") - new Date(todayISO+"T00:00:00"))/86400e3);
+  $("#countdown").textContent = days > 0 ? `15 Feb 2027 · ${days} days left` : days === 0 ? "Today" : "15 Feb 2027 (passed)";
+  $("#nextClass").textContent = nextClassIST();
+  const counts = {roadmap:`${ld}/${LEARNING_IDS.length}`, scaler:`${sd}/${SCALER_IDS.length}`, certs:`${passed}/7`, projects:`${pdone}/3`, career:`${countDone(CAREER_IDS)}/${CAREER_IDS.length}`};
+  TABS.forEach(t => { const b = $("#tab-"+t); const label = b.dataset.label || (b.dataset.label = b.textContent); b.innerHTML = `${esc(label)}<span class="mono">${counts[t]}</span>`; });
+}
+
+function patchItem(id){
+  const el = document.querySelector(`.item[data-id="${id}"]`); if (!el) return;
+  const p = get(id);
+  if (id === "journal"){ const ta = el.querySelector("textarea"); if (ta && document.activeElement !== ta) ta.value = p.note || ""; return; }
+  el.classList.toggle("done", !!p.done);
+  const cb = el.querySelector("input[type=checkbox]"); if (cb) cb.checked = !!p.done;
+  const btn = el.querySelector(".note-btn"); btn.classList.toggle("has", hasNote(id)); btn.textContent = noteBtnLabel(id);
+  const prev = el.querySelector(".preview"); prev.innerHTML = previewHTML(id); prev.hidden = openNotes.has(id) || !hasNote(id);
+  const ta = el.querySelector("textarea"), ln = el.querySelector("input[type=url]");
+  if (ta && document.activeElement !== ta) ta.value = p.note || "";
+  if (ln && document.activeElement !== ln) ln.value = p.link || "";
+}
+function setControlsEnabled(){
+  document.querySelectorAll("#content input, #content textarea").forEach(el => el.disabled = !ready || !writable);
+  document.querySelectorAll("#content .note-btn").forEach(el => el.disabled = !ready);
+}
+
+function applyFilters(){
+  const q = $("#search").value.toLowerCase().trim(), st = $("#statusFilter").value;
+  document.querySelectorAll("#content .item").forEach(el => {
+    const id = el.dataset.id, p = get(id);
+    const text = el.dataset.search + " " + (p.note||"").toLowerCase() + " " + (p.link||"").toLowerCase();
+    const okText = !q || text.includes(q);
+    const okSt = id === "journal" ? st === "all" || st === "noted" : st === "all" || (st==="done" && p.done) || (st==="open" && !p.done) || (st==="noted" && hasNote(id));
+    el.hidden = !(okText && okSt);
+  });
+  document.querySelectorAll("#content [data-section]").forEach(sec => {
+    const any = [...sec.querySelectorAll(".item")].some(el => !el.hidden);
+    sec.hidden = !any;
+    if (sec.matches("details") && (q || st !== "all") && any) sec.open = true;
+  });
+  document.querySelectorAll("#content .group-label").forEach(lbl => {
+    let n = lbl.nextElementSibling, any = false;
+    while (n && !n.classList.contains("group-label")) { if (!n.hidden) any = true; n = n.nextElementSibling; }
+    lbl.hidden = !any;
+  });
+  let empty = $("#content .empty");
+  const visible = [...document.querySelectorAll("#content [data-section]")].some(s => !s.hidden);
+  if (!visible && !empty){ empty = document.createElement("div"); empty.className = "empty"; empty.textContent = "Nothing matches this search or filter."; $("#content").append(empty); }
+  else if (visible && empty) empty.remove();
+}
+
+/* ---------- Saving ---------- */
+const pending = new Map(), inflight = new Set(), timers = new Map();
+function body(id){
+  const p = get(id);
+  return { done: !!p.done, note: p.note || "", link: p.link || "", doneAt: p.doneAt || null, updatedAt: p.updatedAt || null };
+}
+function save(id, patch){
+  const next = { ...get(id), ...patch, updatedAt: new Date().toISOString() };
+  progress.set(id, next);
+  pending.set(id, body(id));
+  if (!inflight.has(id)) flush(id);
+}
+async function flush(id){
+  inflight.add(id);
+  while (pending.has(id)){
+    const b = pending.get(id); pending.delete(id);
+    try { await col.doc(id).set(b); markSaved(id, "Saved"); }
+    catch (e) { handleWriteError(e, id); break; }
+  }
+  inflight.delete(id);
+}
+function markSaved(id, txt){
+  const el = document.querySelector(`.item[data-id="${id}"] .saved`);
+  if (el) { el.textContent = txt; clearTimeout(el._t); el._t = setTimeout(() => el.textContent = "", 2500); }
+}
+function handleWriteError(e, id){
+  const code = e && e.code;
+  if (code === "invalid_argument" || code === "not_granted" || code === "revoked"){
+    writable = false; setControlsEnabled();
+    showBanner("You can view this tracker but not change it. Only the owner can tick items and write notes.");
+  } else if (code === "quota_exceeded"){
+    showBanner("Storage for this tracker is full, so this change wasn't saved. Clear some old notes and try again.");
+  } else {
+    showBanner("That change didn't save because the connection dropped. Try again in a moment.");
+  }
+  markSaved(id, "Not saved");
+}
+function showBanner(txt, info){ const b = $("#banner"); b.textContent = txt; b.className = "banner" + (info ? " info" : ""); b.hidden = false; }
+
+/* ---------- Events ---------- */
+$("#content").addEventListener("change", e => {
+  const t = e.target; if (t.dataset.act !== "toggle") return;
+  const id = t.closest(".item").dataset.id;
+  save(id, { done: t.checked, doneAt: t.checked ? new Date().toISOString() : null });
+  patchItem(id); updateCounts(); updateSummary(); applyFilters();
+});
+$("#content").addEventListener("click", e => {
+  const b = e.target.closest("[data-act=note]"); if (!b) return;
+  const el = b.closest(".item"), id = el.dataset.id;
+  if (openNotes.has(id)) openNotes.delete(id); else openNotes.add(id);
+  const open = openNotes.has(id);
+  b.setAttribute("aria-expanded", String(open));
+  el.querySelector(".editor").hidden = !open;
+  el.querySelector(".preview").hidden = open || !hasNote(id);
+  if (open) el.querySelector("textarea").focus();
+});
+$("#content").addEventListener("input", e => {
+  const t = e.target, act = t.dataset.act; if (act !== "note-text" && act !== "note-link") return;
+  const id = t.closest(".item").dataset.id;
+  const p = get(id); progress.set(id, { ...p, [act === "note-text" ? "note" : "link"]: t.value });
+  markSaved(id, "Saving…");
+  clearTimeout(timers.get(id));
+  timers.set(id, setTimeout(() => { timers.delete(id); save(id, {}); if (id !== "journal") { const el = document.querySelector(`.item[data-id="${id}"]`); if (el){ const btn = el.querySelector(".note-btn"); btn.classList.toggle("has", hasNote(id)); btn.textContent = noteBtnLabel(id); el.querySelector(".preview").innerHTML = previewHTML(id); } } }, 700));
+});
+$("#content").addEventListener("toggle", e => {
+  const d = e.target; if (!d.matches || !d.matches("details.module")) return;
+  const n = +d.dataset.mod; if (d.open) openModules.add(n); else openModules.delete(n);
+  try { localStorage.setItem("fde-open-modules", JSON.stringify([...openModules])); } catch {}
+}, true);
+document.querySelectorAll(".tab").forEach(b => b.addEventListener("click", () => go(b.dataset.tab)));
+document.querySelector(".tabs").addEventListener("keydown", e => {
+  if (!["ArrowLeft","ArrowRight"].includes(e.key)) return;
+  const i = TABS.indexOf(activeTab), n = TABS[(i + (e.key==="ArrowRight"?1:-1) + TABS.length) % TABS.length];
+  go(n); $("#tab-"+n).focus();
+});
+$("#search").addEventListener("input", applyFilters);
+$("#statusFilter").addEventListener("change", applyFilters);
+function go(tab){ if (!TABS.includes(tab)) tab = "roadmap"; activeTab = tab; if (location.hash.slice(1) !== tab) history.replaceState(null, "", "#"+tab); render(); }
+window.addEventListener("hashchange", () => { const t = location.hash.slice(1); if (TABS.includes(t) && t !== activeTab) { activeTab = t; render(); } });
+
+/* ---------- Boot ---------- */
+activeTab = TABS.includes(location.hash.slice(1)) ? location.hash.slice(1) : "roadmap";
+render(); updateSummary();
+
+(async () => {
+  db = window.claude ? await window.claude.use("db") : null;
+  if (!db){
+    showBanner("Saving isn't available in this view. Open the tracker on claude.ai while signed in to tick items and write notes.");
+    return;
+  }
+  const user = await window.claude.use("user");
+  if (user){ const can = await user.can("data.write"); if (can === false) writable = false; }
+  col = db.collection("progress");
+  let settled = false;
+  const timer = setTimeout(() => { if (!settled) showBanner("Your saved progress can't be reached yet. It will appear when the connection returns."); }, 10000);
+  col.onSnapshot(snap => {
+    const before = new Map(progress);
+    snap.docs.forEach(d => {
+      if (!d.exists) return;
+      if (inflight.has(d.id) || pending.has(d.id) || timers.has(d.id)) return; // local edit not yet saved: keep it
+      progress.set(d.id, { ...d.data() });
+    });
+    const firstLoad = !ready;
+    if (!ready){ ready = true; }
+    if (!snap.metadata.fromCache){ settled = true; clearTimeout(timer); }
+    if (firstLoad){ render(); }
+    else { for (const id of new Set([...before.keys(), ...progress.keys()])) if (JSON.stringify(before.get(id)) !== JSON.stringify(progress.get(id))) patchItem(id); updateCounts(); applyFilters(); }
+    setControlsEnabled(); updateSummary();
+    if (settled){
+      if (!writable) showBanner("You can view this tracker but not change it. Only the owner can tick items and write notes.");
+      else $("#banner").hidden = true;
+    } else if (firstLoad) showBanner("Showing progress saved on this device. Checking for newer changes…", true);
+  }, err => {
+    settled = true; clearTimeout(timer);
+    showBanner("Saved progress stopped updating. Reload the page to reconnect.");
+  });
+})();
+</script>

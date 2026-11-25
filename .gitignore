@@ -1,0 +1,8 @@
+.DS_Store
+.env
+.env.*
+*.log
+scratch/
+
+# Personal mentor notes (context, learning log, quizzes, CV work) stay private
+mentor/
