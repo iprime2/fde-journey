@@ -49,7 +49,9 @@ test.describe("open and close, remembered on the device", () => {
     // Tap the sub line, not the title. The button's ::after covers the head, so the tap reaches
     // the button (Playwright's own click refuses here for exactly that reason).
     const card = page.getByRole("region", { name: "Module 2 · The Ingestion Pipeline" });
-    const sub = await card.getByText(/^Production Python · 1\.25 mo · \d+ classes$/).boundingBox();
+    const subLine = card.getByText(/^Production Python · 1\.25 mo · \d+ classes$/);
+    await subLine.scrollIntoViewIfNeeded(); // page.mouse only reaches what is on screen
+    const sub = await subLine.boundingBox();
     expect(sub).not.toBeNull();
     await page.mouse.click(sub!.x + sub!.width / 2, sub!.y + sub!.height / 2);
     await expect(page.getByRole("button", { name: "Module 2 · The Ingestion Pipeline" })).toHaveAttribute("aria-expanded", "true");
