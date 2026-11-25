@@ -152,7 +152,9 @@ const PHASES = [
   ["LLM fundamentals, transformers, tokens and inference","LLM foundations"],
   ["Prompt engineering and context engineering","Prompts · Context"],
   ["LLM APIs, streaming and structured outputs","API integration"],
-  ["Build a multi-provider LLM playground","Hands-on"]]},
+  ["Build a multi-provider LLM playground","Hands-on"],
+  ["Count tokens and cost per call; compare model tiers and prompt caching on one task","Cost · Latency"],
+  ["Build a structured-extraction test: 30 examples with expected outputs and an accuracy score","Evaluation"]]},
  {n:2,title:"RAG and retrieval",start:"2026-12-02",end:"2026-12-15",tasks:[
   ["Embeddings and vector databases","Embeddings · Qdrant"],
   ["Document extraction, chunking and metadata","Ingestion"],
@@ -177,19 +179,24 @@ const PHASES = [
   ["MCP clients, servers and tool integration","MCP"],
   ["Memory, context management and compaction","Context engineering"],
   ["Claude Code, Codex, Cursor, skills and hooks","Coding agents"],
-  ["Microsoft Foundry and Azure AI labs","Azure"]]},
+  ["Microsoft Foundry and Azure AI labs","Azure"],
+  ["Prompt-injection and permission basics: scope each tool, validate inputs and outputs, test with attack prompts","Security basics"],
+  ["Workflow vs agent: decide for three sample tasks and write down why","Agents · Judgement"],
+  ["Build a small agent test suite: 10 tasks with expected outcomes and a tool-call log","Agents · Evaluation"]]},
  {n:5,title:"Project 2 — AI SRE Agent",start:"2027-01-06",end:"2027-01-12",tasks:[
   ["Prometheus and log integrations","Observability"],
   ["Incident investigation and root-cause analysis","Agent workflow"],
   ["Human approval and audit logs","Safety"],
   ["Recovery verification and evaluation","Reliability"],
-  ["Design doc first, then handover doc and 5-minute demo script for the AI SRE agent","FDE craft"]]},
+  ["Design doc first, then handover doc and 5-minute demo script for the AI SRE agent","FDE craft"],
+  ["Integrate a ticketing or Slack connector: file a ticket or post an incident summary after human approval","Enterprise integration"]]},
  {n:6,title:"AWS cloud and deployment",start:"2027-01-13",end:"2027-01-26",tasks:[
   ["Amazon Bedrock and foundation models","AWS"],
   ["Knowledge Bases, agents and Guardrails","AWS GenAI"],
   ["IAM, S3, ECR, ECS and Lambda","Cloud infrastructure"],
   ["CloudWatch, security and cost optimization","Operations"],
-  ["Deploy NexusRAG or major components to AWS","Deployment"]]},
+  ["Deploy NexusRAG or major components to AWS","Deployment"],
+  ["Write the one-page customer security note for the AWS deployment: data flow, IAM scope, logging, PII","Security · FDE craft"]]},
  {n:7,title:"Evaluation and Project 3",start:"2027-01-27",end:"2027-02-09",tasks:[
   ["RAG and agent evaluation metrics","Evaluation"],
   ["Prompt injection, tenant isolation and guardrails","Security"],
@@ -217,14 +224,14 @@ const CERTS = [
 
 const PROJECTS = [
  {name:"Project 1 — NexusRAG",subtitle:"Distributed Enterprise RAG Platform",desc:"A scalable document ingestion and retrieval system using FastAPI, Celery, Redis, PostgreSQL and Qdrant.",tasks:["Complete system requirements and architecture","Implement document ingestion and asynchronous processing","Implement embeddings, indexing and hybrid retrieval","Add multi-tenancy, authorization and deletion handling","Add evaluation, observability and load testing","Deploy and publish a reproducible demo"]},
- {name:"Project 2 — AI SRE / Incident Management Agent",subtitle:"Agentic incident investigation and response",desc:"An agent that investigates alerts, retrieves logs, recommends remediation and verifies recovery with human approval.",tasks:["Integrate Prometheus metrics and application logs","Build incident investigation workflow","Add tool permissions and human approval","Implement audit logs and recovery verification","Test failure scenarios and document results"]},
+ {name:"Project 2 — AI SRE / Incident Management Agent",subtitle:"Agentic incident investigation and response",desc:"An agent that investigates alerts, retrieves logs, recommends remediation and verifies recovery with human approval.",tasks:["Integrate Prometheus metrics and application logs","Build incident investigation workflow","Add tool permissions and human approval","Implement audit logs and recovery verification","Test failure scenarios and document results","Integrate a ticketing or Slack connector with human approval"]},
  {name:"Project 3 — AI Research Agent",subtitle:"Multi-tool research and report generation",desc:"An agent that plans research, retrieves sources, evaluates evidence and produces structured reports.",tasks:["Build research planning and tool registry","Integrate search and source retrieval","Implement context management and memory","Generate structured reports with citations","Evaluate quality, test and publish demonstration"]}
 ];
 
 const CAREER = [
  {title:"Start job applications",date:"December 2026",desc:"Target Junior GenAI Engineer, AI Application Engineer, Backend AI Engineer and FDE roles. Apply once Portfolio v1 (public demo, README, eval numbers) is ready."},
  {title:"Publish portfolio progress",date:"January 2027",desc:"Share project architecture, demos, tests, decisions and measured results."},
- {title:"Prepare for technical interviews",date:"January–February 2027",desc:"Practice Python, backend engineering, AI system design, RAG, agents, cloud and debugging."},
+ {title:"Prepare for technical interviews",date:"December 2026 – February 2027",desc:"Start light in December: one timed Python problem and one AI system-design walkthrough a week. Full practice in January–February: Python, backend engineering, AI system design, RAG, agents, cloud and debugging."},
  {title:"February readiness review",date:"February 10–15, 2027",desc:"Review portfolio quality, interview readiness, applications and remaining certification gaps."}
 ];
 
