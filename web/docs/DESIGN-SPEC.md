@@ -98,8 +98,14 @@ Tokens live as CSS variables, so components never need `dark:` variants for colo
   --warn:#f0b35a; --warn-soft:#3a2b13; --danger:#ff958a; --danger-soft:#3d1915;
   --overlay-shadow: 0 8px 24px rgb(0 0 0 / 0.5);
 } }
+@theme {
+  --color-*: initial;   /* drop Tailwind's default palette */
+  --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --radius-sm: 6px; --radius-md: 10px; --radius-lg: 12px;
+}
 @theme inline {
-  --color-*: initial;
   --color-page: var(--page); --color-surface: var(--surface); --color-sunk: var(--sunk); --color-hover: var(--hover);
   --color-ink: var(--ink); --color-muted: var(--muted); --color-line: var(--line); --color-line-strong: var(--line-strong);
   --color-accent: var(--accent); --color-accent-hover: var(--accent-hover); --color-accent-ink: var(--accent-ink); --color-accent-soft: var(--accent-soft);
@@ -109,13 +115,13 @@ Tokens live as CSS variables, so components never need `dark:` variants for colo
 ```
 
 ### 2.4 Typography
-Load fonts from npm in the root layout (`import "@fontsource-variable/inter";` and so on). Never `next/font/google` or a Google Fonts link. Package versions were 5.3.0 on npm on 2026-11-25; the front-end engineer pins exact versions.
+Load fonts from npm in the root layout, one import per weight (`import "@fontsource/inter/400.css";` and so on), using the static `@fontsource` packages already pinned in `web/package.json` (5.3.0). Never `next/font/google` or a Google Fonts link. Load only the weights below; a missing weight makes the browser fake it.
 
-| Role | Package | `font-family` | Fallback |
-|---|---|---|---|
-| Display (headings, app name) | `@fontsource-variable/space-grotesk` | `"Space Grotesk Variable"` | `ui-sans-serif, system-ui, sans-serif` |
-| Body | `@fontsource-variable/inter` | `"Inter Variable"` | `ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif` |
-| Mono (numbers, counts, dates, chips) | `@fontsource-variable/jetbrains-mono` | `"JetBrains Mono Variable"` | `ui-monospace, SFMono-Regular, Menlo, monospace` |
+| Role | Package | Weights to import | `font-family` | Fallback |
+|---|---|---|---|---|
+| Display (headings, app name) | `@fontsource/space-grotesk` | 600 | `"Space Grotesk"` | `ui-sans-serif, system-ui, sans-serif` |
+| Body | `@fontsource/inter` | 400, 500, 600 | `"Inter"` | `ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif` |
+| Mono (numbers, counts, dates, chips) | `@fontsource/jetbrains-mono` | 500, 600 (the M1 skeleton imports only 500; add `600.css`) | `"JetBrains Mono"` | `ui-monospace, SFMono-Regular, Menlo, monospace` |
 
 | Token | Font | Size / line height | Weight | Use |
 |---|---|---|---|---|
@@ -134,7 +140,7 @@ Nothing smaller than 12 px. Body text lines stay under about 75 characters (desc
 
 ### 2.5 Spacing, radius, shadow, motion, breakpoints
 - **Spacing**: Tailwind's default 4 px scale. Use 4, 8, 12, 16, 20, 24, 32, 40, 64 px only. Card padding 16 px; gap between cards 12 px; gap between page sections 20 px (phone) and 24 px (desktop).
-- **Radius**: `sm` 6 px (focus ring, chips' inner corners), `md` 10 px (fields, buttons, resource list box), `lg` 12 px (cards, tiles, panels, sheet), `full` (chips, progress bar).
+- **Radius**: `sm` 6 px (focus ring, skeleton blocks), `md` 10 px (fields, buttons, resource list box), `lg` 12 px (cards, tiles, panels, sheet), `full` (chips, progress bar).
 - **Shadow**: cards and tiles have none, only a 1 px `line` border. `shadow-overlay` is only for the "More" sheet.
 - **Motion**: 150 ms ease-out for colour changes, 200 ms for caret rotation, 300 ms for progress-bar width. Nothing else moves. Under `prefers-reduced-motion: reduce` all of it is off (use Tailwind's `motion-safe:`), including skeleton pulsing.
 - **Breakpoints**: Tailwind defaults. Below `lg` (1024 px) is the phone layout; `md` (768 px) only changes grids. Layouts must also work at 320 px with no sideways scrolling.
@@ -142,6 +148,7 @@ Nothing smaller than 12 px. Body text lines stay under about 75 characters (desc
 ## 3. Layout
 
 ### 3.1 Phone and tablet (below 1024 px)
+- Set the viewport to `viewport-fit=cover` (Next.js `viewport` export, `viewportFit: "cover"`) so the safe-area insets below work on phones with a notch.
 - No top bar. The page header is the first thing on screen; pad the top with `max(24px, env(safe-area-inset-top))`.
 - **Bottom bar**, fixed: `surface` background, 1 px `line` top border, height 64 px plus `env(safe-area-inset-bottom)`. Five equal cells: **Home, Roadmap, Reading, Scaler, More**. Each cell is a 22 px icon above a `tab-label`, the whole cell is the target (at least 48 px tall). Default colour `muted`. Current page: icon and label `accent`, a 3 px by 24 px `accent` pill above the icon, and `aria-current="page"`.
 - **More** is a button (`aria-expanded`, `aria-controls`). It opens a sheet above the bar: `surface`, `lg` top corners, `shadow-overlay`, over a scrim of `rgb(0 0 0 / 0.3)`. Rows 52 px tall: Certifications, Projects, Career, then a divider and Sign out (M2 onwards). It closes on choosing a row, on Escape and on tapping the scrim; focus goes to the first row on open and back to More on close. When the current page is in the sheet, More takes the current style.
@@ -187,9 +194,9 @@ Shared rules: focus ring is `outline: 2px solid accent; outline-offset: 2px` on 
 
 **PageHeader.** Optional eyebrow (`label`, `accent`), `h1` (`display`), optional description (`small`, `muted`, 65ch), optional facts. The `h1` gets `tabindex="-1"` so focus can move to it after navigation. States: default only.
 
-**Facts.** A `<dl>` that wraps: `dt` in `label`/`muted`, `dd` in 14 px Inter 500 `ink`. Gap 8 px by 18 px. Loading: `dd` shows "–" until the client has computed it.
+**Facts.** A `<dl>` that wraps: `dt` in `label`/`muted`, `dd` in `small` at weight 500, `ink`. Gap 8 px by 18 px. Loading: `dd` shows "–" until the client has computed it.
 
-**Banner.** Full-width strip, `md` radius, padding 10 px by 14 px, `small` text, optional action as an underlined text button. Variants: info (`ink` on `sunk`, `role="status"`), warning (`warn` on `warn-soft`, `role="status"`), error (`danger` on `danger-soft`, `role="alert"`). Only info banners can be dismissed. Show at most two, highest first: error, warning, info.
+**Banner.** Full-width strip, `md` radius, padding 10 px by 14 px, `small` text, optional action as an underlined text button. Variants: info (`ink` on `sunk`, `role="status"`), warning (`warn` on `warn-soft`, `role="status"`), error (`danger` on `danger-soft`, `role="alert"`). Banners have no close button: each goes away when its cause does ("Back online." hides itself after 4 s). Show at most two, highest first: error, warning, info.
 
 **StatTile.** A link card to its section: `surface`, `line` border, `lg` radius, padding 14 px by 16 px. Number (`num-lg`), label (`small`, `muted`), ProgressBar. Hover: border `line-strong`. Focus: ring. Loading: skeleton. Zero is not special: "0/57" and an empty bar.
 
@@ -225,7 +232,7 @@ Shared rules: focus ring is `outline: 2px solid accent; outline-offset: 2px` on 
 
 **ResourceList** (inside roadmap task rows). A `<details>`: summary "› Learning resources x/y" in `small` 600 `accent`, at least 44 px tall. Inside: "**Start here:** {text}" (`small`, `muted`, label in `ink`), then a list box (`sunk`, 1 px `line` border, `md` radius) of ItemRows (index "1.", linked title, meta "by · type · length · level", why line). Remembered per device (`fde-open-res`). Opens when a search or filter matches inside.
 
-**Toolbar.** One row: SearchField grows, StatusFilter about 150 px; it wraps under 360 px. Gap 8 px.
+**Toolbar.** One row, gap 8 px: SearchField grows (minimum 180 px), StatusFilter about 150 px. Both fit on one row at 390 px (358 px of content) and wrap at 320 px.
 - SearchField: `type="search"`, 44 px tall, 16 px text, magnifier icon (decorative), label "Search this page" (visually hidden), placeholder per page (section 8). Matches titles, meta, why lines, resource titles, note text and links.
 - StatusFilter: native `<select>`, 44 px, label "Show" (visually hidden): All items, Not done, Done, With notes.
 - Both stored in the URL (`?q=` and `?status=`, replace, don't push) so reload and Back keep them. A visually hidden live region says "{n} items shown" 400 ms after the last change.
@@ -338,7 +345,7 @@ Each check is part of the M1 screen review at 390x844 and 1280x900, light and da
 2. Short. Buttons are one to three words and start with a verb: "Add note", "Try again", "Sign in with GitHub".
 3. Messages say what happened, then what to do. No blame, no "Oops", no exclamation marks, no emoji.
 4. No internal words: not "sync", "session", "database", "server", "request", "item id" or error codes. Say "saved", "signed in", "connection".
-5. Define a term the first time it appears on a screen: "Forward Deployed Engineer (FDE)". Course and roadmap content keeps its own wording.
+5. Define jargon once, where it first appears: the sign-in page spells out "Forward Deployed Engineer (FDE)", so later screens can say "FDE". Course and roadmap content keeps its own wording.
 6. Dates like the tracker: "Mon 30 Nov", "24 Nov – 1 Dec 2026", "15 Feb 2027". Times in 24-hour IST: "09:00 IST". Numbers as digits.
 7. Keep the tracker's labels for anything that already exists, so the owner recognises it.
 
