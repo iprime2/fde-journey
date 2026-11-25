@@ -74,7 +74,7 @@ h3{font-family:var(--display);font-size:1rem;margin:0}
 .item .title{font-weight:500}
 .item .meta{display:block;font-size:.78rem;color:var(--muted);margin-top:1px}
 .item .idx{font-family:var(--mono);font-size:.72rem;color:var(--muted);margin-right:6px}
-.item.done .title{text-decoration:line-through;text-decoration-color:var(--muted);color:var(--muted)}
+.item.done>label .title{text-decoration:line-through;text-decoration-color:var(--muted);color:var(--muted)}
 .note-btn{border:1px solid var(--line);background:transparent;border-radius:8px;padding:3px 9px;font-size:.78rem;color:var(--muted);white-space:nowrap}
 .note-btn:hover{border-color:var(--accent);color:var(--accent)}
 .note-btn.has{border-color:transparent;background:var(--accent-soft);color:var(--accent)}
@@ -86,6 +86,17 @@ h3{font-family:var(--display);font-size:1rem;margin:0}
 .editor .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .editor input{flex:1 1 220px}
 .saved{font-family:var(--mono);font-size:.72rem;color:var(--muted)}
+details.res{grid-column:2 / -1;margin-top:6px}
+details.res>summary{list-style:none;cursor:pointer;display:flex;gap:8px;align-items:center;font-size:.84rem;color:var(--accent);font-weight:600}
+details.res>summary::-webkit-details-marker{display:none}
+details.res>summary .caret{font-family:var(--mono);transition:transform .2s;display:inline-block}
+details.res[open]>summary .caret{transform:rotate(90deg)}
+details.res .start{margin:8px 0 4px;font-size:.84rem;color:var(--muted)}
+.res-list{margin-top:6px;border:1px solid var(--line);border-radius:10px;background:var(--sunk)}
+.res-list .item{padding:9px 12px}
+.res-list .item:first-child{border-top:0}
+.item .rl{color:var(--accent);text-underline-offset:2px}
+.item .why{display:block}
 details.module>summary{list-style:none;cursor:pointer}
 details.module>summary::-webkit-details-marker{display:none}
 details.module>summary .caret{font-family:var(--mono);color:var(--muted);transition:transform .2s;display:inline-block}
@@ -94,7 +105,7 @@ details.module[open]>summary .caret{transform:rotate(90deg)}
 .grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 .empty{color:var(--muted);padding:28px;text-align:center;background:var(--surface);border:1px dashed var(--line);border-radius:var(--r)}
 footer{color:var(--muted);font-size:.8rem}
-@media (max-width:760px){.now{grid-template-columns:1fr}.grid2{grid-template-columns:1fr}.item{grid-template-columns:auto minmax(0,1fr)}.item .note-btn{grid-column:2;justify-self:start}.preview,.editor{grid-column:1 / 3}}
+@media (max-width:760px){.now{grid-template-columns:1fr}.grid2{grid-template-columns:1fr}.item{grid-template-columns:auto minmax(0,1fr)}.item .note-btn{grid-column:2;justify-self:start}.preview,.editor,details.res{grid-column:1 / 3}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 
@@ -114,6 +125,7 @@ footer{color:var(--muted);font-size:.8rem}
   <section class="stats" aria-label="Summary">
     <div class="tile"><span class="num" id="stRoadmap">0%</span><span class="label" id="stRoadmapLbl">Roadmap milestones</span><div class="bar"><span id="barRoadmap"></span></div></div>
     <div class="tile"><span class="num" id="stLearning">0/0</span><span class="label">Technical learning</span><div class="bar"><span id="barLearning"></span></div></div>
+    <div class="tile"><span class="num" id="stRes">0/0</span><span class="label">Learning resources studied</span><div class="bar"><span id="barRes"></span></div></div>
     <div class="tile"><span class="num" id="stScaler">0/0</span><span class="label" id="stScalerLbl">Scaler classes</span><div class="bar"><span id="barScaler"></span></div></div>
     <div class="tile"><span class="num" id="stCerts">0/7</span><span class="label">Certifications passed</span><div class="bar"><span id="barCerts"></span></div></div>
     <div class="tile"><span class="num" id="stProjects">0/3</span><span class="label">Portfolio projects complete</span><div class="bar"><span id="barProjects"></span></div></div>
@@ -252,6 +264,12 @@ const SCALER = [
  {n:14,title:"Capstone & Hiring Readiness",sub:"New Client, Full Simulation",months:0.75,kind:"elective",classes:["New Brief, Day One - The Capstone Kickoff","Build Sprint 1 - Data & Backend","Build Sprint 2 - Frontend & AI Feature","Red Team Day - Classmates Break Your Build","Portfolio Day - Packaging Meridian for Interviews","System Design Interview Prep","Behavioral & FDE Interview Prep","Capstone Demo Day - Graduation"]}
 ];
 
+/* ---------- Learning resources: attached to roadmap tasks, ids r{phase}-{task}-{n} ---------- */
+const TYPE_LABEL = {video:"Video", article:"Article", docs:"Docs", course:"Course", interactive:"Interactive"};
+const RESOURCES = {};
+const resMeta = r => [r.by, TYPE_LABEL[r.type] || r.type, r.length, r.level ? r.level[0].toUpperCase()+r.level.slice(1) : ""].filter(Boolean).join(" · ");
+const resId = (taskId, j) => `r${taskId.slice(1)}-${j+1}`;
+
 /* ---------- Ids and groups ---------- */
 const GROUPS = {}; // key -> [item ids]
 const ITEMS = {};  // id -> {title, meta}
@@ -261,9 +279,12 @@ CERTS.forEach((c,i) => c.tasks.forEach((t,j) => reg("cert-"+i, `c${i+1}-${j+1}`,
 PROJECTS.forEach((p,i) => p.tasks.forEach((t,j) => reg("proj-"+i, `p${i+1}-${j+1}`, t, p.name)));
 CAREER.forEach((c,i) => reg("career", `k${i+1}`, c.title, `${c.date} · ${c.desc}`));
 SCALER.forEach(m => m.classes.forEach((t,j) => reg("mod-"+m.n, `s${m.n}-${j+1}`, t, `Module ${m.n} · ${m.title}`)));
+const RES_BY_ID = {};
+Object.entries(RESOURCES).forEach(([taskId, g]) => g.items.forEach((r,j) => { const id = resId(taskId,j); RES_BY_ID[id] = r; reg("res-"+taskId, id, r.title, resMeta(r)); }));
 const ids = prefix => Object.keys(GROUPS).filter(k => k.startsWith(prefix)).flatMap(k => GROUPS[k]);
 const LEARNING_IDS = ids("phase-"), CERT_IDS = ids("cert-"), PROJECT_IDS = ids("proj-"), CAREER_IDS = GROUPS.career, SCALER_IDS = ids("mod-");
 const ROADMAP_IDS = [...LEARNING_IDS, ...CERT_IDS, ...PROJECT_IDS, ...CAREER_IDS];
+const RES_IDS = ids("res-"); // resources are tracked separately and do not count toward roadmap progress
 
 /* ---------- State ---------- */
 let db = null, col = null;
@@ -271,6 +292,8 @@ let ready = false, writable = true;
 const progress = new Map();          // id -> {done, note, link, doneAt, updatedAt}
 const openNotes = new Set();
 let openModules = new Set();
+const openRes = new Set();
+try { JSON.parse(localStorage.getItem("fde-open-res") || "[]").forEach(k => openRes.add(k)); } catch {}
 let activeTab = "roadmap";
 const TABS = ["roadmap","scaler","certs","projects","career"];
 try { openModules = new Set(JSON.parse(localStorage.getItem("fde-open-modules") || "[]")); } catch {}
@@ -324,9 +347,11 @@ function itemHTML(id, opts = {}){
   const dis = (!ready || !writable) ? "disabled" : "";
   const idx = opts.idx ? `<span class="idx">${esc(opts.idx)}</span>` : "";
   const meta = opts.meta === false ? "" : (opts.meta ?? it.meta);
-  return `<li class="item${p.done?" done":""}" data-id="${id}" data-search="${esc((it.title+" "+meta+" "+(opts.idx||"")).toLowerCase())}">
+  const titleHTML = opts.url && /^https:\/\//i.test(opts.url) ? `<a class="rl" href="${esc(opts.url)}" target="_blank" rel="noopener noreferrer">${esc(it.title)}</a>` : esc(it.title);
+  const why = opts.why ? `<span class="meta why">${esc(opts.why)}</span>` : "";
+  return `<li class="item${p.done?" done":""}" data-id="${id}" data-search="${esc((it.title+" "+meta+" "+(opts.idx||"")+" "+(opts.why||"")+" "+(opts.searchExtra||"")).toLowerCase())}">
     <input type="checkbox" id="cb-${id}" data-act="toggle" ${p.done?"checked":""} ${dis} aria-label="Mark done: ${esc(it.title)}">
-    <label for="cb-${id}">${idx}<span class="title">${esc(it.title)}</span>${meta?`<span class="meta">${esc(meta)}</span>`:""}</label>
+    <label for="cb-${id}">${idx}<span class="title">${titleHTML}</span>${meta?`<span class="meta">${esc(meta)}</span>`:""}${why}</label>
     <button class="note-btn${hasNote(id)?" has":""}" data-act="note" aria-expanded="${open}" ${!ready?"disabled":""}>${noteBtnLabel(id, opts.noteLabel)}</button>
     <div class="preview" ${open||!hasNote(id)?"hidden":""}>${previewHTML(id)}</div>
     <div class="editor" ${open?"":"hidden"}>
@@ -335,9 +360,19 @@ function itemHTML(id, opts = {}){
         <input id="ln-${id}" class="field" type="url" data-act="note-link" placeholder="Link to repo, PR or demo (https://…)" value="${esc(p.link||"")}" ${dis}>
         <span class="saved" aria-live="polite"></span>
       </div>
-    </div>
+    </div>${opts.tail || ""}
   </li>`;
 }
+function resBlock(taskId){
+  const g = RESOURCES[taskId]; if (!g) return "";
+  const list = GROUPS["res-"+taskId];
+  return `<details class="res" data-task="${taskId}" ${openRes.has(taskId)?"open":""}>
+    <summary><span class="caret">›</span>Learning resources <span class="count" data-rescount="${taskId}"></span></summary>
+    ${g.start ? `<p class="start"><b>Start here:</b> ${esc(g.start)}</p>` : ""}
+    <ul class="items res-list">${list.map((id,j) => { const r = RES_BY_ID[id]; return itemHTML(id, {url:r.url, why:r.why, idx:`${j+1}.`, noteLabel:"Add note", placeholder:"What did you learn from this? Key points, questions…"}); }).join("")}</ul>
+  </details>`;
+}
+const resSearch = taskId => RESOURCES[taskId] ? RESOURCES[taskId].items.map(r => r.title+" "+r.by).join(" ") : "";
 function noteBtnLabel(id, label){ return hasNote(id) ? "Note ✓" : (label || "Add note"); }
 function previewHTML(id){
   const p = get(id); let out = "";
@@ -353,7 +388,7 @@ function renderRoadmap(){
     return `<section class="block" data-section>
       <div class="block-head"><div class="grow"><h2>Phase ${p.n} · ${esc(p.title)}</h2><div class="sub mono">${fmtRange(p.start,p.end)}</div></div>
       <span class="chip ${cls}" data-chip="phase-${p.n}">${label}</span><span class="count" data-count="phase-${p.n}"></span></div>
-      <ul class="items">${GROUPS["phase-"+p.n].map(id => itemHTML(id)).join("")}</ul></section>`;
+      <ul class="items">${GROUPS["phase-"+p.n].map(id => itemHTML(id, {tail:resBlock(id), searchExtra:resSearch(id)})).join("")}</ul></section>`;
   }).join("");
 }
 function renderScaler(){
@@ -409,6 +444,7 @@ function render(){
 
 function updateCounts(){
   document.querySelectorAll("[data-count]").forEach(el => { const l = GROUPS[el.dataset.count]; el.textContent = `${countDone(l)}/${l.length}`; });
+  document.querySelectorAll("[data-rescount]").forEach(el => { const l = GROUPS["res-"+el.dataset.rescount] || []; el.textContent = `${countDone(l)}/${l.length}`; });
   document.querySelectorAll("[data-chip]").forEach(el => {
     const key = el.dataset.chip, list = GROUPS[key], done = countDone(list);
     let cls = "", label = "";
@@ -427,6 +463,7 @@ function updateSummary(){
   const rd = countDone(ROADMAP_IDS);
   set("#stRoadmap", pct(rd, ROADMAP_IDS.length) + "%"); set("#stRoadmapLbl", `${rd} of ${ROADMAP_IDS.length} roadmap milestones`); bar("#barRoadmap", pct(rd, ROADMAP_IDS.length));
   const ld = countDone(LEARNING_IDS); set("#stLearning", `${ld}/${LEARNING_IDS.length}`); bar("#barLearning", pct(ld, LEARNING_IDS.length));
+  const rsd = countDone(RES_IDS); set("#stRes", `${rsd}/${RES_IDS.length}`); bar("#barRes", pct(rsd, RES_IDS.length));
   const sd = countDone(SCALER_IDS); set("#stScaler", `${sd}/${SCALER_IDS.length}`); bar("#barScaler", pct(sd, SCALER_IDS.length));
   set("#stScalerLbl", `Scaler classes · now Module ${currentModule().n}`);
   const passed = CERTS.filter((c,i) => isDone(GROUPS["cert-"+i].at(-1))).length; set("#stCerts", `${passed}/${CERTS.length}`); bar("#barCerts", pct(passed, CERTS.length));
@@ -473,12 +510,19 @@ function setControlsEnabled(){
 
 function applyFilters(){
   const q = $("#search").value.toLowerCase().trim(), st = $("#statusFilter").value;
-  document.querySelectorAll("#content .item").forEach(el => {
+  const match = el => {
     const id = el.dataset.id, p = get(id);
     const text = el.dataset.search + " " + (p.note||"").toLowerCase() + " " + (p.link||"").toLowerCase();
     const okText = !q || text.includes(q);
     const okSt = id === "journal" ? st === "all" || st === "noted" : st === "all" || (st==="done" && p.done) || (st==="open" && !p.done) || (st==="noted" && hasNote(id));
-    el.hidden = !(okText && okSt);
+    return okText && okSt;
+  };
+  const all = [...document.querySelectorAll("#content .item")];
+  all.filter(el => el.closest("details.res")).forEach(el => { el.hidden = !match(el); });
+  all.filter(el => !el.closest("details.res")).forEach(el => {
+    const kidsShown = [...el.querySelectorAll("details.res .item")].some(k => !k.hidden);
+    el.hidden = !(match(el) || kidsShown);
+    const d = el.querySelector("details.res"); if (d && (q || st !== "all") && kidsShown) d.open = true;
   });
   document.querySelectorAll("#content [data-section]").forEach(sec => {
     const any = [...sec.querySelectorAll(".item")].some(el => !el.hidden);
@@ -561,7 +605,13 @@ $("#content").addEventListener("input", e => {
   timers.set(id, setTimeout(() => { timers.delete(id); save(id, {}); if (id !== "journal") { const el = document.querySelector(`.item[data-id="${id}"]`); if (el){ const btn = el.querySelector(".note-btn"); btn.classList.toggle("has", hasNote(id)); btn.textContent = noteBtnLabel(id); el.querySelector(".preview").innerHTML = previewHTML(id); } } }, 700));
 });
 $("#content").addEventListener("toggle", e => {
-  const d = e.target; if (!d.matches || !d.matches("details.module")) return;
+  const d = e.target; if (!d.matches) return;
+  if (d.matches("details.res")){
+    if (d.open) openRes.add(d.dataset.task); else openRes.delete(d.dataset.task);
+    try { localStorage.setItem("fde-open-res", JSON.stringify([...openRes])); } catch {}
+    return;
+  }
+  if (!d.matches("details.module")) return;
   const n = +d.dataset.mod; if (d.open) openModules.add(n); else openModules.delete(n);
   try { localStorage.setItem("fde-open-modules", JSON.stringify([...openModules])); } catch {}
 }, true);
