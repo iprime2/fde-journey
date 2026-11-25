@@ -23,6 +23,8 @@ Every agent working on `web/` follows this page. If it conflicts with `web/docs/
 
 Loop per milestone: design (if UI changes) → build → review → the lead fixes or sends work back → one pull request. Agents never commit, push, merge or deploy; the lead does that.
 
+Only one agent at a time may build, run or test the app (`next build`, `next start`, `next dev`, Playwright): they share `web/.next` and ports, and parallel runs break each other. Agents that only write docs or read code can run in parallel.
+
 ## Stack
 - Next.js 16 (App Router), React 19, TypeScript in strict mode, Tailwind CSS 4.
 - Postgres (Neon in production). Drizzle ORM with SQL migrations committed in `web/db/migrations/`.
