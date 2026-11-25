@@ -2,6 +2,11 @@
 
 A staged path. It complements the Scaler course rather than replacing it — map course modules onto these stages and fill gaps. Each stage ends with a milestone project and a "ready to move on" check.
 
+## Sequencing rules (apply to every stage)
+1. **Evals first.** Build the eval set before tuning retrieval or prompts, and add tracing from the first prototype. Without them you can't tell whether a change helped.
+2. **Ship a v1 early.** A public, demoable version (deployed, README, short demo, real numbers) comes before you start applying. Polish and cloud deployment come after.
+3. **FDE artefacts per project.** A one-page design doc before coding, then a handover doc and a 5-minute demo script after. Rehearse the design doc as a mock discovery call.
+
 ## Stage 0 — Engineering foundations
 - Python fluency: typing, async, packaging, virtualenvs, pytest
 - HTTP & REST APIs, JSON, auth (API keys, OAuth basics)
@@ -28,7 +33,7 @@ A staged path. It complements the Scaler course rather than replacing it — map
 - Chunking strategies; metadata filtering
 - Hybrid search (BM25 + vectors), reranking, query rewriting
 - Citations and "I don't know" behaviour
-- Retrieval metrics: recall@k, MRR; answer metrics: faithfulness, relevance
+- Retrieval metrics: recall@k, MRR; answer metrics: faithfulness, relevance (build the eval set first, before hybrid search and reranking)
 
 **Milestone:** RAG over a few hundred real, messy documents with citations and an eval set (50+ Q&A pairs) reporting retrieval and answer quality.
 **Ready when:** Given a bad answer, you can diagnose whether it's parsing, retrieval, ranking, or generation.

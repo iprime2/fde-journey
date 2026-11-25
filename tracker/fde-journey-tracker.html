@@ -158,13 +158,19 @@ const PHASES = [
   ["Document extraction, chunking and metadata","Ingestion"],
   ["Semantic, keyword and hybrid search","Retrieval"],
   ["Reranking and RAG evaluation","Evaluation"],
-  ["Build the NexusRAG retrieval prototype","Hands-on"]]},
+  ["Build the NexusRAG retrieval prototype","Hands-on"],
+  ["Write the NexusRAG one-page design doc: customer scenario, FAA dataset, success metrics. Rehearse it as a mock discovery call","FDE craft"],
+  ["Build a 50+ question evaluation set on the FAA dataset before tuning retrieval","Evaluation"],
+  ["Add Langfuse tracing and a first RAGAS run to the retrieval prototype","Evaluation · Tracing"]]},
  {n:3,title:"Project 1 — NexusRAG",start:"2026-12-16",end:"2026-12-22",tasks:[
   ["FastAPI architecture and ingestion API","Backend"],
   ["Celery, Redis and asynchronous workers","Distributed processing"],
   ["PostgreSQL and Qdrant integration","Data layer"],
   ["LLM generation, citations and streaming","Generation"],
-  ["Architecture diagrams, tests and documentation","Portfolio"]]},
+  ["Architecture diagrams, tests and documentation","Portfolio"],
+  ["Run the evaluation set automatically on every change (small CI check)","Evaluation"],
+  ["Portfolio v1: public deploy on a free host, README, 2-minute demo and real eval numbers","Portfolio v1"],
+  ["Handover doc and 5-minute demo script for NexusRAG","FDE craft"]]},
  {n:4,title:"Agents and harnesses",start:"2026-12-23",end:"2027-01-05",tasks:[
   ["Agent loops, planning and tool calling","Agents"],
   ["LangGraph, state and orchestration","LangGraph"],
@@ -176,7 +182,8 @@ const PHASES = [
   ["Prometheus and log integrations","Observability"],
   ["Incident investigation and root-cause analysis","Agent workflow"],
   ["Human approval and audit logs","Safety"],
-  ["Recovery verification and evaluation","Reliability"]]},
+  ["Recovery verification and evaluation","Reliability"],
+  ["Design doc first, then handover doc and 5-minute demo script for the AI SRE agent","FDE craft"]]},
  {n:6,title:"AWS cloud and deployment",start:"2027-01-13",end:"2027-01-26",tasks:[
   ["Amazon Bedrock and foundation models","AWS"],
   ["Knowledge Bases, agents and Guardrails","AWS GenAI"],
@@ -188,7 +195,8 @@ const PHASES = [
   ["Prompt injection, tenant isolation and guardrails","Security"],
   ["Load testing, reliability and performance","Production engineering"],
   ["Build AI Research Agent","Portfolio"],
-  ["AWS GenAI Professional mock exams and labs","Certification preparation"]]},
+  ["AWS GenAI Professional mock exams and labs","Certification preparation"],
+  ["Design doc first, then handover doc and 5-minute demo script for the AI Research Agent","FDE craft"]]},
  {n:8,title:"Portfolio and career",start:"2027-02-10",end:"2027-02-15",tasks:[
   ["Polish GitHub repositories and READMEs","GitHub"],
   ["Prepare project demos and architecture diagrams","Portfolio"],
@@ -214,7 +222,7 @@ const PROJECTS = [
 ];
 
 const CAREER = [
- {title:"Start job applications",date:"December 2026",desc:"Target Junior GenAI Engineer, AI Application Engineer, Backend AI Engineer and FDE roles."},
+ {title:"Start job applications",date:"December 2026",desc:"Target Junior GenAI Engineer, AI Application Engineer, Backend AI Engineer and FDE roles. Apply once Portfolio v1 (public demo, README, eval numbers) is ready."},
  {title:"Publish portfolio progress",date:"January 2027",desc:"Share project architecture, demos, tests, decisions and measured results."},
  {title:"Prepare for technical interviews",date:"January–February 2027",desc:"Practice Python, backend engineering, AI system design, RAG, agents, cloud and debugging."},
  {title:"February readiness review",date:"February 10–15, 2027",desc:"Review portfolio quality, interview readiness, applications and remaining certification gaps."}
