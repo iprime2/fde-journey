@@ -24,7 +24,7 @@ export function PageHeader({
   description,
   facts,
 }: {
-  eyebrow?: string;
+  eyebrow?: React.ReactNode;
   title: string;
   description?: string;
   facts?: Fact[];
@@ -33,7 +33,7 @@ export function PageHeader({
     <header className="grid gap-1.5">
       {eyebrow && <p className="type-label text-accent">{eyebrow}</p>}
       {/* tabIndex -1: focus moves here after client navigation (components/nav/RouteFocus.tsx). */}
-      <h1 tabIndex={-1} className="type-display">
+      <h1 tabIndex={-1} className="type-display w-fit">
         {title}
       </h1>
       {description && <p className="type-small max-w-[65ch] text-muted">{description}</p>}

@@ -111,25 +111,33 @@ export function computeVisibility(entries: readonly FilterEntry[], s: FilterStat
   return { items, sections, groups, openParents };
 }
 
-/** What a page knows about the URL: the filter key it last saw, and a write of its own in flight. */
+/** What a page knows about the URL: the filter key it last saw, and its own writes still in flight. */
 export interface UrlSync {
   seen: string;
-  pending: string | null;
+  /** Keys this page wrote to the URL that the router has not shown yet, oldest first. */
+  pending: readonly string[];
 }
 
 /**
  * When the URL's filter key changes: null if nothing changed; otherwise the new sync state and
- * whether to follow the URL. A change that matches the page's own pending write is not followed
- * (the input already shows it, and may have moved on).
+ * whether to follow the URL. A change that matches one of the page's own writes is not followed
+ * (the input already shows it, and may have moved on); that write and any older ones are done.
  */
 export function syncFromUrl(sync: UrlSync, urlKey: string): { sync: UrlSync; follow: boolean } | null {
   if (urlKey === sync.seen) return null;
-  if (urlKey === sync.pending) return { sync: { seen: urlKey, pending: null }, follow: false };
+  const own = sync.pending.indexOf(urlKey);
+  if (own >= 0) return { sync: { seen: urlKey, pending: sync.pending.slice(own + 1) }, follow: false };
   return { sync: { seen: urlKey, pending: sync.pending }, follow: true };
 }
 
-export type EmptyKind = "no-notes" | "no-match";
+export type EmptyKind = "no-notes" | "no-done" | "no-match";
 
-/** Why nothing is shown: no notes at all under "With notes", or simply no match. */
-export const emptyKind = (s: FilterState, anyNotes: boolean): EmptyKind =>
-  s.status === "noted" && !anyNotes ? "no-notes" : "no-match";
+/**
+ * Why nothing is shown: no notes at all under "With notes", nothing ticked at all under "Done"
+ * (with no search), or simply no match.
+ */
+export function emptyKind(s: FilterState, counts: { anyNotes: boolean; anyDone: boolean }): EmptyKind {
+  if (s.status === "noted" && !counts.anyNotes) return "no-notes";
+  if (s.status === "done" && s.q.trim() === "" && !counts.anyDone) return "no-done";
+  return "no-match";
+}

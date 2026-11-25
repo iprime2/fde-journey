@@ -52,7 +52,7 @@ export function GroupLabel({ children, hidden }: { children: React.ReactNode; hi
 }
 
 const BUTTON_BASE =
-  "inline-flex min-h-11 items-center justify-center gap-2 rounded-md px-4 type-body-strong motion-safe:transition-colors motion-safe:duration-150 disabled:cursor-not-allowed disabled:opacity-50";
+  "inline-flex min-h-11 items-center justify-center gap-2 rounded-md px-4 type-body-strong motion-safe:transition-[color,background-color,border-color] motion-safe:duration-150 disabled:cursor-not-allowed disabled:opacity-50";
 
 export const buttonStyles = {
   primary: cn(BUTTON_BASE, "bg-accent text-accent-ink hover:bg-accent-hover disabled:bg-accent"),

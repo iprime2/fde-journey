@@ -17,7 +17,7 @@ export function NavLink({ href, count }: { href: string; count?: React.ReactNode
       href={section.href}
       aria-current={current ? "page" : undefined}
       className={cn(
-        "flex min-h-11 items-center gap-3 rounded-md px-3 motion-safe:transition-colors motion-safe:duration-150",
+        "flex min-h-11 items-center gap-3 rounded-md px-3 motion-safe:transition-[color,background-color,border-color] motion-safe:duration-150",
         current ? "bg-accent-soft text-ink" : "text-ink hover:bg-hover",
       )}
     >

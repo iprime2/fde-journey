@@ -126,9 +126,14 @@ describe("visibility", () => {
   });
 
   it("explains an empty result", () => {
-    expect(emptyKind({ q: "", status: "noted" }, false)).toBe("no-notes");
-    expect(emptyKind({ q: "", status: "noted" }, true)).toBe("no-match");
-    expect(emptyKind({ q: "zzz", status: "all" }, false)).toBe("no-match");
+    const none = { anyNotes: false, anyDone: false };
+    expect(emptyKind({ q: "", status: "noted" }, none)).toBe("no-notes");
+    expect(emptyKind({ q: "", status: "noted" }, { anyNotes: true, anyDone: false })).toBe("no-match");
+    expect(emptyKind({ q: "", status: "done" }, none)).toBe("no-done");
+    expect(emptyKind({ q: "  ", status: "done" }, none)).toBe("no-done");
+    expect(emptyKind({ q: "rag", status: "done" }, none)).toBe("no-match");
+    expect(emptyKind({ q: "", status: "done" }, { anyNotes: false, anyDone: true })).toBe("no-match");
+    expect(emptyKind({ q: "zzz", status: "all" }, none)).toBe("no-match");
   });
 });
 
@@ -136,20 +141,20 @@ describe("following the URL", () => {
   const k = (q: string) => filterKey({ q, status: "all" });
 
   it("does nothing when the URL has not changed", () => {
-    expect(syncFromUrl({ seen: k("rag"), pending: null }, k("rag"))).toBeNull();
+    expect(syncFromUrl({ seen: k("rag"), pending: [] }, k("rag"))).toBeNull();
   });
 
-  it("does not follow the page's own write, and clears it once it lands", () => {
-    expect(syncFromUrl({ seen: k(""), pending: k("rag") }, k("rag"))).toEqual({
-      sync: { seen: k("rag"), pending: null },
-      follow: false,
-    });
+  it("does not follow the page's own writes, and drops each one (and older ones) as it lands", () => {
+    const sync = { seen: k(""), pending: [k("r"), k("rag"), k("")] };
+    expect(syncFromUrl(sync, k("r"))).toEqual({ sync: { seen: k("r"), pending: [k("rag"), k("")] }, follow: false });
+    // The router can skip intermediate URLs: a later write landing clears the older ones too.
+    expect(syncFromUrl(sync, k("rag"))).toEqual({ sync: { seen: k("rag"), pending: [k("")] }, follow: false });
   });
 
   it("follows Back, Forward or a link to the plain page", () => {
-    expect(syncFromUrl({ seen: k("rag"), pending: null }, k(""))).toEqual({ sync: { seen: k(""), pending: null }, follow: true });
+    expect(syncFromUrl({ seen: k("rag"), pending: [] }, k(""))).toEqual({ sync: { seen: k(""), pending: [] }, follow: true });
     // An earlier own write that already landed doesn't block returning to it later.
-    const afterOwnWrite = syncFromUrl({ seen: k(""), pending: k("kafka") }, k("kafka"))!.sync;
+    const afterOwnWrite = syncFromUrl({ seen: k(""), pending: [k("kafka")] }, k("kafka"))!.sync;
     const afterLink = syncFromUrl(afterOwnWrite, k(""))!.sync;
     expect(syncFromUrl(afterLink, k("kafka"))?.follow).toBe(true);
   });

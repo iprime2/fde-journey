@@ -1,6 +1,6 @@
 "use client";
 
-// Open state for a remembered <details> (Scaler modules, resource lists): the stored choice when
+// Open state for a remembered disclosure (Scaler modules, resource lists): the stored choice when
 // no filter is active; forced open while a search or filter matches inside, until the owner
 // closes it again.
 import { useState } from "react";
@@ -8,7 +8,7 @@ import { isStoredOpen, withMember } from "@/lib/open-state";
 import { useFilter } from "./filter/FilterProvider";
 import { useStoredList, writeStoredList } from "./useStoredList";
 
-export function useRememberedDetails({
+export function useRememberedOpen({
   storageKey,
   member,
   defaults,
@@ -26,18 +26,18 @@ export function useRememberedDetails({
 }) {
   const f = useFilter();
   const stored = useStoredList(storageKey);
+  // The owner's last click under the current filter wins over the defaults below.
   const [choice, setChoice] = useState<{ key: string; open: boolean } | null>(null);
 
   const storedOpen = isStoredOpen(stored, member, defaults.includes(member));
-  const open = f.active ? (choice?.key === f.key ? choice.open : matchInside || storedOpen) : storedOpen;
+  const open = choice?.key === f.key ? choice.open : f.active ? matchInside || storedOpen : storedOpen;
 
-  function onToggle(e: React.ToggleEvent<HTMLDetailsElement>) {
-    const nowOpen = e.currentTarget.open;
-    if (nowOpen === open) return; // our own render changed it
+  function toggle() {
+    const nowOpen = !open;
     setChoice({ key: f.key, open: nowOpen });
     const next = withMember(stored ?? defaults, member, nowOpen);
     writeStoredList(storageKey, asNumbers ? next.map(Number) : next);
   }
 
-  return { open, onToggle };
+  return { open, toggle };
 }

@@ -16,7 +16,9 @@ function Pill() {
   return <span aria-hidden="true" className="absolute top-0 h-[3px] w-6 rounded-full bg-accent" />;
 }
 
-const CELL = "relative flex min-h-12 w-full flex-col items-center justify-center gap-1 pt-1 type-tab-label";
+// Inset focus ring, so it is not clipped at the screen edge.
+const CELL =
+  "relative flex min-h-12 w-full flex-col items-center justify-center gap-1 pt-1 type-tab-label focus-visible:outline-offset-[-2px]";
 
 export function BottomBar() {
   const pathname = usePathname();
@@ -111,7 +113,8 @@ export function BottomBar() {
             aria-expanded={open}
             aria-controls={sheetId}
             onClick={() => setOpen((o) => !o)}
-            className={cn(CELL, moreIsCurrent || open ? "text-accent" : "text-muted hover:text-ink")}
+            // Teal and the pill mark the current page only; an open sheet just shows More in ink.
+            className={cn(CELL, moreIsCurrent ? "text-accent" : open ? "text-ink" : "text-muted hover:text-ink")}
           >
             {moreIsCurrent && <Pill />}
             <EllipsisIcon size={22} />

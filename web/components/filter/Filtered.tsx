@@ -37,13 +37,15 @@ export function FilterGroupLabel({ group, children }: { group: string; children:
 export function FilterEmpty() {
   const f = useFilter();
   if (!f.provided || f.visibility.sections.size > 0) return null;
-  const kind = emptyKind(f.state, f.anyNotes);
+  const kind = emptyKind(f.state, { anyNotes: f.anyNotes, anyDone: f.anyDone });
   return (
     <div className="type-small grid justify-items-center gap-3 rounded-lg border border-dashed border-line bg-surface p-7 text-center text-muted">
-      {kind === "no-notes" ? (
+      {kind === "no-notes" && (
         // In the read-only preview there is no Add note button to point at yet.
         <p>{READ_ONLY_PREVIEW ? "No notes yet." : "No notes yet. Use Add note on any item."}</p>
-      ) : (
+      )}
+      {kind === "no-done" && <p>Nothing marked done yet.</p>}
+      {kind === "no-match" && (
         <>
           <p>Nothing matches this search or filter.</p>
           <button type="button" className={buttonStyles.secondary} onClick={f.clear}>

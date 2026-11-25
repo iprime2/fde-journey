@@ -1,27 +1,39 @@
 "use client";
 
+// A Scaler module: a card that opens and closes (design spec 4, CollapsibleCard). The h2 holds a
+// disclosure button; its ::after covers the whole head, so the full head is the tap target, and
+// the focus ring is drawn on the head (.card-head in globals.css).
+import { useId } from "react";
 import { OPEN_MODULES_KEY } from "@/lib/open-state";
-import { CARD_HEAD_STYLES, CARD_STYLES } from "./Card";
-import { cn } from "./cn";
+import type { ChipState } from "@/lib/status";
+import { CARD_STYLES, CardHead, Caret } from "./Card";
 import { useFilter } from "./filter/FilterProvider";
-import { useRememberedDetails } from "./useRememberedDetails";
+import { useRememberedOpen } from "./useRememberedOpen";
 
-/** A Scaler module: a card that opens and closes (design spec 4, CollapsibleCard). */
 export function CollapsibleCard({
   moduleNumber,
   currentModule,
-  head,
+  title,
+  sub,
+  chip,
+  done,
+  total,
   children,
 }: {
   moduleNumber: number;
   currentModule: number;
-  /** The card head content: title block, chip and count. */
-  head: React.ReactNode;
+  title: string;
+  sub?: string;
+  chip?: ChipState;
+  done: number;
+  total: number;
   children: React.ReactNode;
 }) {
   const f = useFilter();
   const section = `mod-${moduleNumber}`;
-  const { open, onToggle } = useRememberedDetails({
+  const titleId = useId();
+  const bodyId = useId();
+  const { open, toggle } = useRememberedOpen({
     storageKey: OPEN_MODULES_KEY,
     member: String(moduleNumber),
     defaults: [String(currentModule)],
@@ -29,23 +41,29 @@ export function CollapsibleCard({
     asNumbers: true,
   });
   return (
-    <details
-      open={open}
-      onToggle={onToggle}
+    <section
+      aria-labelledby={titleId}
       hidden={f.provided && !f.visibility.sections.has(section)}
-      className={cn(CARD_STYLES, "group/mod")}
+      className={CARD_STYLES}
       data-module={moduleNumber}
     >
-      <summary className={cn(CARD_HEAD_STYLES, "min-h-14 rounded-lg")}>
-        <span
-          aria-hidden="true"
-          className="self-start font-mono text-[18px] leading-[1.3] text-muted motion-safe:transition-transform motion-safe:duration-200 group-open/mod:rotate-90"
-        >
-          ›
-        </span>
-        {head}
-      </summary>
-      {children}
-    </details>
+      <CardHead
+        className="card-head min-h-14 rounded-lg"
+        titleId={titleId}
+        title={
+          <button type="button" aria-expanded={open} aria-controls={bodyId} onClick={toggle} className="flex gap-2 text-left">
+            <Caret open={open} className="text-muted" />
+            <span>{title}</span>
+          </button>
+        }
+        sub={sub}
+        chip={chip}
+        done={done}
+        total={total}
+      />
+      <div id={bodyId} hidden={!open}>
+        {children}
+      </div>
+    </section>
   );
 }

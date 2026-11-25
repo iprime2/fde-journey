@@ -64,8 +64,8 @@ export function ItemRow({
         ) : (
           <span className={cn(titleClass, "[overflow-wrap:anywhere]")}>{row.title}</span>
         )}
-        {row.meta && <span className="type-small block text-muted">{row.meta}</span>}
-        {row.why && <span className="type-small block text-muted">{row.why}</span>}
+        {row.meta && <span className="type-small block max-w-[75ch] text-muted">{row.meta}</span>}
+        {row.why && <span className="type-small block max-w-[75ch] text-muted">{row.why}</span>}
         {/* Notes stay readable when the row is read-only (none exist until saving arrives in M2). */}
         <NotePreview note={row.note} link={row.link} />
       </div>

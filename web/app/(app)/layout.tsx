@@ -8,7 +8,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     <>
       <a
         href="#main"
-        className="sr-only z-50 rounded-md bg-surface px-4 py-2.5 type-body-strong text-accent focus:not-sr-only focus:fixed focus:top-3 focus:left-3"
+        className="sr-only z-50 rounded-md border border-line-strong bg-surface type-body-strong text-accent shadow-overlay focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:inline-flex focus:min-h-11 focus:items-center focus:px-4 focus:py-2.5"
       >
         Skip to content
       </a>

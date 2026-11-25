@@ -1,6 +1,7 @@
 // Home: summary tiles and the current-phase panel (design spec 4, StatTile and NowPanel).
 // Server Components.
 import Link from "next/link";
+import { useId } from "react";
 import type { NowModel, TileModel } from "@/lib/summary";
 import { percent } from "@/lib/summary";
 import { CARD_STYLES } from "./Card";
@@ -11,7 +12,7 @@ export function StatTile({ tile }: { tile: TileModel }) {
   return (
     <Link
       href={tile.href}
-      className="grid min-w-0 content-start gap-1 rounded-lg border border-line bg-surface px-4 py-3.5 hover:border-line-strong motion-safe:transition-colors motion-safe:duration-150"
+      className="grid min-w-0 content-start gap-1 rounded-lg border border-line bg-surface px-4 py-3.5 hover:border-line-strong motion-safe:transition-[color,background-color,border-color] motion-safe:duration-150"
     >
       <span className="type-num-lg">
         <span aria-hidden="true">{tile.value}</span>
@@ -41,15 +42,16 @@ const KICKER = "type-label text-muted";
 
 export function NowPanel({ now }: { now: NowModel }) {
   const { phase, module, upNext } = now;
+  const titleId = useId();
   return (
     <section
-      aria-labelledby="now-phase"
+      aria-labelledby={titleId}
       className={cn(CARD_STYLES, "grid gap-5 p-4 md:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]")}
     >
       <div className="grid min-w-0 content-start gap-2">
         <p className={KICKER}>Roadmap · {phase.range}</p>
         <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-          <h2 id="now-phase" className="type-title">
+          <h2 id={titleId} className="type-title">
             Phase {phase.n} · {phase.title}
           </h2>
           <StatusChip chip={phase.chip} />

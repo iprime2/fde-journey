@@ -9,14 +9,24 @@
 // Activity), and their useSearchParams() follows whatever page is showing. So a page only follows
 // URL changes while it is the current page; hidden, it keeps its filter for when Back returns.
 import { usePathname, useSearchParams } from "next/navigation";
-import { createContext, use, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type RefObject,
+  createContext,
+  use,
+  useDeferredValue,
+  useEffect,
+  useEffectEvent,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   EMPTY_FILTER,
   type FilterEntry,
   type FilterState,
   type StatusFilter,
-  type Visibility,
   type UrlSync,
+  type Visibility,
   computeVisibility,
   filterFromParams,
   filterKey,
@@ -33,6 +43,9 @@ interface FilterContextValue {
   active: boolean;
   visibility: Visibility;
   anyNotes: boolean;
+  anyDone: boolean;
+  /** The search field, so focus can return to it (after "Clear search and filter"). */
+  searchRef: RefObject<HTMLInputElement | null>;
   setQuery(q: string): void;
   setStatus(status: StatusFilter): void;
   clear(): void;
@@ -62,7 +75,7 @@ export function FilterProvider({
   const fromUrl = pathname === path ? filterFromParams(searchParams) : null;
 
   const [state, setState] = useState(fromUrl ?? initial);
-  const [sync, setSync] = useState<UrlSync>({ seen: filterKey(fromUrl ?? initial), pending: null });
+  const [sync, setSync] = useState<UrlSync>({ seen: filterKey(fromUrl ?? initial), pending: [] });
   // The URL changed without us (Back, Forward, a link to the plain page): follow it.
   if (fromUrl) {
     const next = syncFromUrl(sync, filterKey(fromUrl));
@@ -72,23 +85,32 @@ export function FilterProvider({
     }
   }
 
-  // Hiding the page (navigation) cancels a pending URL write, so it can't land on another page.
   const timer = useRef<number | undefined>(undefined);
-  useEffect(() => () => window.clearTimeout(timer.current), []);
+  const searchRef = useRef<HTMLInputElement>(null);
 
   function writeUrl(next: FilterState) {
     window.clearTimeout(timer.current);
     if (window.location.pathname !== path) return;
     const search = filterSearch(next, window.location.search);
     if (search === window.location.search) return;
-    setSync((s) => ({ ...s, pending: filterKey(next) }));
+    setSync((s) => ({ ...s, pending: [...s.pending, filterKey(next)] }));
     window.history.replaceState(null, "", `${window.location.pathname}${search}${window.location.hash}`);
   }
+
+  // Runs on the first render and every time the page is shown again. Hiding the page cancels a
+  // pending URL write (so it can't land on another page); if a search was typed just before
+  // leaving, it never reached the URL, so put it there now that the page is back.
+  const restoreUrl = useEffectEvent(() => writeUrl(state));
+  useEffect(() => {
+    restoreUrl();
+    return () => window.clearTimeout(timer.current);
+  }, []);
 
   // Rows follow the controls a moment later, so typing stays smooth on long pages.
   const applied = useDeferredValue(state);
   const visibility = useMemo(() => computeVisibility(entries, applied), [entries, applied]);
   const anyNotes = useMemo(() => entries.some((e) => e.noted), [entries]);
+  const anyDone = useMemo(() => entries.some((e) => e.done && !e.journal), [entries]);
 
   const value: FilterContextValue = {
     state,
@@ -96,6 +118,8 @@ export function FilterProvider({
     active: isFilterActive(applied),
     visibility,
     anyNotes,
+    anyDone,
+    searchRef,
     setQuery(q) {
       const next = { ...state, q };
       setState(next);
@@ -110,6 +134,8 @@ export function FilterProvider({
     clear() {
       setState(EMPTY_FILTER);
       writeUrl(EMPTY_FILTER);
+      // The button that called this disappears; keep keyboard focus on the page.
+      searchRef.current?.focus();
     },
   };
 
@@ -122,6 +148,8 @@ const NO_FILTER: FilterContextValue = {
   active: false,
   visibility: { items: new Set(), sections: new Set(), groups: new Set(), openParents: new Set() },
   anyNotes: false,
+  anyDone: false,
+  searchRef: { current: null },
   setQuery: () => {},
   setStatus: () => {},
   clear: () => {},

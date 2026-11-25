@@ -1,7 +1,8 @@
 // Cards for the section pages. Server Components.
+import { useId } from "react";
 import { JOURNAL_ID } from "@/lib/ids";
 import type { CardModel, ModuleCardModel } from "@/lib/views";
-import { CARD_HEAD_STYLES, CARD_STYLES, CardDescription, CardHeadContent } from "./Card";
+import { CARD_STYLES, CardDescription, CardHead } from "./Card";
 import { cn } from "./cn";
 import { CollapsibleCard } from "./CollapsibleCard";
 import { FilterSection } from "./filter/Filtered";
@@ -11,16 +12,14 @@ export function SectionCard({ card, readOnly }: { card: CardModel; readOnly: boo
   return (
     <FilterSection section={card.key} className="grid">
       <section className={CARD_STYLES}>
-        <div className={CARD_HEAD_STYLES}>
-          <CardHeadContent
-            title={card.title}
-            sub={card.sub}
-            subIsDate={card.subIsDate}
-            chip={card.chip}
-            done={card.done}
-            total={card.rows.length}
-          />
-        </div>
+        <CardHead
+          title={card.title}
+          sub={card.sub}
+          subIsDate={card.subIsDate}
+          chip={card.chip}
+          done={card.done}
+          total={card.rows.length}
+        />
         {card.desc && <CardDescription>{card.desc}</CardDescription>}
         <ItemList rows={card.rows} readOnly={readOnly} />
       </section>
@@ -33,26 +32,27 @@ export function ModuleCard({ card, currentModule, readOnly }: { card: ModuleCard
     <CollapsibleCard
       moduleNumber={card.n}
       currentModule={currentModule}
-      head={<CardHeadContent title={card.title} sub={card.sub} chip={card.chip} done={card.done} total={card.rows.length} />}
+      title={card.title}
+      sub={card.sub}
+      chip={card.chip}
+      done={card.done}
+      total={card.rows.length}
     >
       <ItemList rows={card.rows} readOnly={readOnly} />
     </CollapsibleCard>
   );
 }
 
-const JOURNAL_TITLE_ID = "weekly-notes-title";
-
 /** Weekly notes on Career (design spec 4, JournalEditor). Disabled while nothing can be saved. */
 export function JournalCard({ note, sub, readOnly }: { note: string; sub: string; readOnly: boolean }) {
+  const titleId = useId();
   return (
     <FilterSection section="journal" className="grid">
       <section className={CARD_STYLES}>
-        <div className={CARD_HEAD_STYLES}>
-          <CardHeadContent title="Weekly notes" titleId={JOURNAL_TITLE_ID} sub={sub} />
-        </div>
+        <CardHead title="Weekly notes" titleId={titleId} sub={sub} />
         <div id={`item-${JOURNAL_ID}`} className="grid gap-1.5 border-t border-line px-4 pt-3 pb-4">
           <textarea
-            aria-labelledby={JOURNAL_TITLE_ID}
+            aria-labelledby={titleId}
             defaultValue={note}
             disabled={readOnly}
             placeholder="What did you complete this week? What is blocking you?"

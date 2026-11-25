@@ -32,6 +32,7 @@ export function Toolbar({ placeholder }: { placeholder: string }) {
         </label>
         <SearchIcon size={18} className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted" />
         <input
+          ref={f.searchRef}
           id={searchId}
           type="search"
           value={f.state.q}
@@ -42,7 +43,7 @@ export function Toolbar({ placeholder }: { placeholder: string }) {
           className="type-input h-11 w-full rounded-md border border-line-strong bg-surface pr-3 pl-9 text-ink"
         />
       </div>
-      <div className="flex-[0_1_150px] min-w-[136px]">
+      <div className="w-auto flex-none">
         <label htmlFor={statusId} className="sr-only">
           Show
         </label>
@@ -50,7 +51,7 @@ export function Toolbar({ placeholder }: { placeholder: string }) {
           id={statusId}
           value={f.state.status}
           onChange={(e) => f.setStatus(parseStatus(e.target.value))}
-          className="type-input h-11 w-full rounded-md border border-line-strong bg-surface px-3 text-ink"
+          className="type-input h-11 rounded-md border border-line-strong bg-surface px-3 text-ink"
         >
           {STATUS_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>

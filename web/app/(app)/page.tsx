@@ -20,7 +20,11 @@ export default function HomePage() {
   return (
     <>
       <PageHeader
-        eyebrow={`AI Engineering & FDE · ${JOURNEY}`}
+        eyebrow={
+          <>
+            AI Engineering &amp; FDE · <span className="whitespace-nowrap">{JOURNEY}</span>
+          </>
+        }
         title="FDE Journey"
         facts={[
           { label: "Scaler classes", value: CLASS_SCHEDULE_LABEL },

@@ -13,11 +13,13 @@ export const CERTS_DESCRIPTION =
 
 export const PROJECTS_DESCRIPTION = "Three portfolio projects. A project is complete when every step is ticked.";
 
+/** Short, so they fit beside the status filter at 390 px. Search still matches titles, meta,
+ * why lines, resource titles, notes and links. */
 export const SEARCH_PLACEHOLDERS = {
-  roadmap: "Search tasks, resources, notes…",
-  reading: "Search papers, books, notes…",
-  scaler: "Search classes and notes…",
-  certs: "Search steps and notes…",
-  projects: "Search steps and notes…",
-  career: "Search milestones and notes…",
+  roadmap: "Search tasks…",
+  reading: "Search papers…",
+  scaler: "Search classes…",
+  certs: "Search steps…",
+  projects: "Search steps…",
+  career: "Search milestones…",
 } as const;
