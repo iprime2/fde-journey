@@ -3,12 +3,19 @@
 /** Header the proxy sets on page requests so server code knows where the visitor was going. */
 export const PATH_HEADER = "x-fde-path";
 
+/**
+ * Where GitHub sign-in returns the browser (app/auth/continue/route.ts). It answers with a redirect
+ * only, chosen on the server from the user's status, so nobody sees a page they can't use.
+ */
+export const CONTINUE_PATH = "/auth/continue";
+
 const ORIGIN = "https://app.invalid";
 
 /**
  * Returns `value` if it is a path on this site, otherwise "/". Blocks open redirects: absolute
  * URLs, protocol-relative ("//host"), backslash tricks ("/\host"), control characters, and
- * anything that would leave the site once parsed. Also refuses /login (a loop) and /api/ paths.
+ * anything that would leave the site once parsed. Also refuses /login (a loop), /api/ paths and
+ * /auth/ paths (the post-sign-in route, which would only nest itself).
  */
 export function safeNextPath(value: unknown): string {
   if (typeof value !== "string" || value.length === 0 || value.length > 2048) return "/";
@@ -22,7 +29,7 @@ export function safeNextPath(value: unknown): string {
   }
   if (url.origin !== ORIGIN) return "/";
   const path = url.pathname;
-  if (path === "/login" || path.startsWith("/login/") || path === "/api" || path.startsWith("/api/")) return "/";
+  if (["/login", "/api", "/auth"].some((p) => path === p || path.startsWith(`${p}/`))) return "/";
   const out = `${path}${url.search}${url.hash}`;
   // Parsing removes dot segments, so "/.//host" or "/a/..//host" comes back as "//host", which a
   // browser reads as another site. Check the result again, not only the input.
@@ -34,6 +41,12 @@ export function safeNextPath(value: unknown): string {
 export function loginHref(next: unknown): string {
   const path = safeNextPath(next);
   return path === "/" ? "/login" : `/login?next=${encodeURIComponent(path)}`;
+}
+
+/** The post-sign-in route, carrying where to go afterwards (already checked by safeNextPath). */
+export function continueHref(next: unknown): string {
+  const path = safeNextPath(next);
+  return path === "/" ? CONTINUE_PATH : `${CONTINUE_PATH}?next=${encodeURIComponent(path)}`;
 }
 
 /** Query value `/login?status=signed-out` set by the sign-out action. */
@@ -127,13 +140,15 @@ export function loginMessage(notice: LoginNotice, mode: AccessMode): { tone: "er
 }
 
 /**
- * Paths the proxy lets through without a session cookie. /privacy is public; /api/export checks its
- * own bearer key (app/api/export/route.ts). Everything else needs a sign-in.
+ * Paths the proxy lets through without a session cookie or a status check. /privacy is public;
+ * /api/export checks its own bearer key (app/api/export/route.ts); the post-sign-in route checks
+ * the session itself and only ever redirects. Everything else needs a sign-in.
  */
 export function isPublicPath(pathname: string): boolean {
   return (
     pathname === "/login" ||
     pathname === "/privacy" ||
+    pathname === CONTINUE_PATH ||
     pathname === "/api/export" ||
     pathname === "/api/auth" ||
     pathname.startsWith("/api/auth/")
