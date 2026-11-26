@@ -5,7 +5,9 @@
 // - with a session cookie: the user's status, read in one indexed query (lib/session-gate.ts),
 //   decides (lib/landing.ts). Waitlisted users go to /waitlist, suspended users to
 //   /login?error=suspended, a dead or refused session to /login; active users and the owner pass.
-//   /waitlist itself takes waitlisted users only (active users go Home).
+//   /waitlist itself takes waitlisted users only (active users go Home). For a dead or refused
+//   session only page loads are redirected; the router's own requests from a tab left open pass,
+//   as before this gate, and the page answers "signed out" itself.
 // - Server Actions: a waitlisted or suspended user's are refused (403, no body) everywhere but on
 //   /waitlist, where leaving the waitlist and signing out live. Signed-out callers pass, so the
 //   action answers with its typed "signed-out" result.
@@ -32,6 +34,20 @@ function requestedPath(request: NextRequest): string {
   const url = request.nextUrl.clone();
   url.searchParams.delete("_rsc");
   return `${pagePathname(url.pathname)}${url.search}`;
+}
+
+/**
+ * A request from Next's client router (a prefetch, a client navigation or a refresh), not a page
+ * load. Next makes those look like page loads to the proxy (it strips its own headers and the
+ * `_rsc` parameter), but the browser's Fetch Metadata still tells them apart: a page load is
+ * `Sec-Fetch-Mode: navigate`, the router's fetch() is not. A page payload path (/x.rsc,
+ * /x.segments/…, where Next leaves it) is the router's too. Without Fetch Metadata (an old browser,
+ * a script) it counts as a page load, the stricter answer.
+ */
+function isRouterRequest(request: NextRequest): boolean {
+  const mode = request.headers.get("sec-fetch-mode");
+  if (mode && mode !== "navigate") return true;
+  return pagePathname(request.nextUrl.pathname) !== request.nextUrl.pathname;
 }
 
 /** A Server Action call: always a POST with Next's `next-action` header. */
@@ -114,6 +130,14 @@ export async function proxy(request: NextRequest) {
   try {
     const check = await checkSessionCookie(cookie);
     target = gateTarget(check.standing, pathname, path);
+    // A tab left open after its session ended keeps sending the router's own requests (prefetches,
+    // refreshes). Those pass as they always did: the page answers "signed out" itself
+    // (requireUser), and the tab stays where it is until the user acts. Redirecting them sent
+    // Next's router down 307 chains (one ended in a 404, and its fallback is a full-page
+    // navigation that yanked the tab away mid-save), and expiring the cookie from a background
+    // request could delete a newer cookie from a sign-in in another tab. Waitlisted and suspended
+    // users' requests are still redirected: they must never get the app's frame.
+    if (check.standing === "signed-out" && isRouterRequest(request)) target = null;
     clearCookie = check.standing === "signed-out" && check.clearCookie;
   } catch (error) {
     return unavailable(error, false);

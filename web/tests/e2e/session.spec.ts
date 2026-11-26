@@ -57,19 +57,9 @@ test.describe("signing out", () => {
     );
     // A second tab stays open on a page with tick boxes, to try a save once signed out.
     const other = await context.newPage();
-    const DBG: string[] = [];
-    const t0 = Date.now();
-    const at = () => `${String(Date.now() - t0).padStart(6)}ms`;
-    other.on("framenavigated", (f) => { if (f === other.mainFrame()) DBG.push(`${at()} NAV ${f.url()}`); });
-    other.on("request", (r) => { if (!r.url().includes("/_next/static")) DBG.push(`${at()} REQ ${r.method()} ${r.url()} ${r.headers()["next-action"] ? "[action]" : ""}${r.headers()["next-router-prefetch"] ? "[prefetch]" : ""}${r.headers()["rsc"] ? "[rsc]" : ""} ${r.resourceType()} cookie=${(r.headers()["cookie"] ?? "").includes("session_token") ? "yes" : "no"}`); });
-    other.on("response", (r) => { if (!r.url().includes("/_next/static")) DBG.push(`${at()} RES ${r.status()} ${r.url()} loc=${r.headers()["location"] ?? ""} setcookie=${r.headers()["set-cookie"] ? "yes" : ""}`); });
-    other.on("requestfailed", (r) => DBG.push(`${at()} FAILED ${r.url()} ${r.failure()?.errorText}`));
-    other.on("console", (m) => DBG.push(`${at()} CONSOLE ${m.type()} ${m.text().slice(0, 160)}`));
     const otherErrors: string[] = [];
     other.on("pageerror", (e) => otherErrors.push(e.message));
     await gotoReady(other, "/certs");
-    const FREEZE = process.env.DEBUG_FREEZE === "1" ? await context.newCDPSession(other) : null;
-    if (FREEZE) await FREEZE.send("Page.setWebLifecycleState", { state: "frozen" });
     await gotoReady(page, "/roadmap");
     const cookie = (await context.cookies()).find((c) => c.name === SESSION_COOKIE);
     expect(cookie, "signed in with a spare session").toBeDefined();
@@ -89,20 +79,43 @@ test.describe("signing out", () => {
     await expect(page).toHaveURL("/login?next=%2Froadmap");
     await expect(page.getByRole("button", { name: SIGN_IN_BUTTON })).toBeEnabled();
 
-    // A save from the tab that stayed open, with that cookie, is refused as signed out.
+    // A save from the tab that stayed open, with that cookie, is refused as signed out, and the tab
+    // stays where it is: the signed-out alert shows in place, nothing navigates it away.
     await context.addCookies([cookie!]);
-    if (FREEZE) { await FREEZE.send("Page.setWebLifecycleState", { state: "active" }); DBG.push(`${at()} --- thawed`); }
     const row = other.locator(`#item-${item.id}`);
     const tick = row.getByRole("checkbox", { name: `Mark done: ${item.title}` });
     await expect(tick).not.toBeChecked();
-    const saved = other.waitForResponse((r) => r.request().method() === "POST" && !!r.request().headers()["next-action"]);
+    const documents: string[] = [];
+    other.on("request", (r) => {
+      if (r.isNavigationRequest() && r.frame() === other.mainFrame()) documents.push(r.url());
+    });
+    // The save's answer, read by the test runner as it passes (route.fetch), so nothing the page
+    // does afterwards can take the body away before it is checked.
+    let saveAnswer!: (body: string) => void;
+    const answered = new Promise<string>((resolve) => (saveAnswer = resolve));
+    await other.route("**/*", async (route) => {
+      const request = route.request();
+      if (request.method() !== "POST" || !request.headers()["next-action"]) return route.fallback();
+      const response = await route.fetch();
+      const body = await response.text();
+      saveAnswer(body);
+      await route.fulfill({ response, body });
+    });
     await tick.click();
-    DBG.push(`${at()} --- clicked`);
-    let dbgBody = "";
-    try { dbgBody = await (await saved).text(); } catch (e) { await other.waitForTimeout(1500); console.log(`DEBUG-DUMP ${testInfo.project.name}\n${DBG.join("\n")}\nurl=${other.url()}`); throw e; }
-    expect(dbgBody).toContain('"code":"signed-out"');
+    expect(await answered).toContain('"code":"signed-out"');
     await expect(other.getByRole("alert").filter({ hasText: SIGNED_OUT_TEXT })).toBeVisible();
     await expect(tick).not.toBeChecked();
+    await expect(other).toHaveURL(/\/certs$/);
+    expect(documents, "the tab that stayed open loaded no other page").toEqual([]);
+    // The tab's own background requests (the router's fetches) are answered as before the status
+    // gate: not redirected to /login, which Next's router can turn into a full-page navigation,
+    // and the cookie is not expired by them.
+    const background = await other.evaluate(async () => {
+      const res = await fetch("/roadmap");
+      return { redirected: res.redirected, status: res.status };
+    });
+    expect(background).toEqual({ redirected: false, status: 200 });
+    expect((await context.cookies()).some((c) => c.name === SESSION_COOKIE), "a background request kept the cookie").toBe(true);
     expect(otherErrors).toEqual([]);
     await other.close();
   });

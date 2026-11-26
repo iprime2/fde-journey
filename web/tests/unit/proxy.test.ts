@@ -280,6 +280,60 @@ describe("proxy status gate, owner-only mode (SIGNUP_MODE unset)", () => {
   });
 });
 
+describe("proxy: a tab left open after its session ended", () => {
+  // The router's own requests (prefetches, client navigations, refreshes): fetch() calls, so
+  // Sec-Fetch-Mode is not "navigate" (Next strips its own headers and _rsc before the proxy), or a
+  // page payload path. With a dead or refused session they pass, as before the status gate, and
+  // never expire a cookie: only page loads are redirected (and clear the cookie).
+  const FETCH = { "sec-fetch-mode": "cors", "sec-fetch-dest": "empty" };
+  const NAVIGATE = { "sec-fetch-mode": "navigate", "sec-fetch-dest": "document" };
+  const ROUTER_REQUESTS: [string, Record<string, string>][] = [
+    ["/roadmap", FETCH],
+    ["/certs?q=rag", { "sec-fetch-mode": "same-origin" }],
+    ["/roadmap.rsc", {}],
+    ["/roadmap.segments/_full.segment.rsc", {}],
+    ["/index.segments/_tree.segment.rsc", FETCH],
+  ];
+
+  it("an ended session: router requests pass untouched; a page load goes to /login and clears the cookie", async () => {
+    process.env.SIGNUP_MODE = "capped";
+    const { cookie } = await seed("riley", OTHER_ID, "active");
+    await db.delete(session).where(eq(session.userId, "riley"));
+    for (const [path, fetchMetadata] of ROUTER_REQUESTS) {
+      const res = await call(path, { headers: { cookie, ...fetchMetadata } });
+      expect(passed(res), path).toBe(true);
+      expect(res.headers.getSetCookie(), path).toEqual([]);
+    }
+    // A page load, with Fetch Metadata or without (the stricter default).
+    for (const fetchMetadata of [NAVIGATE, {}]) {
+      const page = await call("/certs", { headers: { cookie, ...fetchMetadata } });
+      expect(location(page)).toBe(`${BASE}/login?next=%2Fcerts`);
+      expect(expired(page)).toEqual(BOTH_COOKIES);
+    }
+  });
+
+  it("a forged cookie or a refused session (owner-only mode): router requests pass too", async () => {
+    expect(passed(await call("/roadmap", { headers: { cookie: FORGED, ...FETCH } }))).toBe(true);
+    const { cookie } = await seed("riley", OTHER_ID, "active");
+    expect(passed(await call("/roadmap", { headers: { cookie, ...FETCH } }))).toBe(true);
+    expect(location(await call("/roadmap", { headers: { cookie, ...NAVIGATE } }))).toBe(`${BASE}/login?next=%2Froadmap`);
+  });
+
+  it("waitlisted and suspended users' router requests are still redirected", async () => {
+    process.env.SIGNUP_MODE = "capped";
+    const wren = await seed("wren", OTHER_ID, "waitlisted");
+    const sid = await seed("sid", "900000000003", "suspended");
+    for (const [path, fetchMetadata] of ROUTER_REQUESTS) {
+      expect(location(await call(path, { headers: { cookie: wren.cookie, ...fetchMetadata } })), path).toBe(`${BASE}/waitlist`);
+      expect(location(await call(path, { headers: { cookie: sid.cookie, ...fetchMetadata } })), path).toBe(`${BASE}/login?error=suspended`);
+    }
+  });
+
+  it("without any cookie, router requests still go to /login (unchanged)", async () => {
+    expect(location(await call("/roadmap", { headers: FETCH }))).toBe(`${BASE}/login?next=%2Froadmap`);
+  });
+});
+
 describe("proxy: the production cookie name (__Secure-, over https)", () => {
   const secure = (cookie: string) => cookie.replace(/^better-auth\./, "__Secure-better-auth.");
 
