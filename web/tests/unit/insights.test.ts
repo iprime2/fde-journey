@@ -11,12 +11,13 @@ import {
   ACTIVITY_WEEKS,
   EVENT_HISTORY_START,
   INSIGHT_KINDS,
-  type InsightEvent,
+  type InsightEventDay,
   type InsightProgressRow,
   type InsightsInput,
   activityWindowStart,
   activityWindowStartDay,
   computeInsights,
+  monthStart,
   shownKinds,
   targetDateOf,
   weeklyStreaks,
@@ -67,10 +68,35 @@ const LAST_WEEK = "2026-11-23";
 
 const ALL: SectionSettings = { sections: OWNER_SECTIONS, scalerUnlocked: true };
 const done = (itemId: string, doneAt: string | null): InsightProgressRow => ({ itemId, done: true, doneAt });
-const ev = (itemId: string, kind: InsightEvent["kind"], when: string): InsightEvent => ({ itemId, kind, at: when });
+/** A raw progress_event row, as the database holds it. */
+interface RawEvent {
+  itemId: string;
+  kind: "done" | "undone" | "note" | "link";
+  at: string;
+}
+const ev = (itemId: string, kind: RawEvent["kind"], when: string): RawEvent => ({ itemId, kind, at: when });
 
-function run(partial: Partial<InsightsInput> = {}) {
-  return computeInsights({ nowMs: NOW, progress: [], events: [], settings: ALL, content: CONTENT, courses: COURSE_LIST, ...partial });
+/**
+ * What readInsightRows returns for raw events (lib/progress-db.ts does this in SQL; the PGlite test
+ * checks it matches): saves per item and IST day, and the items noted since the month began.
+ */
+function aggregate(raw: readonly RawEvent[], nowMs: number): { events: InsightEventDay[]; notedItems: string[] } {
+  const perDay = new Map<string, InsightEventDay>();
+  for (const e of raw) {
+    const day = istDate(Date.parse(e.at));
+    const key = `${e.itemId} ${day}`;
+    const row = perDay.get(key) ?? { itemId: e.itemId, day, count: 0 };
+    row.count += 1;
+    perDay.set(key, row);
+  }
+  const notesSince = monthStart(nowMs).getTime();
+  const notedItems = [...new Set(raw.filter((e) => e.kind === "note" && Date.parse(e.at) >= notesSince).map((e) => e.itemId))];
+  return { events: [...perDay.values()], notedItems };
+}
+
+function run({ raw = [], ...partial }: Partial<InsightsInput> & { raw?: readonly RawEvent[] } = {}) {
+  const nowMs = partial.nowMs ?? NOW;
+  return computeInsights({ nowMs, progress: [], ...aggregate(raw, nowMs), settings: ALL, content: CONTENT, courses: COURSE_LIST, ...partial });
 }
 
 describe("the IST week model (lib/dates.ts)", () => {
@@ -205,7 +231,7 @@ describe("completions per week", () => {
   it("counts only items done now: a tick followed by an untick doesn't count", () => {
     const i = run({
       progress: [{ itemId: "l1-1", done: false, doneAt: null }, done("l1-2", ist("2026-12-01"))],
-      events: [ev("l1-1", "done", ist("2026-12-01", "09:00")), ev("l1-1", "undone", ist("2026-12-01", "09:05")), ev("l1-2", "done", ist("2026-12-01"))],
+      raw: [ev("l1-1", "done", ist("2026-12-01", "09:00")), ev("l1-1", "undone", ist("2026-12-01", "09:05")), ev("l1-2", "done", ist("2026-12-01"))],
     });
     expect(i.thisWeek.done).toBe(1);
     expect(i.weekly.at(-1)?.byKind.roadmap).toBe(1);
@@ -232,11 +258,11 @@ describe("hidden and locked sections", () => {
     done("p1-1", ist("2026-12-01")),
     done("k1", ist("2026-12-01")),
   ];
-  const events = progress.map((p) => ev(p.itemId, "done", p.doneAt!)).concat([ev("p1-1", "note", ist("2026-12-02")), ev("journal", "note", ist("2026-12-02"))]);
+  const raw = progress.map((p) => ev(p.itemId, "done", p.doneAt!)).concat([ev("p1-1", "note", ist("2026-12-02")), ev("journal", "note", ist("2026-12-02"))]);
 
   it("a new user's defaults: Reading and Certifications shown; Scaler, Projects and Career left out everywhere", () => {
     const settings = effectiveSections(null, false);
-    const i = run({ progress, events, settings });
+    const i = run({ progress, raw, settings });
     expect(i.kinds).toEqual(["roadmap", "resources", "reading", "certs", "courses"]);
     expect(i.weekly.at(-1)).toMatchObject({ total: 4, byKind: { roadmap: 1, reading: 1, certs: 1, courses: 1, scaler: 0, projects: 0, career: 0 } });
     expect(i.thisWeek.done).toBe(4);
@@ -252,7 +278,7 @@ describe("hidden and locked sections", () => {
     expect(shownKinds(effectiveSections(stored, false))).not.toContain("scaler");
     // Even if a caller passed the raw choice, the lock wins.
     expect(shownKinds({ sections: OWNER_SECTIONS, scalerUnlocked: false })).not.toContain("scaler");
-    const i = run({ progress, events, settings: { sections: OWNER_SECTIONS, scalerUnlocked: false } });
+    const i = run({ progress, raw, settings: { sections: OWNER_SECTIONS, scalerUnlocked: false } });
     expect(i.weekly.at(-1)?.byKind.scaler).toBe(0);
     expect(i.thisWeek.done).toBe(6);
   });
@@ -264,7 +290,7 @@ describe("hidden and locked sections", () => {
   });
 
   it("hidden Certifications: no certification cards and no cert prep in the charts; courses still count", () => {
-    const i = run({ progress, events, settings: { sections: { ...OWNER_SECTIONS, certs: false }, scalerUnlocked: true } });
+    const i = run({ progress, raw, settings: { sections: { ...OWNER_SECTIONS, certs: false }, scalerUnlocked: true } });
     expect(i.certs).toEqual([]);
     expect(i.kinds).not.toContain("certs");
     expect(i.weekly.at(-1)?.byKind).toMatchObject({ certs: 0, courses: 1 });
@@ -273,6 +299,13 @@ describe("hidden and locked sections", () => {
   it("roadmap and courses have no switch and always show", () => {
     const none: SectionChoices = { roadmap: true, reading: false, scaler: false, certs: false, projects: false, career: false };
     expect(shownKinds({ sections: none, scalerUnlocked: false })).toEqual(["roadmap", "resources", "courses"]);
+  });
+
+  it("returns the settings it used (sections and the unlock only), so the page's hidden-sections line matches", () => {
+    const mine = { ...effectiveSections(null, false), githubLogin: "someone", canDeleteAccount: true };
+    const i = run({ settings: mine });
+    expect(i.settings).toEqual({ sections: mine.sections, scalerUnlocked: false });
+    expect(JSON.stringify(i)).not.toContain("someone");
   });
 });
 
@@ -290,7 +323,7 @@ describe("active days", () => {
 
   it("counts every save per IST day, any kind, and the days with one in the last 30", () => {
     const i = run({
-      events: [
+      raw: [
         ev("l1-1", "done", "2026-12-02T18:29:59Z"), // 2 Dec, 23:59 IST
         ev("l1-1", "note", "2026-12-02T18:30:00Z"), // 3 Dec, 00:00 IST
         ev("l1-1", "link", ist("2026-12-03")),
@@ -310,14 +343,59 @@ describe("active days", () => {
     expect(i.activity.hasActivity).toBe(true);
   });
 
-  it("before the event history, a done_at completion counts as one save, marked as estimated", () => {
+  it("up to the release day, a day counts the larger of its saves and its completions, never both", () => {
     expect(EVENT_HISTORY_START).toBe("2026-11-26");
-    const i = run({ progress: [done("l1-1", ist("2026-11-25", "23:59")), done("l1-2", ist("2026-11-26", "00:00"))] });
+    const i = run({
+      progress: [
+        done("l1-1", ist("2026-11-24")),
+        done("l1-2", ist("2026-11-24", "11:00")),
+        done("l1-3", ist("2026-11-25", "23:59")),
+        done("l1-4", ist("2026-11-26", "08:00")), // the release morning, before it went out: no event
+        done("l1-5", ist("2026-11-27")), // after the release: only events count, and this one has none
+      ],
+      raw: [
+        ev("l1-1", "done", ist("2026-11-24")), // one of the two ticks has an event: 2, not 3
+        ev("l1-3", "done", ist("2026-11-25", "23:59")),
+        ev("l1-3", "note", ist("2026-11-25", "23:59")),
+        ev("journal", "note", ist("2026-11-25", "23:59")), // 3 saves beat 1 completion
+      ],
+    });
     const day = (date: string) => i.activity.days.find((d) => d.date === date);
-    expect(day("2026-11-25")).toEqual({ date: "2026-11-25", count: 1, estimated: true });
-    // From the release on, only events count (this tick has none).
-    expect(day("2026-11-26")).toEqual({ date: "2026-11-26", count: 0, estimated: false });
+    expect(day("2026-11-24")).toEqual({ date: "2026-11-24", count: 2, estimated: true });
+    expect(day("2026-11-25")).toEqual({ date: "2026-11-25", count: 3, estimated: true });
+    expect(day("2026-11-26")).toEqual({ date: "2026-11-26", count: 1, estimated: true });
+    expect(day("2026-11-27")).toEqual({ date: "2026-11-27", count: 0, estimated: false });
     expect(i.activity.reachesBeforeHistory).toBe(true);
+  });
+
+  it("on the release day, saves after the release still count when they outnumber the morning's ticks", () => {
+    const i = run({
+      progress: [done("l1-1", ist("2026-11-26", "08:00"))],
+      raw: [ev("l1-2", "done", ist("2026-11-26", "20:00")), ev("l1-2", "undone", ist("2026-11-26", "20:01"))],
+    });
+    expect(i.activity.days.find((d) => d.date === "2026-11-26")?.count).toBe(2);
+  });
+
+  it("reads the per-day counts as given: several rows a day add up; bad rows and hidden items are skipped", () => {
+    const i = run({
+      raw: [],
+      events: [
+        { itemId: "l1-1", day: "2026-12-02", count: 40 }, // autosaves, counted in SQL
+        { itemId: "journal", day: "2026-12-02", count: 2 },
+        { itemId: "p1-1", day: "2026-12-02", count: 5 }, // Projects hidden below
+        { itemId: "l1-2", day: "2026-12-02", count: -1 },
+        { itemId: "l1-2", day: "2026-12-02", count: 1.5 },
+        { itemId: "l1-2", day: "2 Dec 2026", count: 1 },
+        { itemId: "l1-2", day: "2026-12-04", count: 1 }, // after today
+        { itemId: "l9-9", day: "2026-12-02", count: 1 }, // not an item
+      ],
+      notedItems: ["l1-1", "journal", "p1-1", "l9-9"],
+      settings: { sections: { ...OWNER_SECTIONS, projects: false }, scalerUnlocked: true },
+    });
+    expect(i.activity.days.find((d) => d.date === "2026-12-02")?.count).toBe(42);
+    expect(i.activity.days.reduce((n, d) => n + d.count, 0)).toBe(42);
+    // Hidden and unknown items are left out of the month's notes too.
+    expect(i.thisMonth.notesSaved).toBe(2);
   });
 
   it("once the window starts after the release, nothing is estimated", () => {
@@ -377,7 +455,9 @@ describe("certifications", () => {
     expect(targetDateOf("December 2026")).toBe("2026-12-31");
     expect(targetDateOf("February–March 2027, after Phase 6")).toBe("2027-03-31");
     expect(targetDateOf("February-March 2027")).toBe("2027-03-31");
-    expect(targetDateOf("April 2027 or later, when practice exams say ready")).toBe("2027-04-30");
+    expect(targetDateOf("December 2026 – February 2027")).toBe("2027-02-28");
+    expect(targetDateOf("December 2026-February 2027, if time allows")).toBe("2027-02-28");
+    expect(targetDateOf("November 2027 – February 2028")).toBe("2028-02-29");
     expect(targetDateOf("February 2028")).toBe("2028-02-29");
     expect(targetDateOf("February 10–15, 2027")).toBe("2027-02-15");
     expect(targetDateOf("After joining a Claude partner company")).toBeNull();
@@ -385,10 +465,28 @@ describe("certifications", () => {
     expect(targetDateOf("Some time in December 2026")).toBeNull();
   });
 
+  it("gives no target for a date that isn't a deadline (\"or later\")", () => {
+    expect(targetDateOf("April 2027 or later, when practice exams say ready")).toBeNull();
+    expect(targetDateOf("April 2027 Or Later")).toBeNull();
+    expect(targetDateOf("February–March 2027 or later")).toBeNull();
+  });
+
+  it("gives no target for anything ambiguous", () => {
+    expect(targetDateOf("December 2026 – February")).toBeNull(); // the range's end has no year
+    expect(targetDateOf("December 2026 – February 2026")).toBeNull(); // runs backwards
+    expect(targetDateOf("March 2027 – March 2027")).toBeNull();
+    expect(targetDateOf("March–February 2027")).toBeNull();
+    expect(targetDateOf("December 2026 or January 2027")).toBeNull(); // a choice
+    expect(targetDateOf("December 2026 to February 2027")).toBeNull();
+    expect(targetDateOf("February 15–10, 2027")).toBeNull();
+    expect(targetDateOf("February 30, 2027")).toBeNull();
+    expect(targetDateOf("February 0, 2027")).toBeNull();
+  });
+
   it("every real certification's date text either parses or clearly names no date", () => {
     for (const cert of trackerContent.certs) {
       const target = targetDateOf(cert.date);
-      if (target === null) expect(cert.date).toMatch(/^After /);
+      if (target === null) expect(cert.date).toMatch(/^After |\bor later\b/i);
       else expect(target).toMatch(/^20\d\d-\d\d-\d\d$/);
     }
   });
@@ -403,10 +501,10 @@ describe("certifications", () => {
 });
 
 describe("this month", () => {
-  it("counts note saves and learning resources finished since 00:00 IST on the 1st", () => {
+  it("counts items noted and learning resources finished since 00:00 IST on the 1st", () => {
     const i = run({
       progress: [done("r1-1-1", "2026-11-30T18:29:59Z"), done("r1-1-2", "2026-11-30T18:30:00Z"), done("r1-1-3", ist("2026-12-03")), done("l1-1", ist("2026-12-02"))],
-      events: [
+      raw: [
         ev("l1-1", "note", "2026-11-30T18:29:59Z"), // 30 Nov IST
         ev("l1-1", "note", "2026-11-30T18:30:00Z"), // 1 Dec IST
         ev("journal", "note", ist("2026-12-02")),
@@ -419,7 +517,7 @@ describe("this month", () => {
 
   it("counts each item's note once a month, however many times it autosaved", () => {
     const i = run({
-      events: [
+      raw: [
         ev("l1-1", "note", ist("2026-12-02")),
         ev("l1-1", "note", ist("2026-12-02")),
         ev("l1-1", "note", ist("2026-12-03")),
@@ -468,7 +566,7 @@ describe("users with little or old data", () => {
   });
 
   it("is deterministic: the same input gives the same output", () => {
-    const input = { progress: [done("l1-1", ist("2026-12-01"))], events: [ev("l1-1", "done", ist("2026-12-01"))] };
+    const input = { progress: [done("l1-1", ist("2026-12-01"))], raw: [ev("l1-1", "done", ist("2026-12-01"))] };
     expect(run(input)).toEqual(run(input));
   });
 

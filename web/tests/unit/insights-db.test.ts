@@ -20,10 +20,11 @@ vi.mock("next/navigation", async (importOriginal) => ({
 }));
 
 import type { Db } from "@/db/client";
+import { DEFAULT_SECTIONS } from "@/lib/access-types";
 import { getInsights } from "@/lib/data";
-import { istWeekStart } from "@/lib/dates";
+import { istDate, istWeekStart } from "@/lib/dates";
 import { activityWindowStartDay } from "@/lib/insights";
-import { readInsightRows, setDone, setLink, setNote } from "@/lib/progress-db";
+import { readEvents, readInsightRows, setDone, setLink, setNote } from "@/lib/progress-db";
 import { checkSqlText } from "./support/query-guard";
 import { emptyDb, recordStatements, seedOtherUser, seedOwner, seedUser, setTestEnv } from "./support/db";
 
@@ -51,16 +52,23 @@ afterEach(() => {
   delete process.env.SIGNUP_MODE;
 });
 
-describe("readInsightRows (the scoped query)", () => {
-  const since = new Date("2026-06-07T18:30:00Z");
+describe("readInsightRows (the scoped queries)", () => {
+  const since = new Date("2026-06-07T18:30:00Z"); // 00:00 IST, Mon 8 Jun
+  const notesSince = new Date("2026-11-30T18:30:00Z"); // 00:00 IST, 1 Dec
+  const window = { since, notesSince };
+  const byKey = <T extends { itemId: string }>(rows: T[], key: (r: T) => string = (r) => r.itemId) => [...rows].sort((a, b) => key(a).localeCompare(key(b)));
+  const dayKey = (r: { itemId: string; day: string }) => `${r.itemId} ${r.day}`;
 
   beforeEach(async () => {
-    // The owner: done items in and before the window, an untick, notes and links.
+    // The owner: done items in and before the window, an untick, notes either side of midnight IST
+    // on the 1st, a burst of note autosaves, a link and weekly notes.
     await setDone(OWNER, db, "l1-1", true, new Date("2026-06-07T18:29:59Z")); // just before `since`
     await setDone(OWNER, db, "l1-2", true, since); // exactly at `since`
     await setDone(OWNER, db, "l1-3", true, new Date("2026-11-30T05:00:00Z"));
     await setDone(OWNER, db, "l1-3", false, new Date("2026-11-30T06:00:00Z"));
-    await setNote(OWNER, db, "l1-2", NOTE, new Date("2026-12-01T05:00:00Z"));
+    await setNote(OWNER, db, "l1-4", `${NOTE} 0`, new Date("2026-11-30T18:29:59Z")); // 30 Nov, 23:59 IST
+    await setNote(OWNER, db, "l1-2", `${NOTE} 1`, new Date("2026-11-30T18:30:00Z")); // 1 Dec, 00:00 IST
+    for (let i = 2; i <= 4; i++) await setNote(OWNER, db, "l1-2", `${NOTE} ${i}`, new Date(`2026-12-01T05:00:0${i}Z`));
     await setLink(OWNER, db, "l1-2", LINK, new Date("2026-12-01T05:01:00Z"));
     await setNote(OWNER, db, "journal", NOTE, new Date("2026-12-02T05:00:00Z"));
     // The other user: rows and events the owner must never get.
@@ -68,70 +76,101 @@ describe("readInsightRows (the scoped query)", () => {
     await setNote(OTHER, db, "l1-1", NOTE, new Date("2026-12-01T05:00:00Z"));
   });
 
-  it("returns the user's done items (any date) and their events from `since` on, oldest first", async () => {
-    const rows = await readInsightRows(OWNER, db, since);
-    expect(rows.done.sort((a, b) => a.itemId.localeCompare(b.itemId))).toEqual([
+  it("returns the done items (any date), saves per item and IST day from `since`, and the items noted from `notesSince`", async () => {
+    const rows = await readInsightRows(OWNER, db, window);
+    expect(byKey(rows.done)).toEqual([
       { itemId: "l1-1", done: true, doneAt: "2026-06-07T18:29:59.000Z" },
       { itemId: "l1-2", done: true, doneAt: "2026-06-07T18:30:00.000Z" },
     ]);
-    expect(rows.events).toEqual([
-      { itemId: "l1-2", kind: "done", at: "2026-06-07T18:30:00.000Z" },
-      { itemId: "l1-3", kind: "done", at: "2026-11-30T05:00:00.000Z" },
-      { itemId: "l1-3", kind: "undone", at: "2026-11-30T06:00:00.000Z" },
-      { itemId: "l1-2", kind: "note", at: "2026-12-01T05:00:00.000Z" },
-      { itemId: "l1-2", kind: "link", at: "2026-12-01T05:01:00.000Z" },
-      { itemId: "journal", kind: "note", at: "2026-12-02T05:00:00.000Z" },
+    expect(byKey(rows.events, dayKey)).toEqual([
+      { itemId: "journal", day: "2026-12-02", count: 1 },
+      { itemId: "l1-2", day: "2026-06-08", count: 1 },
+      { itemId: "l1-2", day: "2026-12-01", count: 5 }, // 00:00 IST note, 3 autosaves, a link
+      { itemId: "l1-3", day: "2026-11-30", count: 2 },
+      { itemId: "l1-4", day: "2026-11-30", count: 1 }, // 23:59 IST: still 30 Nov
     ]);
+    expect([...rows.notedItems].sort()).toEqual(["journal", "l1-2"]);
+  });
+
+  it("agrees with grouping every event by IST day in JavaScript, whatever the session's time zone", async () => {
+    const all = await readEvents(OWNER, db);
+    const expected = new Map<string, number>();
+    for (const e of all.filter((x) => Date.parse(x.at) >= since.getTime())) {
+      const key = `${e.itemId} ${istDate(Date.parse(e.at))}`;
+      expected.set(key, (expected.get(key) ?? 0) + 1);
+    }
+    const client = (db as unknown as { $client: { query: (q: string) => Promise<unknown> } }).$client;
+    for (const zone of ["UTC", "America/Los_Angeles", "Pacific/Kiritimati"]) {
+      await client.query(`set timezone = '${zone}'`);
+      try {
+        const rows = await readInsightRows(OWNER, db, window);
+        expect(new Map(rows.events.map((r) => [dayKey(r), r.count]))).toEqual(expected);
+      } finally {
+        await client.query("reset timezone");
+      }
+    }
   });
 
   it("never returns note or link text, or another user's rows", async () => {
-    const text = JSON.stringify(await readInsightRows(OWNER, db, since));
+    const text = JSON.stringify(await readInsightRows(OWNER, db, window));
     expect(text).not.toContain("Made-up insights note");
     expect(text).not.toContain("example.com");
     expect(text).not.toContain("cr1");
-    const other = await readInsightRows(OTHER, db, since);
+    const other = await readInsightRows(OTHER, db, window);
     expect(other.done).toEqual([{ itemId: "cr1", done: true, doneAt: "2026-12-01T05:00:00.000Z" }]);
-    expect(other.events.map((e) => e.itemId)).toEqual(["cr1", "l1-1"]);
+    expect(byKey(other.events, dayKey)).toEqual([
+      { itemId: "cr1", day: "2026-12-01", count: 1 },
+      { itemId: "l1-1", day: "2026-12-01", count: 1 },
+    ]);
+    expect(other.notedItems).toEqual(["l1-1"]);
   });
 
-  it("sends two statements, each scoped to the user, selecting no note or link column", async () => {
+  it("sends three statements, each scoped to the user, selecting no note or link column", async () => {
     const statements = recordStatements(db);
     statements.length = 0;
-    await readInsightRows(OWNER, db, since);
-    expect(statements).toHaveLength(2);
+    await readInsightRows(OWNER, db, window);
+    expect(statements).toHaveLength(3);
     for (const s of statements) {
       expect(checkSqlText(s)).toEqual([]);
       expect(s).toMatch(/"user_id" = \$1/);
       expect(s).not.toMatch(/"(note|link)"/);
+      expect(s).not.toMatch(/order by/i);
     }
     expect(statements.find((s) => s.includes(`from "progress" `))).toMatch(/^select "item_id", "done_at" from "progress" where/);
-    expect(statements.find((s) => s.includes(`from "progress_event"`))).toMatch(/^select "item_id", "kind", "at" from "progress_event" where \("progress_event"."user_id" = \$1 and "progress_event"."at" >= \$2\)/);
+    const perDay = statements.find((s) => s.includes("group by"));
+    expect(perDay).toMatch(/^select "item_id", to_char\(\("progress_event"."at" at time zone 'Asia\/Kolkata'\)::date, 'YYYY-MM-DD'\), count\(\*\)::int from "progress_event" where \("progress_event"."user_id" = \$1 and "progress_event"."at" >= \$2\) group by/);
+    const noted = statements.find((s) => s.startsWith("select distinct"));
+    expect(noted).toMatch(/^select distinct "item_id" from "progress_event" where \("progress_event"."user_id" = \$1 and "progress_event"."kind" = \$2 and "progress_event"."at" >= \$3\)$/);
   });
 
-  it("the event query can be served by the (user_id, at) index", async () => {
+  it("both event queries can be served by the (user_id, at) index", async () => {
     const statements = recordStatements(db);
     statements.length = 0;
-    await readInsightRows(OWNER, db, since);
-    const eventQuery = statements.find((s) => s.includes(`from "progress_event"`))!;
+    await readInsightRows(OWNER, db, window);
+    const perDay = statements.find((s) => s.includes("group by"))!;
+    const noted = statements.find((s) => s.startsWith("select distinct"))!;
     const client = (db as unknown as { $client: { query: (q: string, p?: unknown[]) => Promise<{ rows: Record<string, string>[] }> } }).$client;
+    const plan = async (query: string, params: unknown[]) => (await client.query(`explain ${query}`, params)).rows.map((r) => Object.values(r)[0]).join("\n");
     // With a few rows the planner rightly prefers a sequential scan; turning that off shows the
     // plan it would pick on a large table.
     await client.query("set enable_seqscan = off");
     try {
-      const plan = (await client.query(`explain ${eventQuery}`, [OWNER, since.toISOString()])).rows.map((r) => Object.values(r)[0]).join("\n");
-      expect(plan).toContain("progress_event_user_at_idx");
-      expect(plan).toMatch(/Index Cond: \(\(user_id = .*\) AND \(at >= .*\)\)/);
+      for (const p of [await plan(perDay, [OWNER, since.toISOString()]), await plan(noted, [OWNER, "note", notesSince.toISOString()])]) {
+        expect(p).toContain("progress_event_user_at_idx");
+        expect(p).toMatch(/Index Cond: \(\(user_id = .*\) AND \(at >= .*\)\)/);
+      }
     } finally {
       await client.query("reset enable_seqscan");
     }
   });
 
-  it("refuses to run without a user id or with a bad start time", async () => {
+  it("refuses to run without a user id or with bad start times", async () => {
     for (const bad of ["", undefined, null]) {
-      await expect(readInsightRows(bad as unknown as string, db, since)).rejects.toThrow("A user id is required");
+      await expect(readInsightRows(bad as unknown as string, db, window)).rejects.toThrow("A user id is required");
     }
-    for (const bad of [new Date(Number.NaN), "2026-06-07", undefined]) {
-      await expect(readInsightRows(OWNER, db, bad as unknown as Date)).rejects.toThrow("A valid start time is required");
+    const bads = [{ since: new Date(Number.NaN), notesSince }, { since, notesSince: "2026-12-01" }, { since }, since, undefined, null];
+    for (const bad of bads) {
+      await expect(readInsightRows(OWNER, db, bad as unknown as typeof window)).rejects.toThrow("Valid start times are required");
     }
   });
 });
@@ -207,6 +246,8 @@ describe("getInsights (the page read)", () => {
     expect(i.thisWeek.done).toBe(3);
     expect(i.weekly.at(-1)?.byKind).toMatchObject({ roadmap: 1, reading: 1, courses: 1, scaler: 0, projects: 0, career: 0 });
     expect(i.activity.days.at(-1)?.count).toBe(3);
+    // The settings the numbers used come back with them (the page's hidden-sections line reads these).
+    expect(i.settings).toEqual({ sections: DEFAULT_SECTIONS, scalerUnlocked: false });
   });
 
   it("an empty user gets a full, all-zero result", async () => {

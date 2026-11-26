@@ -211,9 +211,9 @@ describe("reads", () => {
     expect(forB.thisWeek.longestStreak).toBe(1);
     expect(forB.activity.days.find((d) => d.date === forA.today)?.count).toBe(0);
     if (forB.activity.windowStart <= bDay) {
-      // 13 saves (4 ticks, 4 notes, 4 links, weekly notes) plus the 4 completions, as that day is
-      // before the event history began.
-      expect(forB.activity.days.find((d) => d.date === bDay)?.count).toBe(17);
+      // 13 saves (4 ticks, 4 notes, 4 links, weekly notes). That day is before the event history
+      // began, so it counts the larger of its saves and its 4 completions, never both.
+      expect(forB.activity.days.find((d) => d.date === bDay)?.count).toBe(13);
       expect(forA.activity.days.find((d) => d.date === bDay)?.count).toBe(0);
     }
   });
@@ -242,9 +242,11 @@ describe("every statement the app sent on progress or progress_event", () => {
     const touching = statements.filter((s) => /\b(from|into|update|join)\s+"?progress(_event)?"?(?![\w."])/i.test(s));
     // Reads, upserts with events, read-backs and the test's own scoped selects.
     expect(touching.length).toBeGreaterThan(50);
-    // getInsights' two reads (done items; events in the 26-week window) were among them.
+    // getInsights' three reads (done items; saves per day in the 26-week window; items noted this
+    // month) were among them.
     expect(touching.some((s) => s.startsWith(`select "item_id", "done_at" from "progress" where`))).toBe(true);
-    expect(touching.some((s) => s.startsWith(`select "item_id", "kind", "at" from "progress_event" where`) && s.includes(`"at" >= $2`))).toBe(true);
+    expect(touching.some((s) => s.startsWith(`select "item_id", to_char(`) && s.includes(`from "progress_event" where`) && s.includes("group by"))).toBe(true);
+    expect(touching.some((s) => s.startsWith(`select distinct "item_id" from "progress_event" where`))).toBe(true);
     const unscoped = touching.filter((s) => checkSqlText(s).length > 0);
     // The test support's emptyDb() deletes everything between tests; nothing else may be unscoped.
     expect(unscoped.filter((s) => !/^delete from "progress(_event)?"$/.test(s.trim()))).toEqual([]);

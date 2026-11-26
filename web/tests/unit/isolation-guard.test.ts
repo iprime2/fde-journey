@@ -89,20 +89,35 @@ describe("every query on progress and progress_event is scoped to a user", () =>
   it("covers the Insights queries (M5a): removing or weakening their user filter is caught", () => {
     const dataLayer = readFileSync(path.join(WEB, "lib/progress-db.ts"), "utf8");
     const doneFilter = ".where(and(eq(progress.userId, userId), eq(progress.done, true)))";
-    const eventFilter = ".where(and(eq(progressEvent.userId, userId), gte(progressEvent.at, since)))";
+    // Saves per item and IST day (grouped in SQL), and the items noted this month.
+    const eventFilter = ".where(and(eq(progressEvent.userId, userId), gte(progressEvent.at, since)))\n      .groupBy(";
+    const noteFilter = '.where(and(eq(progressEvent.userId, userId), eq(progressEvent.kind, "note"), gte(progressEvent.at, notesSince)))';
     expect(dataLayer).toContain(doneFilter);
     expect(dataLayer).toContain(eventFilter);
+    expect(dataLayer).toContain(noteFilter);
+    const NOT_SCOPED = "from(progressEvent) needs one where() with eq(progressEvent.userId, userId) at its top level";
     const probes: [string, string, string][] = [
       [doneFilter, ".where(eq(progress.done, true))", "from(progress) needs one where() with eq(progress.userId, userId) at its top level"],
-      [eventFilter, ".where(gte(progressEvent.at, since))", "from(progressEvent) needs one where() with eq(progressEvent.userId, userId) at its top level"],
-      [eventFilter, ".where(or(eq(progressEvent.userId, userId), gte(progressEvent.at, since)))", "from(progressEvent) needs one where() with eq(progressEvent.userId, userId) at its top level"],
-      [eventFilter, "", "from(progressEvent) needs one where() with eq(progressEvent.userId, userId) at its top level"],
+      [eventFilter, ".where(gte(progressEvent.at, since))\n      .groupBy(", NOT_SCOPED],
+      [eventFilter, ".where(or(eq(progressEvent.userId, userId), gte(progressEvent.at, since)))\n      .groupBy(", NOT_SCOPED],
+      [eventFilter, ".groupBy(", NOT_SCOPED],
+      [noteFilter, '.where(and(eq(progressEvent.kind, "note"), gte(progressEvent.at, notesSince)))', NOT_SCOPED],
+      [noteFilter, '.where(or(eq(progressEvent.userId, userId), eq(progressEvent.kind, "note")))', NOT_SCOPED],
+      [noteFilter, '.where(and(eq(progressEvent.userId, otherUserId), eq(progressEvent.kind, "note")))', NOT_SCOPED],
+      [noteFilter, "", NOT_SCOPED],
     ];
     for (const [from, to, problem] of probes) {
       const broken = dataLayer.replace(from, to);
       expect(broken).not.toBe(dataLayer);
       expect(problems("lib/progress-db.ts", broken)).toEqual([problem]);
     }
+    // The same counts written as raw SQL without the user filter are caught too.
+    const rawCounts = dataLayer.replace(
+      "checkUserId(userId);\n  const { since, notesSince }",
+      "checkUserId(userId);\n  await db.execute(sql`select item_id, count(*) from progress_event where at >= ${since} group by item_id`);\n  const { since, notesSince }",
+    );
+    expect(rawCounts).not.toBe(dataLayer);
+    expect(problems("lib/progress-db.ts", rawCounts)).toContain("from progress_event without a top-level user_id = $n condition");
     // The page read must go through the data layer: the same query anywhere else is refused.
     const elsewhere = `import { progressEvent } from "@/db/schema";\nexport async function getInsights(userId: string, db: Db) { return db.select().from(progressEvent).where(eq(progressEvent.userId, userId)); }`;
     expect(problems("lib/data.ts", elsewhere).some((p) => p.startsWith("imports the progressEvent table"))).toBe(true);

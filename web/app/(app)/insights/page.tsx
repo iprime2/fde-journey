@@ -5,14 +5,13 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { ActivityCard, AtAGlance, CertsCard, MonthCard, PhaseCard, WeeklyCard } from "@/components/insights/cards";
-import { mySettings } from "@/components/nav/navData";
 import { PageBanners } from "@/components/PageBanners";
 import { type Fact, Facts, PageHeader } from "@/components/PageHeader";
 import { InsightsSkeleton } from "@/components/Skeleton";
-import { weekStartOf } from "@/lib/dates";
+import { istWeekStart } from "@/lib/dates";
 import { getInsights } from "@/lib/data";
 import { weekRangeText } from "@/lib/insights-view";
-import { getTodayIst } from "@/lib/today";
+import { getNowMs } from "@/lib/today";
 
 export const metadata: Metadata = { title: "Insights" };
 
@@ -42,16 +41,17 @@ export default function InsightsPage() {
 const weekFact = (weekStart: string | null): Fact[] => [{ label: "This week", value: weekStart ? weekRangeText(weekStart) : "–" }];
 
 async function WeekFact() {
-  return <Facts facts={weekFact(weekStartOf(await getTodayIst()))} />;
+  // The request's one clock reading, the same one getInsights uses.
+  return <Facts facts={weekFact(istWeekStart(await getNowMs()))} />;
 }
 
 async function InsightsContent() {
-  // mySettings is the navigation's read, shared per request: it tells a locked Scaler (never listed
-  // as hidden) from one the person switched off.
-  const [data, settings] = await Promise.all([getInsights(), mySettings()]);
+  // data.settings are the settings the numbers were computed with (the navigation's per-request
+  // read): they tell a locked Scaler (never listed as hidden) from one the person switched off.
+  const data = await getInsights();
   return (
     <div className="grid gap-3">
-      <AtAGlance thisWeek={data.thisWeek} settings={settings} />
+      <AtAGlance thisWeek={data.thisWeek} settings={data.settings} />
       <WeeklyCard data={data} />
       <ActivityCard data={data} />
       <div className="grid gap-3 xl:grid-cols-2">

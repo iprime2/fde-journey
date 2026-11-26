@@ -9,13 +9,13 @@ import { HomeSkeleton } from "@/components/Skeleton";
 import { CLASS_SCHEDULE_LABEL, READINESS_REVIEW } from "@/content/schedule";
 import { trackerContent } from "@/content/tracker-data";
 import { pageBanners } from "@/lib/banners";
-import { formatDate } from "@/lib/dates";
+import { formatDate, istDate } from "@/lib/dates";
 import { getProgress } from "@/lib/data";
 import { isReadOnly } from "@/lib/mode";
 import { dashboardModel } from "@/lib/summary";
 import { offSectionsPrompt } from "@/lib/nav";
 import { weekGlance } from "@/lib/insights-view";
-import { getNowMs, getTodayIst } from "@/lib/today";
+import { getNowMs } from "@/lib/today";
 
 const phases = trackerContent.phases;
 const JOURNEY = `${formatDate(phases[0].start)} – ${formatDate(phases[phases.length - 1].end)}`;
@@ -71,7 +71,9 @@ async function HomeFacts() {
 const ALWAYS_TILES = new Set(["milestones", "learning", "resources", "courses"]);
 
 async function HomeContent() {
-  const [progress, today, readOnly, settings, nowMs] = await Promise.all([getProgress(), getTodayIst(), isReadOnly(), mySettings(), getNowMs()]);
+  // One clock reading per request (getNowMs), so the phase and this week's line agree across midnight IST.
+  const [progress, readOnly, settings, nowMs] = await Promise.all([getProgress(), isReadOnly(), mySettings(), getNowMs()]);
+  const today = istDate(nowMs);
   const { sections } = settings;
   const model = dashboardModel(trackerContent, progress, today);
   // This week's line: the Insights page's numbers, from the same progress rows and hidden-section rule.

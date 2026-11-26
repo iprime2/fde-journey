@@ -8,14 +8,14 @@
 // - A completion is an item that is done now, counted in the IST week of its `done_at`. An item
 //   ticked and then unticked doesn't count; one done without a `done_at` (an old import) counts in
 //   the totals but in no week.
-// - Activity counts saves (progress_event rows of any kind) per IST day. Before the event history
-//   began (the M4a release, EVENT_HISTORY_START) a `done_at` completion counts as one save instead,
-//   as a best-effort estimate.
+// - Activity counts saves (progress_event rows of any kind) per IST day. Up to and including the
+//   day the event history began (the M4a release, EVENT_HISTORY_START), a day counts the larger of
+//   its saves and its `done_at` completions, as a best-effort estimate: ticks made before the
+//   release (that morning too) have no events, and taking the larger never counts a tick twice.
 // - Kinds of hidden or locked sections are left out of everything: charts, totals, activity and
 //   this month's notes. Weekly notes (the journal) belong to no section and always count as activity.
 // - Only ids the content knows count (lib/ids.ts): the same items every other page counts.
 import type { Course, TrackerContent } from "@/content/types";
-import type { ProgressEventKind } from "@/db/schema";
 import type { DoneSection, SectionChoices } from "./access-types";
 import { addDays, daysBetween, istDate, istDayStartMs, weekStartOf } from "./dates";
 import { JOURNAL_ID, certTaskId, certsInDisplayOrder, itemKind, listItems, phaseTaskId } from "./ids";
@@ -61,19 +61,25 @@ export interface InsightProgressRow {
   doneAt: string | null;
 }
 
-/** A progress_event row: which item, what kind of save, when (ISO timestamp). */
-export interface InsightEvent {
+/** Saves (progress_event rows of any kind) on one item on one IST day, counted in SQL. */
+export interface InsightEventDay {
   itemId: string;
-  kind: ProgressEventKind;
-  at: string;
+  /** IST date, "YYYY-MM-DD". */
+  day: string;
+  count: number;
 }
 
 export interface InsightsInput {
   /** The current time, epoch ms. */
   nowMs: number;
   progress: readonly InsightProgressRow[];
-  /** Events from activityWindowStart(nowMs) on; earlier ones are ignored. */
-  events: readonly InsightEvent[];
+  /** Saves per item and IST day from activityWindowStart(nowMs) on; days outside the window are ignored. */
+  events: readonly InsightEventDay[];
+  /**
+   * Distinct items with a note saved (a `note` event) since 00:00 IST on the 1st of this month
+   * (monthStart(nowMs)). None when left out.
+   */
+  notedItems?: readonly string[];
   /** The user's effective sections (lib/sections.ts effectiveSections). */
   settings: SectionSettings;
   content: TrackerContent;
@@ -95,9 +101,12 @@ export interface WeekCompletions {
 export interface ActivityDay {
   /** IST date, "YYYY-MM-DD". */
   date: string;
-  /** Saves that day (ticks, unticks, notes, links); before the event history, completions. */
+  /**
+   * Saves that day (ticks, unticks, notes, links). Up to and including EVENT_HISTORY_START, the
+   * larger of the saves and the completions that day.
+   */
   count: number;
-  /** True before EVENT_HISTORY_START: the count is estimated from completion dates. */
+  /** True up to and including EVENT_HISTORY_START: the count may be estimated from completion dates. */
   estimated: boolean;
 }
 
@@ -159,6 +168,11 @@ export interface Insights {
   today: string;
   /** Kinds shown for this user, in chart order. Hidden and locked sections' kinds are left out. */
   kinds: InsightKind[];
+  /**
+   * The section settings these numbers were computed with (sections and the Scaler unlock only), so
+   * the page's hidden-sections line always matches its charts.
+   */
+  settings: SectionSettings;
   /** Any completion with a date, in a shown kind (false: the weekly cards' empty state). */
   hasCompletions: boolean;
   thisWeek: {
@@ -181,7 +195,10 @@ export interface Insights {
     activeDays30: number;
     /** EVENT_HISTORY_START. */
     historyStart: string;
-    /** The window starts before the event history: some days are estimates (say so on the page). */
+    /**
+     * The window reaches EVENT_HISTORY_START or earlier: some days are estimates (say so on the
+     * page). False once the window starts after the release day.
+     */
     reachesBeforeHistory: boolean;
     /** Any day in the window with a save (false: the heatmap's empty state). */
     hasActivity: boolean;
@@ -206,6 +223,12 @@ export const activityWindowStartDay = (nowMs: number) => addDays(weekStartOf(ist
 
 /** The instant the activity window starts (00:00 IST on its first Monday): the event query's lower bound. */
 export const activityWindowStart = (nowMs: number) => new Date(istDayStartMs(activityWindowStartDay(nowMs)));
+
+/** The 1st of this month in IST, "YYYY-MM-DD". */
+export const monthStartDay = (nowMs: number) => `${istDate(nowMs).slice(0, 7)}-01`;
+
+/** The instant this month starts (00:00 IST on the 1st): the note query's lower bound. */
+export const monthStart = (nowMs: number) => new Date(istDayStartMs(monthStartDay(nowMs)));
 
 /** The kinds this user sees: their section is shown (Scaler also unlocked). Courses always show. */
 export function shownKinds({ sections, scalerUnlocked }: SectionSettings): InsightKind[] {
@@ -249,27 +272,53 @@ const MONTHS = ["january", "february", "march", "april", "may", "june", "july", 
 const MONTH = `(${MONTHS.join("|")})`;
 const lastDayOfMonth = (year: number, monthIndex: number) => new Date(Date.UTC(year, monthIndex + 1, 0)).toISOString().slice(0, 10);
 
+const monthIndex = (name: string) => MONTHS.indexOf(name);
+/** A dash between the two ends of a range, with or without spaces. */
+const DASH = "\\s*[–—-]\\s*";
+
 /**
- * The target date a certification's date text names: the last day of the month, or of the last
- * month of a range. "December 2026" → 2026-12-31; "February–March 2027, after Phase 6" →
- * 2027-03-31; "April 2027 or later" → 2027-04-30; "February 10–15, 2027" → 2027-02-15. Text that
- * names no month and year ("After job applications are going") → null.
+ * The target date a certification's date text names: the last day it names. A date text that
+ * isn't a deadline, or can't be read one way only, gives null (no countdown):
+ * - "December 2026" → 2026-12-31; "February–March 2027, after Phase 6" → 2027-03-31;
+ * - "December 2026 – February 2027" → 2027-02-28; "February 10–15, 2027" → 2027-02-15;
+ * - "April 2027 or later" → null: "or later" isn't a deadline;
+ * - "After job applications are going" → null: no month and year;
+ * - ambiguous → null: a range that runs backwards, a range whose end has no year
+ *   ("December 2026 – February"), a choice ("December 2026 or January 2027"), a day that doesn't exist.
  */
 export function targetDateOf(text: string): string | null {
   const t = text.trim().toLowerCase();
-  const days = new RegExp(`^${MONTH}\\s+(\\d{1,2})(?:\\s*[–-]\\s*(\\d{1,2}))?,?\\s+(\\d{4})\\b`).exec(t);
-  if (days) {
-    const [, month, from, to, year] = days;
-    const iso = `${year}-${String(MONTHS.indexOf(month) + 1).padStart(2, "0")}-${String(Number(to ?? from)).padStart(2, "0")}`;
-    const lastDay = lastDayOfMonth(Number(year), MONTHS.indexOf(month));
-    return iso <= lastDay ? iso : null;
-  }
-  const months = new RegExp(`^${MONTH}(?:\\s*[–-]\\s*${MONTH})?\\s+(\\d{4})\\b`).exec(t);
-  if (months) {
-    const [, first, last, year] = months;
-    return lastDayOfMonth(Number(year), MONTHS.indexOf(last ?? first));
-  }
-  return null;
+  if (/\bor later\b/.test(t)) return null;
+  const parse = (): { iso: string; rest: string } | null => {
+    // "December 2026 – February 2027"
+    let m = new RegExp(`^${MONTH}\\s+(\\d{4})${DASH}${MONTH}\\s+(\\d{4})\\b`).exec(t);
+    if (m) {
+      const [whole, m1, y1, m2, y2] = m;
+      const [from, to] = [Number(y1) * 12 + monthIndex(m1), Number(y2) * 12 + monthIndex(m2)];
+      return to > from ? { iso: lastDayOfMonth(Number(y2), monthIndex(m2)), rest: t.slice(whole.length) } : null;
+    }
+    // "February 10–15, 2027" or "February 15, 2027"
+    m = new RegExp(`^${MONTH}\\s+(\\d{1,2})(?:${DASH}(\\d{1,2}))?,?\\s+(\\d{4})\\b`).exec(t);
+    if (m) {
+      const [whole, month, from, to, year] = m;
+      const day = Number(to ?? from);
+      const iso = `${year}-${String(monthIndex(month) + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+      const ok = Number(from) >= 1 && day >= Number(from) && iso <= lastDayOfMonth(Number(year), monthIndex(month));
+      return ok ? { iso, rest: t.slice(whole.length) } : null;
+    }
+    // "February–March 2027" or "December 2026"
+    m = new RegExp(`^${MONTH}(?:${DASH}${MONTH})?\\s+(\\d{4})\\b`).exec(t);
+    if (m) {
+      const [whole, first, last, year] = m;
+      if (last && monthIndex(last) <= monthIndex(first)) return null;
+      return { iso: lastDayOfMonth(Number(year), monthIndex(last ?? first)), rest: t.slice(whole.length) };
+    }
+    return null;
+  };
+  const parsed = parse();
+  // What follows the date mustn't extend it or offer another one: "– February", "or January 2027".
+  if (!parsed || new RegExp(`^(?:${DASH}|\\s+(?:to|or|and|until|through)\\b)`).test(parsed.rest)) return null;
+  return parsed.iso;
 }
 
 const oneDecimal = (n: number) => Math.round(n * 10) / 10;
@@ -283,7 +332,9 @@ interface Completion {
   week: string;
 }
 
-export function computeInsights({ nowMs, progress, events, settings, content, courses }: InsightsInput): Insights {
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+
+export function computeInsights({ nowMs, progress, events, notedItems = [], settings, content, courses }: InsightsInput): Insights {
   const today = istDate(nowMs);
   const thisWeek = weekStartOf(today);
   const kinds = shownKinds(settings);
@@ -326,20 +377,20 @@ export function computeInsights({ nowMs, progress, events, settings, content, co
 
   // Activity per day.
   const windowStart = activityWindowStartDay(nowMs);
-  const perDay = new Map<string, number>();
-  const bump = (day: string) => perDay.set(day, (perDay.get(day) ?? 0) + 1);
-  const shownEvent = (e: InsightEvent) => e.itemId === JOURNAL_ID || shownKind(e.itemId) !== null;
-  const eventDays: { itemId: string; kind: ProgressEventKind; day: string }[] = [];
+  const add = (map: Map<string, number>, day: string, n: number) => map.set(day, (map.get(day) ?? 0) + n);
+  const shownItem = (itemId: string) => itemId === JOURNAL_ID || shownKind(itemId) !== null;
+  const savesPerDay = new Map<string, number>();
   for (const e of events) {
-    const day = dayOf(e.at);
-    if (!day || day < windowStart || day > today || !shownEvent(e)) continue;
-    eventDays.push({ itemId: e.itemId, kind: e.kind, day });
-    bump(day);
+    if (!ISO_DAY.test(e.day) || e.day < windowStart || e.day > today || !shownItem(e.itemId)) continue;
+    add(savesPerDay, e.day, Number.isInteger(e.count) && e.count > 0 ? e.count : 0);
   }
-  for (const c of completions) if (c.day < EVENT_HISTORY_START && c.day >= windowStart) bump(c.day);
+  const completionsPerDay = new Map<string, number>();
+  for (const c of completions) if (c.day <= EVENT_HISTORY_START && c.day >= windowStart) add(completionsPerDay, c.day, 1);
   const days: ActivityDay[] = [];
   for (let day = windowStart; day <= today; day = addDays(day, 1)) {
-    days.push({ date: day, count: perDay.get(day) ?? 0, estimated: day < EVENT_HISTORY_START });
+    const saves = savesPerDay.get(day) ?? 0;
+    const estimated = day <= EVENT_HISTORY_START;
+    days.push({ date: day, count: estimated ? Math.max(saves, completionsPerDay.get(day) ?? 0) : saves, estimated });
   }
   const activeFrom = addDays(today, -(ACTIVE_DAYS_WINDOW - 1));
 
@@ -379,12 +430,13 @@ export function computeInsights({ nowMs, progress, events, settings, content, co
       });
 
   // This month.
-  const monthStart = `${today.slice(0, 7)}-01`;
+  const monthFrom = monthStartDay(nowMs);
 
   return {
     generatedAt: new Date(nowMs).toISOString(),
     today,
     kinds,
+    settings: { sections: { ...settings.sections }, scalerUnlocked: settings.scalerUnlocked },
     hasCompletions: completions.length > 0,
     thisWeek: {
       weekStart: thisWeek,
@@ -399,7 +451,7 @@ export function computeInsights({ nowMs, progress, events, settings, content, co
       days,
       activeDays30: days.filter((d) => d.date >= activeFrom && d.count > 0).length,
       historyStart: EVENT_HISTORY_START,
-      reachesBeforeHistory: windowStart < EVENT_HISTORY_START,
+      reachesBeforeHistory: windowStart <= EVENT_HISTORY_START,
       hasActivity: days.some((d) => d.count > 0),
     },
     phase: {
@@ -416,10 +468,10 @@ export function computeInsights({ nowMs, progress, events, settings, content, co
     },
     certs,
     thisMonth: {
-      monthStart,
+      monthStart: monthFrom,
       // Distinct items, not saves: notes autosave while typing, so one note can record many saves.
-      notesSaved: new Set(eventDays.filter((e) => e.kind === "note" && e.day >= monthStart).map((e) => e.itemId)).size,
-      resourcesDone: completions.filter((c) => c.kind === "resources" && c.day >= monthStart).length,
+      notesSaved: new Set(notedItems.filter(shownItem)).size,
+      resourcesDone: completions.filter((c) => c.kind === "resources" && c.day >= monthFrom).length,
     },
   };
 }
