@@ -1,16 +1,29 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import { STATUS_OPTIONS, parseStatus } from "@/lib/filter";
+import { STATUS_OPTIONS, type TagOption, parseStatus } from "@/lib/filter";
 import { SearchIcon } from "../icons";
 import { useFilter } from "./FilterProvider";
 
 const ANNOUNCE_DELAY_MS = 400;
 
-/** Search field and status filter (design spec 4, Toolbar). */
-export function Toolbar({ placeholder }: { placeholder: string }) {
+/**
+ * Search field and status filter (design spec 4, Toolbar), plus an optional third select for a
+ * page's own tag filter (Courses & badges). The status filter takes its natural width. The tag
+ * filter takes a full row of its own below 768 px, and from 768 px sits in the one row at its
+ * natural width.
+ */
+export function Toolbar({
+  placeholder,
+  tagFilter,
+}: {
+  placeholder: string;
+  /** Visually hidden label and the choices; the first choice (value "") shows everything. */
+  tagFilter?: { label: string; options: readonly TagOption[] };
+}) {
   const f = useFilter();
   const statusId = useId();
+  const tagId = useId();
   const shown = f.visibility.items.size;
 
   // "{n} items shown", 400 ms after the last change; silent on first load.
@@ -24,7 +37,8 @@ export function Toolbar({ placeholder }: { placeholder: string }) {
   }, [f.key, shown]);
 
   return (
-    <div className="flex flex-wrap gap-2">
+    // min-w-0: a wide tag filter shrinks to the column instead of widening the page.
+    <div className="flex min-w-0 flex-wrap gap-2">
       <div className="relative min-w-[180px] flex-[1_1_180px]">
         <label htmlFor={f.searchId} className="sr-only">
           Search this page
@@ -58,6 +72,25 @@ export function Toolbar({ placeholder }: { placeholder: string }) {
           ))}
         </select>
       </div>
+      {tagFilter && (
+        <div className="min-w-0 basis-full md:flex-none md:basis-auto">
+          <label htmlFor={tagId} className="sr-only">
+            {tagFilter.label}
+          </label>
+          <select
+            id={tagId}
+            value={f.state.tag ?? ""}
+            onChange={(e) => f.setTag(e.target.value)}
+            className="type-input h-11 w-full max-w-full rounded-md border border-line-strong bg-surface px-3 text-ink md:w-auto"
+          >
+            {tagFilter.options.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
       <p className="sr-only" role="status" aria-live="polite">
         {message}
       </p>

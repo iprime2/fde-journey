@@ -1,5 +1,6 @@
 // Loading placeholders (design spec 4, Skeleton): sunk blocks shaped like the content.
 import { cn } from "./cn";
+import { tileGridClass, tileSpanClass } from "./home";
 import { StillLoading } from "./StillLoading";
 
 const BLOCK = "rounded-sm bg-sunk motion-safe:animate-skeleton";
@@ -47,13 +48,19 @@ export function ListSkeleton() {
   );
 }
 
-/** Six tiles and the current-phase panel. */
+/**
+ * Seven tiles in the 7-tile layout (the owner's Home; design spec 4, Skeleton, v0.7) and the
+ * current-phase panel. The tile count depends on the person's sections, which load with the
+ * tiles, so the skeleton draws the most common case, from the same grid helpers as StatTiles.
+ */
+const SKELETON_TILES = 7;
+
 export function HomeSkeleton() {
   return (
     <Wrapper>
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
-        {[0, 1, 2, 3, 4, 5].map((i) => (
-          <div key={i} className="grid gap-2 rounded-lg border border-line bg-surface px-4 py-3.5">
+      <div className={cn("grid gap-3", tileGridClass(SKELETON_TILES))}>
+        {Array.from({ length: SKELETON_TILES }, (_, i) => (
+          <div key={i} className={cn("grid gap-2 rounded-lg border border-line bg-surface px-4 py-3.5", tileSpanClass(SKELETON_TILES, i))}>
             <Block className="h-7 w-16" />
             <Block className="h-3.5 w-3/4" />
             <Block className="h-1.5 w-full" />

@@ -42,11 +42,11 @@ Recheck badges and lengths before relying on them; providers change their catalo
 | cr26 | Anthropic | [Introduction to evals](https://academy.claude.com/courses/introduction-to-evals) | 4 lessons · 1 h | ✓ | 7 Evaluation |
 | cr27 | Anthropic | [Deploying Claude Enterprise with confidence](https://academy.claude.com/courses/deploying-claude-enterprise-with-confidence) | 14 lessons · 2.5 h | ✓ | 8 Portfolio and career |
 
-**Mentor's top picks for the FDE role:**
-- cr4: scoping a customer problem into a solution plan.
-- cr27: rolling out at a customer.
-- cr5 and cr26: evals.
-- cr25: lines up with the AWS certifications.
+**Mentor's top picks for the FDE role** (reasons as the app shows them after "Top pick for the FDE role:", reworded in design spec v0.7; a unit test checks this list against `web/content/courses.ts`):
+- cr4: scoping a customer's problem into a solution plan.
+- cr27: rolling Claude out at a customer.
+- cr5 and cr26: evals, the tests that show whether an AI app's answers are good enough.
+- cr25: it pairs with the AWS certifications.
 
 **Left out on purpose:**
 - the product tours for Claude Cowork and Claude Tag
@@ -56,6 +56,6 @@ Recheck badges and lengths before relying on them; providers change their catalo
 
 **Build notes** (after M4b):
 - Typed content in `web/content/`, plus the ids in `lib/ids.ts` and the id baseline test.
-- A new page, `/courses`, with a sidebar item; a new section key `courses` in the M4b section settings, on by default.
+- A new page, `/courses`, with a sidebar item. Decision at build time (2026-11-26): Courses is always shown, with no section switch in Settings, so no database change was needed. A `courses` switch can be added later if users ask to hide it (that needs a `user_settings` column and a migration).
 - Group by provider, with filters by phase and by "has badge".
 - The tracker artifact is being retired, so this content lives only in the app.

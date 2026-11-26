@@ -11,6 +11,9 @@ export const SCALER_DESCRIPTION = "14 modules: 10 core and 4 electives.";
 export const CERTS_DESCRIPTION =
   "In the order to take them. A certification counts as passed when its last step is ticked.";
 
+export const COURSES_DESCRIPTION =
+  "27 courses from OpenAI and Anthropic, each placed in the roadmap phase where it fits. Tracked separately from roadmap progress.";
+
 export const PROJECTS_DESCRIPTION = "Three portfolio projects. A project is complete when every step is ticked.";
 
 /** Short, so they fit beside the status filter at 390 px. Search still matches titles, meta,
@@ -22,4 +25,5 @@ export const SEARCH_PLACEHOLDERS = {
   certs: "Search steps…",
   projects: "Search steps…",
   career: "Search milestones…",
+  courses: "Search courses…",
 } as const;

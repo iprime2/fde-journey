@@ -184,8 +184,10 @@ test.describe("phone More sheet", () => {
     await expectPhoto(nav);
     expect((await signOut.boundingBox())!.height).toBeGreaterThanOrEqual(44);
 
-    // Focus order (design spec 3.5): Certifications, Projects, Career, Settings, Admin, Sign out.
+    // Focus order (design spec 3.5): Certifications, Courses, Projects, Career, Settings, Admin, Sign out.
     await expect(nav.getByRole("link", { name: "Certifications" })).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(nav.getByRole("link", { name: "Courses" })).toBeFocused();
     await page.keyboard.press("Tab");
     await expect(nav.getByRole("link", { name: "Projects" })).toBeFocused();
     await page.keyboard.press("Tab");
@@ -216,6 +218,9 @@ test.describe("phone More sheet", () => {
     await nav.getByRole("button", { name: "More" }).click();
     const signOut = nav.getByRole("button", { name: "Sign out" });
     await expect(signOut).toBeVisible();
+    // The owner's sheet is taller than the space above the bar, so it scrolls on its own
+    // (design spec 3.1, sheet height, v0.7): the account row is reached by scrolling the sheet.
+    await signOut.scrollIntoViewIfNeeded();
     const sheetBottom = (await signOut.boundingBox())!;
     expect(sheetBottom.y + sheetBottom.height).toBeLessThanOrEqual((await bar.boundingBox())!.y);
     const [scrollWidth, innerWidth] = await page.evaluate(() => [document.documentElement.scrollWidth, window.innerWidth]);

@@ -55,7 +55,16 @@ test.describe("settings", () => {
     await gotoReady(page, "/settings");
     await expect(page).toHaveTitle("Settings · FDE Journey");
     await expect(pageHeading(page)).toHaveText("Settings");
-    await expect(page.getByText("Always on")).toBeVisible();
+    // Roadmap and Courses & badges can't be switched off: "Always on", no switch.
+    await expect(page.getByText("Always on")).toHaveCount(2);
+    const coursesRow = page.locator("li", { hasText: "Courses & badges" });
+    await expect(coursesRow).toContainText("Courses from OpenAI and Anthropic, by roadmap phase.");
+    await expect(coursesRow.getByText("Always on")).toBeVisible();
+    await expect(coursesRow.getByRole("switch")).toHaveCount(0);
+    await expect(page.getByRole("switch", { name: /Courses/ })).toHaveCount(0);
+    // Between Certifications and Projects.
+    const rowNames = await page.locator("section", { has: page.getByRole("heading", { name: "Sections" }) }).locator("li .type-body-strong").allTextContents();
+    expect(rowNames.slice(rowNames.indexOf("Certifications"), rowNames.indexOf("Certifications") + 3)).toEqual(["Certifications", "Courses & badges", "Projects"]);
     await expect(navLinks(page, "/settings")).not.toHaveCount(0);
     // Not an admin: no Admin link.
     await expect(page.locator('nav[aria-label="Sections"] a[href^="/admin"]')).toHaveCount(0);

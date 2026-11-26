@@ -5,8 +5,11 @@ import { AUDIT_FILTERS, DEFAULT_SECTIONS, OWNER_SECTIONS, PERMISSIONS } from "@/
 import {
   aheadLine,
   auditSentence,
+  CAP_LEADING_ZERO,
+  CAP_RANGE,
   capChange,
   capSavedMessage,
+  checkCapInput,
   doneLine,
   formatIstDateTime,
   lastActiveLabel,
@@ -26,19 +29,26 @@ import { offSectionsPrompt, orList, phoneSplit, sectionOfHref, visibleHrefs } fr
 
 describe("navigation with chosen sections (design spec 3.5)", () => {
   it("shows Home and the visible sections in today's order", () => {
-    expect(visibleHrefs(OWNER_SECTIONS)).toEqual(["/", "/roadmap", "/reading", "/scaler", "/certs", "/projects", "/career"]);
-    expect(visibleHrefs(DEFAULT_SECTIONS)).toEqual(["/", "/roadmap", "/reading", "/certs"]);
+    expect(visibleHrefs(OWNER_SECTIONS)).toEqual(["/", "/roadmap", "/reading", "/scaler", "/certs", "/courses", "/projects", "/career"]);
+    expect(visibleHrefs(DEFAULT_SECTIONS)).toEqual(["/", "/roadmap", "/reading", "/certs", "/courses"]);
   });
 
   it("keeps Roadmap even if a stored choice says otherwise", () => {
     expect(visibleHrefs({ ...DEFAULT_SECTIONS, roadmap: false })).toContain("/roadmap");
   });
 
-  it("puts Home and the first three visible sections in the bar, the rest in More", () => {
-    expect(phoneSplit(OWNER_SECTIONS)).toEqual({ bar: ["/", "/roadmap", "/reading", "/scaler"], more: ["/certs", "/projects", "/career"] });
-    expect(phoneSplit(DEFAULT_SECTIONS)).toEqual({ bar: ["/", "/roadmap", "/reading", "/certs"], more: [] });
+  it("always shows Courses: it has no switch and nothing stored", () => {
     const fewest = { roadmap: true, reading: false, scaler: false, certs: false, projects: false, career: false };
-    expect(phoneSplit(fewest)).toEqual({ bar: ["/", "/roadmap"], more: [] });
+    expect(visibleHrefs(fewest)).toEqual(["/", "/roadmap", "/courses"]);
+    expect(sectionOfHref("/courses")).toBeNull();
+  });
+
+  it("puts Home and the first three visible sections in the bar, the rest in More", () => {
+    // Courses sits after Certifications, so the owner's and new users' bars are as before.
+    expect(phoneSplit(OWNER_SECTIONS)).toEqual({ bar: ["/", "/roadmap", "/reading", "/scaler"], more: ["/certs", "/courses", "/projects", "/career"] });
+    expect(phoneSplit(DEFAULT_SECTIONS)).toEqual({ bar: ["/", "/roadmap", "/reading", "/certs"], more: ["/courses"] });
+    const fewest = { roadmap: true, reading: false, scaler: false, certs: false, projects: false, career: false };
+    expect(phoneSplit(fewest)).toEqual({ bar: ["/", "/roadmap", "/courses"], more: [] });
   });
 
   it("names a page's section", () => {
@@ -112,9 +122,10 @@ describe("admin wording (design spec 8)", () => {
   });
 
   it("lists done counts by section, only those above zero", () => {
-    const none = { roadmap: 0, resources: 0, reading: 0, scaler: 0, certs: 0, projects: 0, career: 0 };
+    const none = { roadmap: 0, resources: 0, reading: 0, scaler: 0, certs: 0, projects: 0, career: 0, courses: 0 };
     expect(doneLine(none)).toBe("Nothing yet");
     expect(doneLine({ ...none, roadmap: 12, resources: 30, reading: 3 })).toBe("Roadmap 12 · Resources 30 · Reading 3");
+    expect(doneLine({ ...none, career: 1, courses: 2 })).toBe("Career 1 · Courses 2");
   });
 
   it("tells a waitlisted person how many are ahead", () => {
@@ -125,8 +136,34 @@ describe("admin wording (design spec 8)", () => {
 
   it("reads whole numbers only, within range", () => {
     expect(parseWholeNumber(" 5 ", 1, 7)).toBe(5);
-    for (const bad of ["", "0", "8", "1.5", "-2", "1e3", "five"]) expect(parseWholeNumber(bad, 1, 7)).toBeNull();
+    for (const bad of ["", "0", "8", "1.5", "-2", "1e3", "five", "+5"]) expect(parseWholeNumber(bad, 1, 7)).toBeNull();
     expect(parseWholeNumber("0", 0, 1000)).toBe(0);
+    expect(parseWholeNumber("1000", 0, 1000)).toBe(1000);
+  });
+
+  it("refuses leading zeros, so a 0 typed in front is never read as the number (v0.7)", () => {
+    expect(parseWholeNumber("0100", 0, 1000)).toBeNull();
+    expect(parseWholeNumber("00", 0, 1000)).toBeNull();
+    expect(parseWholeNumber(" 0100 ", 0, 1000)).toBeNull();
+    expect(parseWholeNumber("0", 0, 1000)).toBe(0);
+    // "Let in the next N": "05" is refused too, and gets that field's range message.
+    expect(parseWholeNumber("05", 1, 7)).toBeNull();
+  });
+
+  it("checks the cap field in order: leading zero, range, then unchanged (v0.7)", () => {
+    const check = (value: string, current = 100) => checkCapInput(value, current, 0, 1000);
+    expect(CAP_LEADING_ZERO).toBe("Type the number without a leading 0.");
+    expect(CAP_RANGE).toBe("Enter a whole number from 0 to 1,000.");
+    expect(check("0100")).toEqual({ ok: false, kind: "leading-zero", message: CAP_LEADING_ZERO });
+    expect(check("00")).toEqual({ ok: false, kind: "leading-zero", message: CAP_LEADING_ZERO });
+    // The leading zero is reported before the range.
+    expect(check("01001")).toMatchObject({ kind: "leading-zero" });
+    for (const bad of ["", "1001", "1.5", "-2", "+100", "abc", "0.5"]) expect(check(bad), bad).toEqual({ ok: false, kind: "range", message: CAP_RANGE });
+    expect(check(" 100 ")).toEqual({ ok: false, kind: "same", message: "The cap is already 100." });
+    expect(check("1000", 1000)).toEqual({ ok: false, kind: "same", message: "The cap is already 1,000." });
+    expect(check("0")).toEqual({ ok: true, cap: 0 });
+    expect(check("120")).toEqual({ ok: true, cap: 120 });
+    expect(check("100", 0)).toEqual({ ok: true, cap: 100 });
   });
 
   it("works out how many can be let in", () => {
@@ -146,9 +183,17 @@ describe("admin wording (design spec 8)", () => {
     expect(capChange(30, 40, 42, 7)).toEqual({ kind: "plain" });
     expect(capChange(100, 30, 42, 7)).toEqual({ kind: "lower" });
     expect(capChange(100, 99, 42, 7)).toEqual({ kind: "plain" });
-    expect(capSavedMessage(120, 0)).toBe("Cap saved: 120 places.");
-    expect(capSavedMessage(120, 7)).toBe("Cap saved: 120 places. 7 people were let in.");
-    expect(capSavedMessage(1000, 1)).toBe("Cap saved: 1,000 places. 1 person was let in.");
+  });
+
+  it("says what the cap changed from and to, and who was let in (v0.7)", () => {
+    expect(capSavedMessage(100, 120, 0)).toBe("Cap changed from 100 to 120 places.");
+    expect(capSavedMessage(100, 120, 7)).toBe("Cap changed from 100 to 120 places. 7 people were let in.");
+    expect(capSavedMessage(0, 1, 0)).toBe("Cap changed from 0 to 1 place.");
+    expect(capSavedMessage(0, 1, 1)).toBe("Cap changed from 0 to 1 place. 1 person was let in.");
+    expect(capSavedMessage(100, 1000, 1)).toBe("Cap changed from 100 to 1,000 places. 1 person was let in.");
+    expect(capSavedMessage(120, 0, 0)).toBe("Cap changed from 120 to 0 places.");
+    // Someone else set the same cap in the meantime.
+    expect(capSavedMessage(120, 120, 0)).toBe("The cap is already 120.");
   });
 
   it("names the permissions as the Admins page does (v0.6)", () => {

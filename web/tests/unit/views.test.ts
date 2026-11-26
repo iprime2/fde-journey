@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
+import { COURSES, COURSE_GROUPS, COURSE_PHASE_NAMES, COURSE_PHASE_SHORT_NAMES } from "@/content/courses";
 import { trackerContent as c } from "@/content/tracker-data";
 import { JOURNAL_ID, certTaskId, listItems, projectTaskId, scalerClassId } from "@/lib/ids";
 import type { ProgressMap, ProgressRecord } from "@/lib/progress";
 import {
   careerView,
   certsView,
+  coursesView,
   filterEntries,
   journalEntry,
   projectsView,
@@ -38,19 +40,20 @@ function allPageEntries(progress: ProgressMap) {
     ...filterEntries(certsView(c, progress)),
     ...filterEntries(projectsView(c, progress)),
     ...filterEntries([careerView(c, progress).milestones]),
+    ...filterEntries(coursesView(COURSES, COURSE_GROUPS, { full: COURSE_PHASE_NAMES, short: COURSE_PHASE_SHORT_NAMES }, progress)),
     journalEntry(careerView(c, progress).journalNote),
   ];
 }
 
 describe("pages show every item, under its tracker id", () => {
-  it("cover exactly the tracker's ids, once each", () => {
+  it("cover exactly the tracker's ids and the courses, once each", () => {
     const shown = allPageEntries(empty).map((e) => e.id);
     expect(new Set(shown).size).toBe(shown.length);
-    expect(new Set(shown)).toEqual(new Set([...listItems(c).map((i) => i.id), JOURNAL_ID]));
+    expect(new Set(shown)).toEqual(new Set([...listItems(c, COURSES).map((i) => i.id), JOURNAL_ID]));
   });
 
   it("show each item with the tracker's title", () => {
-    const titles = new Map(listItems(c).map((i) => [i.id, i.title]));
+    const titles = new Map(listItems(c, COURSES).map((i) => [i.id, i.title]));
     const rows = [
       ...roadmapView(c, empty, TODAY).flatMap((card) => card.rows.flatMap((r) => [r, ...(r.resources?.rows ?? [])])),
       ...readingView(c, empty, TODAY).flatMap((card) => card.rows),
@@ -58,6 +61,7 @@ describe("pages show every item, under its tracker id", () => {
       ...certsView(c, empty).flatMap((card) => card.rows),
       ...projectsView(c, empty).flatMap((card) => card.rows),
       ...careerView(c, empty).milestones.rows,
+      ...coursesView(COURSES, COURSE_GROUPS, { full: COURSE_PHASE_NAMES, short: COURSE_PHASE_SHORT_NAMES }, empty).flatMap((card) => card.rows),
     ];
     for (const r of rows) expect(r.title, r.id).toBe(titles.get(r.id));
   });

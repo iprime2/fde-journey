@@ -7,8 +7,11 @@ export const E2E_OTHER_GITHUB_ID = "900000000002";
 /** Text that must never appear on the owner's pages. */
 export const E2E_OTHER_NOTE = "Other user's made-up note, never shown to the owner.";
 export const E2E_OTHER_LINK = "https://example.com/other-user";
-/** One done item per section, so every section's done count would show a leak. */
-export const E2E_OTHER_DONE = ["l1-1", "r1-1-1", "pp1", "bk1", "s1-1", "c1-1", "p1-1", "k1"];
+/**
+ * One done item per section, so every section's done count would show a leak. The course, cr4,
+ * gives a badge, so a leak would also show in "Badges earned". No e2e test ticks cr4 for the owner.
+ */
+export const E2E_OTHER_DONE = ["l1-1", "r1-1-1", "pp1", "bk1", "s1-1", "c1-1", "p1-1", "k1", "cr4"];
 
 /**
  * Runs of one test (the first plus retries) that each get their own spare session or spare user.

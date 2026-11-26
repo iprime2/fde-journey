@@ -49,7 +49,7 @@ web/
 ```
 
 ## Ids and content (do not break saved progress)
-- Item ids are exactly those of the tracker: `l{phase}-{task}`, `c{cert}-{task}`, `p{project}-{task}`, `k{n}`, `s{module}-{class}`, `r{phase}-{task}-{n}`, `pp{n}`, `bk{n}`, `journal`.
+- Item ids are exactly those of the tracker: `l{phase}-{task}`, `c{cert}-{task}`, `p{project}-{task}`, `k{n}`, `s{module}-{class}`, `r{phase}-{task}-{n}`, `pp{n}`, `bk{n}`, `journal`. The app adds `cr{n}` (Courses & badges, `web/content/courses.ts`): app-only, never in the tracker, append-only like the rest. `listTrackerItems` gives the tracker's ids; `listItems` adds the courses.
 - Ids come from positions in lists. Only append items; never reorder or delete them. To hide an item, add a flag.
 - A test must fail if any id from the tracker is missing, duplicated or renamed.
 - Until cut-over, change roadmap content in the tracker first, then mirror it in `web/content/` in the same pull request.

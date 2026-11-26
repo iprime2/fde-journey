@@ -1,15 +1,17 @@
 // What each section page shows, built from the content files and saved progress. Pure functions:
 // rendering (components) and search (lib/filter.ts) both read these models, so a row's search
 // text always matches what the row shows. Every id comes from lib/ids.ts.
-import type { Resource, TrackerContent } from "@/content/types";
+import type { CourseGroup } from "@/content/courses";
+import type { Course, Resource, TrackerContent } from "@/content/types";
 import { formatDayMonth, formatRange, isInWeek } from "@/lib/dates";
-import type { FilterEntry } from "@/lib/filter";
+import type { FilterEntry, TagOption } from "@/lib/filter";
 import {
   JOURNAL_ID,
   bookId,
   careerId,
   certTaskId,
   certsInDisplayOrder,
+  courseId,
   paperId,
   phaseTaskId,
   projectTaskId,
@@ -29,6 +31,8 @@ export interface RowModel {
   index?: string;
   meta?: string;
   why?: string;
+  /** Bold start of the why line, in `ink` ("Top pick for the FDE role:"; design spec 5, /courses). */
+  whyLead?: string;
   done: boolean;
   note: string;
   link: string;
@@ -37,6 +41,10 @@ export interface RowModel {
   /** Hint in the empty note field (the tracker's wording for each kind of item). */
   notePlaceholder: string;
   resources?: ResourceGroupModel;
+  /** Chips after the meta and why lines (Courses & badges: Badge, then the phase). */
+  chips?: ChipState[];
+  /** What the page's tag filter matches (lib/filter.ts). */
+  tags?: string[];
 }
 
 export interface ResourceGroupModel {
@@ -72,6 +80,7 @@ export const NOTE_PLACEHOLDERS = {
   scalerClass: "What did you build in this class? Project, assignment, key takeaways…",
   paper: "Your takeaway in one or two lines, and one question it raised…",
   book: "Chapters read, key ideas, what you will use…",
+  course: "What did you learn? Key points, questions… Put your badge link in the link field.",
 } as const;
 
 function row(
@@ -230,6 +239,138 @@ export function projectsView(c: TrackerContent, progress: ProgressMap): CardMode
   });
 }
 
+// ---- Courses & badges
+
+/** An attribute, not a status, so an outlined tag (design spec 4, StatusChip, v0.7). */
+export const BADGE_CHIP: ChipState = { label: "Badge", variant: "tag" };
+/** The why line of a top pick starts with this, in bold. "Top pick" is no longer a chip. */
+export const TOP_PICK_LEAD = "Top pick for the FDE role:";
+
+/** Phase names by number (content/courses.ts, COURSE_PHASE_NAMES). */
+export type PhaseNames = Readonly<Record<number, string>>;
+
+/** "Phase 4 · Agents and harnesses"; "Phase 4" if the name is missing. */
+export function phaseLabel(names: PhaseNames, n: number): string {
+  return names[n] ? `Phase ${n} · ${names[n]}` : `Phase ${n}`;
+}
+
+/** "2–4 h · Intermediate", "67 lessons · 9 h", or "" when the provider gives neither. */
+export const courseMeta = (course: Course) => [course.length, course.level].filter(Boolean).join(" · ");
+
+/** Tag filter values on Courses & badges. */
+export const BADGE_TAG = "badge";
+export const TOP_PICK_TAG = "top-pick";
+export const phaseTag = (n: number) => `phase-${n}`;
+
+/** Full phase names (search) and short ones (chips and filter options). */
+export interface CoursePhaseNames {
+  full: PhaseNames;
+  short: PhaseNames;
+}
+
+/**
+ * One card per provider, in COURSE_GROUPS order; rows keep their list position for the id. The
+ * chips, the provider and the full phase name are searchable too.
+ */
+export function coursesView(
+  courses: readonly Course[],
+  groups: readonly CourseGroup[],
+  phaseNames: CoursePhaseNames,
+  progress: ProgressMap,
+): CardModel[] {
+  return groups.map((g) => {
+    const rows = courses.flatMap((course, i) => {
+      if (course.provider !== g.provider) return [];
+      const chips: ChipState[] = [
+        ...(course.badge ? [BADGE_CHIP] : []),
+        { label: phaseLabel(phaseNames.short, course.phase), variant: "neutral" },
+      ];
+      return [
+        row(progress, courseId(i), {
+          title: course.title,
+          url: course.url,
+          meta: courseMeta(course) || undefined,
+          ...(course.topPick ? { whyLead: TOP_PICK_LEAD, why: `${course.topPick}.` } : {}),
+          searchExtra: [course.provider, ...chips.map((c) => c.label), phaseLabel(phaseNames.full, course.phase)].join(" "),
+          notePlaceholder: NOTE_PLACEHOLDERS.course,
+          chips,
+          tags: [
+            ...(course.badge ? [BADGE_TAG] : []),
+            ...(course.topPick ? [TOP_PICK_TAG] : []),
+            phaseTag(course.phase),
+          ],
+        }),
+      ];
+    });
+    return { key: g.key, title: g.title, sub: g.sub, done: doneIn(rows), rows };
+  });
+}
+
+/** The tag filter's choices: everything, badges, top picks, then each phase that has a course. */
+export function courseTagOptions(courses: readonly Course[], shortPhaseNames: PhaseNames): TagOption[] {
+  const used = [...new Set(courses.map((c) => c.phase))].sort((a, b) => a - b);
+  return [
+    { value: "", label: "All courses" },
+    { value: BADGE_TAG, label: "With a badge" },
+    { value: TOP_PICK_TAG, label: "Top picks" },
+    ...used.map((n) => ({ value: phaseTag(n), label: phaseLabel(shortPhaseNames, n) })),
+  ];
+}
+
+export interface CourseFacts {
+  total: number;
+  done: number;
+  /** Courses that award a badge. */
+  badges: number;
+  /** Done courses that award a badge. */
+  badgesEarned: number;
+}
+
+export function courseFacts(courses: readonly Course[], progress: ProgressMap): CourseFacts {
+  const isDoneAt = (i: number) => progress.get(courseId(i))?.done === true;
+  return {
+    total: courses.length,
+    done: courses.filter((_, i) => isDoneAt(i)).length,
+    badges: courses.filter((c) => c.badge).length,
+    badgesEarned: courses.filter((c, i) => c.badge && isDoneAt(i)).length,
+  };
+}
+
+/**
+ * Hours in the lengths the providers state ("2–4 h", "67 lessons · 9 h", "4 lessons · 45 min"):
+ * the low and high totals, and how many courses state one. Courses with no length are left out.
+ */
+export function knownHours(courses: readonly Course[]): { low: number; high: number; courses: number } {
+  let low = 0;
+  let high = 0;
+  let counted = 0;
+  for (const c of courses) {
+    const hours = c.length.match(/(\d+(?:\.\d+)?)(?:–(\d+(?:\.\d+)?))? h\b/);
+    const minutes = c.length.match(/(\d+) min\b/);
+    if (hours) {
+      low += Number(hours[1]);
+      high += Number(hours[2] ?? hours[1]);
+    } else if (minutes) {
+      low += Number(minutes[1]) / 60;
+      high += Number(minutes[1]) / 60;
+    } else continue;
+    counted += 1;
+  }
+  return { low, high, courses: counted };
+}
+
+/** "44–49 h", or "40 h" when the totals match. Rounded to the nearest hour. */
+export function formatHours({ low, high }: { low: number; high: number }): string {
+  const lo = Math.round(low);
+  const hi = Math.round(high);
+  return lo === hi ? `${lo} h` : `${lo}–${hi} h`;
+}
+
+/** The "Stated length" fact: "44–49 h (19 of 27 courses)", the total for the courses that give one. */
+export function statedLength(hours: { low: number; high: number; courses: number }, total: number): string {
+  return `${formatHours(hours)} (${hours.courses} of ${total} courses)`;
+}
+
 export const CAREER_SUB = "Apply while learning; don't wait for every certification.";
 export const JOURNAL_SUB = "Blockers, next actions, exam dates, weekly reflections.";
 
@@ -243,7 +384,7 @@ export function careerView(c: TrackerContent, progress: ProgressMap): { mileston
 
 /** Lower-case search text for a row: what it shows, plus its note and link. */
 export const rowSearchText = (r: RowModel) =>
-  [r.index, r.title, r.meta, r.why, r.searchExtra, r.note, r.link].filter(Boolean).join(" ").toLowerCase();
+  [r.index, r.title, r.meta, r.whyLead, r.why, r.searchExtra, r.note, r.link].filter(Boolean).join(" ").toLowerCase();
 
 const entry = (r: RowModel, section: string, group?: string, parent?: string): FilterEntry => ({
   id: r.id,
@@ -253,6 +394,7 @@ const entry = (r: RowModel, section: string, group?: string, parent?: string): F
   section,
   ...(group ? { group } : {}),
   ...(parent ? { parent } : {}),
+  ...(r.tags ? { tags: r.tags } : {}),
 });
 
 /** Search entries for every row (and learning resource) on the given cards. */

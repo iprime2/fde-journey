@@ -142,10 +142,43 @@ test.describe("admin actions (the owner)", () => {
   test("change the cap (and the raise and lower questions)", async ({ page }, testInfo) => {
     await gotoReady(page, "/admin/sign-up");
     await expect(pageHeading(page)).toHaveText("Sign-up");
+    const capCard = page.getByRole("region", { name: "User cap" });
     const field = page.getByRole("textbox", { name: "User cap" });
+    const saveButton = page.getByRole("button", { name: "Save cap" });
+    // The saved cap is the first fact, and the field starts with it.
+    await expect(capCard.locator("dl dt")).toHaveText(["Cap", "Places taken", "Free", "Waiting"]);
+    const current = Number((await capCard.locator("dl > div").first().locator("dd").textContent())?.replace(/,/g, ""));
+    await expect(field).toHaveValue(String(current));
+    await expect(saveButton).toBeDisabled();
+
+    // A 0 typed in front of the cap is refused, not read as the same number (v0.7).
+    await field.press("Home");
+    await field.press("0");
+    await expect(field).toHaveValue(`0${current}`);
+    await saveButton.click();
+    const leadingZero = page.getByText("Type the number without a leading 0.");
+    await expect(leadingZero).toBeVisible();
+    await expect(leadingZero).toHaveClass(/text-danger/);
+    await expect(field).toHaveAttribute("aria-invalid", "true");
+    await expect(field).toHaveAccessibleDescription(/Type the number without a leading 0\.$/);
+    await expect(field).toBeFocused();
+
     await field.fill("1001");
-    await page.getByRole("button", { name: "Save cap" }).click();
+    await saveButton.click();
     await expect(page.getByText("Enter a whole number from 0 to 1,000.")).toBeVisible();
+    await expect(leadingZero).toBeHidden();
+
+    // The same cap with spaces around it: nothing is saved, and it isn't an error.
+    await field.fill(` ${current} `);
+    await saveButton.click();
+    const already = capCard.getByRole("status").filter({ hasText: `The cap is already ${current}.` });
+    await expect(already).toBeVisible();
+    await expect(already).toHaveClass(/text-muted/);
+    await expect(field).not.toHaveAttribute("aria-invalid");
+    await expect(page.getByText("Enter a whole number from 0 to 1,000.")).toBeHidden();
+    // It clears when the field changes.
+    await field.fill(String(current));
+    await expect(already).toBeHidden();
 
     // Raising while people wait asks first (Cancel: it would let the shared waitlist in).
     await field.fill("1000");
@@ -162,10 +195,13 @@ test.describe("admin actions (the owner)", () => {
     await lower.getByRole("button", { name: "Cancel" }).click();
 
     // One real change, on one screen size only: down to 99 (nobody is let in, free places stay).
+    // The notice names both values, and the Cap fact follows the saved value.
     if (!isPhone(testInfo)) {
-      await field.fill("99");
-      await page.getByRole("button", { name: "Save cap" }).click();
-      await expect(page.getByRole("status").filter({ hasText: "Cap saved: 99 places." })).toBeVisible();
+      const next = current === 99 ? 98 : 99;
+      await field.fill(String(next));
+      await saveButton.click();
+      await expect(page.getByRole("status").filter({ hasText: `Cap changed from ${current} to ${next} places.` })).toBeVisible();
+      await expect(capCard.locator("dl > div").first().locator("dd")).toHaveText(String(next));
     }
   });
 

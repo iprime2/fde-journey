@@ -8,7 +8,7 @@ import { NoteArea } from "./notes/NoteArea";
 import { ResourceList } from "./ResourceList";
 import { RowShell } from "./row/RowShell";
 import { TickBox, TickError } from "./row/TickBox";
-import { Count, ExternalLink } from "./ui";
+import { Count, ExternalLink, StatusChip } from "./ui";
 
 export function ItemRow({
   row,
@@ -41,7 +41,24 @@ export function ItemRow({
           <span className="item-title type-body-strong [overflow-wrap:anywhere]">{row.title}</span>
         )}
         {row.meta && <span className="type-small block max-w-[34em] text-muted">{row.meta}</span>}
-        {row.why && <span className="type-small block max-w-[34em] text-muted">{row.why}</span>}
+        {row.why && (
+          <span className="type-small block max-w-[34em] text-muted">
+            {row.whyLead && (
+              <>
+                <b className="font-semibold text-ink">{row.whyLead}</b>{" "}
+              </>
+            )}
+            {row.why}
+          </span>
+        )}
+        {row.chips && row.chips.length > 0 && (
+          // The row wraps between chips, never inside one; labels are short enough for 320 px.
+          <span className="mt-1 flex flex-wrap gap-2">
+            {row.chips.map((chip) => (
+              <StatusChip key={chip.label} chip={chip} />
+            ))}
+          </span>
+        )}
         <TickError />
       </div>
       <NoteArea

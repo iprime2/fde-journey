@@ -26,13 +26,18 @@ test.describe("another user's progress", () => {
   test("leaves every done count at 0", { tag: "@fresh" }, async ({ page }, testInfo) => {
     await gotoReady(page, "/");
     const tiles = page.getByRole("region", { name: "Summary" }).getByRole("link");
-    await expect(tiles).toHaveCount(6);
-    for (let i = 0; i < 6; i++) await expect(tiles.nth(i)).toHaveAccessibleName(/^(0%|0 of \d+ done),/);
+    await expect(tiles).toHaveCount(7);
+    for (let i = 0; i < 7; i++) await expect(tiles.nth(i)).toHaveAccessibleName(/^(0%|0 of \d+ done),/);
     if (!isPhone(testInfo)) {
       // The sidebar shows a count beside each section (the phone bar has none).
       const counted = page.getByRole("navigation", { name: "Sections" }).getByRole("link", { name: / of \d+ done$/ });
-      await expect(counted).toHaveCount(6);
-      for (let i = 0; i < 6; i++) await expect(counted.nth(i)).toHaveAccessibleName(/ 0 of \d+ done$/);
+      await expect(counted).toHaveCount(7);
+      for (let i = 0; i < 7; i++) await expect(counted.nth(i)).toHaveAccessibleName(/ 0 of \d+ done$/);
     }
+    // The other user's course (cr4) gives a badge, so a leak would show in either fact.
+    await gotoReady(page, "/courses");
+    const fact = (label: string) => page.locator("header dl > div").filter({ has: page.locator("dt", { hasText: label }) }).locator("dd");
+    await expect(fact("Done")).toHaveText(/^0 of \d+$/);
+    await expect(fact("Badges earned")).toHaveText(/^0 of \d+$/);
   });
 });

@@ -66,8 +66,8 @@ async function HomeFacts() {
   );
 }
 
-/** The three Roadmap tiles always show; the others only while their section is on. */
-const ALWAYS_TILES = new Set(["milestones", "learning", "resources"]);
+/** The three Roadmap tiles and Courses always show; the others only while their section is on. */
+const ALWAYS_TILES = new Set(["milestones", "learning", "resources", "courses"]);
 
 async function HomeContent() {
   const [progress, today, readOnly, sections] = await Promise.all([getProgress(), getTodayIst(), isReadOnly(), mySections()]);

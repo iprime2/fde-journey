@@ -35,12 +35,13 @@ if ((input === repoRoot || input.startsWith(repoRoot + path.sep)) && !input.star
 }
 
 // The app's own content and id rules, loaded with Node's TypeScript support (see package.json).
-const [{ listItems, JOURNAL_ID }, { trackerContent }, { linkProblem }] = await Promise.all([
+// Tracker records only: the courses (cr ids) never existed in the tracker.
+const [{ listTrackerItems, JOURNAL_ID }, { trackerContent }, { linkProblem }] = await Promise.all([
   import("../lib/ids.ts"),
   import("../content/tracker-data.ts"),
   import("../lib/notes.ts"),
 ]);
-const knownIds = new Set([...listItems(trackerContent).map((i) => i.id), JOURNAL_ID]);
+const knownIds = new Set([...listTrackerItems(trackerContent).map((i) => i.id), JOURNAL_ID]);
 
 let collected;
 try {

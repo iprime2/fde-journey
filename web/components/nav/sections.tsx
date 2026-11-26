@@ -2,6 +2,7 @@
 import type { SectionKey } from "@/lib/summary";
 import {
   AwardIcon,
+  BadgeCheckIcon,
   BookOpenIcon,
   BriefcaseIcon,
   FolderGitIcon,
@@ -32,6 +33,7 @@ export const SECTIONS: readonly Section[] = [
   { href: "/reading", label: "Reading", countKey: "reading", Icon: BookOpenIcon },
   { href: "/scaler", label: "Scaler course", shortLabel: "Scaler", countKey: "scaler", Icon: GraduationCapIcon },
   { href: "/certs", label: "Certifications", countKey: "certs", Icon: AwardIcon },
+  { href: "/courses", label: "Courses", countKey: "courses", Icon: BadgeCheckIcon },
   { href: "/projects", label: "Projects", countKey: "projects", Icon: FolderGitIcon },
   { href: "/career", label: "Career", countKey: "career", Icon: BriefcaseIcon },
 ];

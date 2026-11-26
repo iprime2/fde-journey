@@ -2,11 +2,18 @@
 // to import anywhere, client components included.
 import type { SectionChoices, SwitchableSection } from "./access-types";
 
-/** The section pages, in today's tab order. Home is always first and has no switch. */
-export const NAV_HREFS = ["/", "/roadmap", "/reading", "/scaler", "/certs", "/projects", "/career"] as const;
+/**
+ * The section pages, in today's tab order. Home is always first; Home, Roadmap and Courses have
+ * no switch (always shown). Courses sits after Certifications, so the phone bar of the owner and
+ * of new users (Home and their first three sections) stays as it was.
+ */
+export const NAV_HREFS = ["/", "/roadmap", "/reading", "/scaler", "/certs", "/courses", "/projects", "/career"] as const;
 export type NavHref = (typeof NAV_HREFS)[number];
 
-const SECTION_OF: Record<Exclude<NavHref, "/">, keyof SectionChoices> = {
+/** Always shown: no Settings switch and nothing stored. */
+const ALWAYS_SHOWN: ReadonlySet<NavHref> = new Set(["/", "/roadmap", "/courses"]);
+
+const SECTION_OF: Record<Exclude<NavHref, "/" | "/courses">, keyof SectionChoices> = {
   "/roadmap": "roadmap",
   "/reading": "reading",
   "/scaler": "scaler",
@@ -37,9 +44,9 @@ const SHORT_LABELS: Record<SwitchableSection, string> = {
 /** Every section on: the owner's default, and what shows while the choices can't be read. */
 export const ALL_SECTIONS: SectionChoices = { roadmap: true, reading: true, scaler: true, certs: true, projects: true, career: true };
 
-/** Home plus the visible sections, in order. Roadmap is always visible. */
+/** Home plus the visible sections, in order. Roadmap and Courses are always visible. */
 export function visibleHrefs(choices: SectionChoices): NavHref[] {
-  return NAV_HREFS.filter((href) => href === "/" || href === "/roadmap" || choices[SECTION_OF[href]]);
+  return NAV_HREFS.filter((href) => ALWAYS_SHOWN.has(href) || choices[SECTION_OF[href as keyof typeof SECTION_OF]]);
 }
 
 /**
@@ -51,9 +58,9 @@ export function phoneSplit(choices: SectionChoices): { bar: NavHref[]; more: Nav
   return { bar: visible.slice(0, 4), more: visible.slice(4) };
 }
 
-/** The section a page belongs to, or null for Home and other pages. */
+/** The section (Settings switch) a page belongs to, or null for Home, Courses and other pages. */
 export const sectionOfHref = (href: string): keyof SectionChoices | null =>
-  Object.hasOwn(SECTION_OF, href) ? SECTION_OF[href as Exclude<NavHref, "/">] : null;
+  Object.hasOwn(SECTION_OF, href) ? SECTION_OF[href as keyof typeof SECTION_OF] : null;
 
 /** "A", "A or B", "A, B or C". */
 export function orList(items: readonly string[]): string {

@@ -59,6 +59,9 @@ const actions = {
   saveNote: () => saveNote("l1-1", NOTE),
   saveLink: () => saveLink("l1-1", LINK),
   saveJournal: () => saveJournal(NOTE),
+  // Course ids (cr…) go through the same checks as every other item.
+  "toggleDone on a course": () => toggleDone("cr1", true),
+  "saveNote on a course": () => saveNote("cr1", NOTE),
 };
 
 describe.each(Object.entries(actions))("%s authorisation", (_name, run) => {
@@ -165,6 +168,23 @@ describe("saveNote and saveJournal", () => {
     expect(await saveNote("bk999", NOTE)).toMatchObject({ ok: false, error: { field: "itemId" } });
     expect(await saveNote("l1-1", { text: NOTE } as unknown as string)).toMatchObject({ ok: false, error: { field: "note" } });
     expect(await saveJournal(42 as unknown as string)).toMatchObject({ ok: false, error: { field: "note" } });
+    expect(await db.select().from(progress)).toEqual([]);
+  });
+});
+
+describe("course ids (cr…)", () => {
+  beforeEach(signInAsOwner);
+
+  it("saves a tick and a note on cr1 for the signed-in user", async () => {
+    expect(await toggleDone("cr1", true)).toMatchObject({ ok: true, record: { itemId: "cr1", done: true } });
+    expect(await saveNote("cr1", NOTE)).toMatchObject({ ok: true, record: { itemId: "cr1", done: true, note: NOTE } });
+    expect((await readProgress("owner", db)).get("cr1")).toMatchObject({ done: true, note: NOTE });
+  });
+
+  it("refuses cr28 (there are 27 courses) without writing", async () => {
+    expect(await toggleDone("cr28", true)).toMatchObject({ ok: false, error: { code: "invalid", field: "itemId" } });
+    expect(await saveNote("cr28", NOTE)).toMatchObject({ ok: false, error: { code: "invalid", field: "itemId" } });
+    expect(await saveLink("cr28", LINK)).toMatchObject({ ok: false, error: { code: "invalid", field: "itemId" } });
     expect(await db.select().from(progress)).toEqual([]);
   });
 });

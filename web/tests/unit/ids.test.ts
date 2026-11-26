@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest";
+import { COURSES } from "@/content/courses";
 import { trackerContent } from "@/content/tracker-data";
-import { listItems, resourceId, certsInDisplayOrder } from "@/lib/ids";
+import { courseId, listItems, listTrackerItems, resourceId, certsInDisplayOrder } from "@/lib/ids";
 import { extractContent, extractTrackerItems, readTrackerHtml } from "../../scripts/tracker-source.mjs";
 import baseline from "./baseline-ids.json";
 
 const html = readTrackerHtml();
-const items = listItems(trackerContent);
+/** Every item the app saves progress for: the tracker's, then the courses (app only). */
+const items = listItems(trackerContent, COURSES);
+/** The tracker's items: the parity check below compares exactly these with the tracker. */
+const trackerItems = listTrackerItems(trackerContent);
 
 describe("content stays in sync with the tracker", () => {
   it("content/tracker-data.ts matches the tracker (run `npm run content:sync` after roadmap changes)", () => {
@@ -21,8 +25,15 @@ describe("item ids (saved progress depends on them)", () => {
 
   it("match the tracker's ids exactly, with the same titles", () => {
     const tracker = extractTrackerItems(html) as Map<string, string>;
-    expect(new Set(items.map((i) => i.id))).toEqual(new Set(tracker.keys()));
-    for (const item of items) expect(item.title, item.id).toBe(tracker.get(item.id));
+    expect(new Set(trackerItems.map((i) => i.id))).toEqual(new Set(tracker.keys()));
+    for (const item of trackerItems) expect(item.title, item.id).toBe(tracker.get(item.id));
+  });
+
+  it("are the tracker's items plus the courses, and nothing else (the tracker never had courses)", () => {
+    const courses = items.filter((i) => i.group === "course");
+    expect(courses.map((i) => i.id)).toEqual(COURSES.map((_, n) => courseId(n)));
+    expect(items.filter((i) => i.group !== "course")).toEqual(trackerItems);
+    expect(trackerItems.some((i) => i.id.startsWith("cr"))).toBe(false);
   });
 
   it("keep every baseline id with its baseline title (catches deletes, reorders and mid-list inserts)", () => {
@@ -36,9 +47,11 @@ describe("item ids (saved progress depends on them)", () => {
   });
 
   it("use the documented formats", () => {
-    const formats = [/^l\d+-\d+$/, /^c\d+-\d+$/, /^p\d+-\d+$/, /^k\d+$/, /^s\d+-\d+$/, /^r\d+-\d+-\d+$/, /^pp\d+$/, /^bk\d+$/];
+    const formats = [/^l\d+-\d+$/, /^c\d+-\d+$/, /^p\d+-\d+$/, /^k\d+$/, /^s\d+-\d+$/, /^r\d+-\d+-\d+$/, /^pp\d+$/, /^bk\d+$/, /^cr\d+$/];
     for (const item of items) expect(formats.some((f) => f.test(item.id)), item.id).toBe(true);
     expect(resourceId("l2-8", 0)).toBe("r2-8-1");
+    expect(courseId(0)).toBe("cr1");
+    expect(courseId(26)).toBe("cr27");
   });
 
   it("keep certification ids tied to array position, not display rank", () => {
@@ -55,6 +68,7 @@ describe("content links", () => {
       ...Object.values(trackerContent.resources).flatMap((g) => g.items.map((r) => r.url)),
       ...trackerContent.papers.map((p) => p.url),
       ...trackerContent.books.map((b) => b.url),
+      ...COURSES.map((x) => x.url),
     ];
     for (const u of urls) expect(u.startsWith("https://"), u).toBe(true);
   });

@@ -1,12 +1,13 @@
 "use client";
 
 // Admin Sign-up (design spec 5): the user cap, and the Scaler access code (M4-DESIGN 10.2).
-// Raising the cap while people wait, or lowering it below the places taken, asks first.
-import { useId, useState } from "react";
+// Raising the cap while people wait, or lowering it below the places taken, asks first. The cap
+// field refuses leading zeros ("0100" is never read as 100), and an unchanged cap isn't saved.
+import { useId, useRef, useState } from "react";
 import { saveScalerAccessCode, saveUserCap } from "@/app/actions/admin";
 import { USER_CAP_MAX, USER_CAP_MIN } from "@/lib/access-types";
 import type { SignupSettings } from "@/lib/admin-db";
-import { capChange, capSavedMessage, formatCount, formatIstDate, parseWholeNumber, people } from "@/lib/admin-format";
+import { capChange, capSavedMessage, checkCapInput, formatCount, formatIstDate, people } from "@/lib/admin-format";
 import { CARD_STYLES } from "../Card";
 import { cn } from "../cn";
 import { type ConfirmOutcome, ConfirmDialog } from "../Dialog";
@@ -16,7 +17,6 @@ import { useCanWrite, useSaveStatus } from "../save/SaveStatusProvider";
 import { Spinner, buttonStyles } from "../ui";
 
 const FIELD = "type-input h-11 rounded-md border bg-surface px-3 text-ink disabled:opacity-50";
-const CAP_ERROR = "Enter a whole number from 0 to 1,000.";
 
 export function SignupView({ settings }: { settings: SignupSettings }) {
   return (
@@ -32,12 +32,15 @@ function UserCapCard({ settings }: { settings: SignupSettings }) {
   const fieldId = useId();
   const hintId = useId();
   const errorId = useId();
+  const field = useRef<HTMLInputElement>(null);
   const notices = useNotices();
   const save = useSaveStatus();
   const failure = useActionFailure();
   const canWrite = useCanWrite(false);
   const [value, setValue] = useState(String(settings.cap));
   const [error, setError] = useState<string | null>(null);
+  // "The cap is already 100.": muted, not an error; clears when the field changes.
+  const [already, setAlready] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [asking, setAsking] = useState<{ cap: number; kind: "raise" | "lower"; admits: number } | null>(null);
   // A fresh reading from the server (after saving) resets the field.
@@ -46,22 +49,27 @@ function UserCapCard({ settings }: { settings: SignupSettings }) {
     setSource(settings);
     setValue(String(settings.cap));
   }
-  const changed = value.trim() !== String(settings.cap);
+  // The raw text, not the number: "0100" or " 100 " enables Save and reaches its message.
+  const changed = value !== String(settings.cap);
 
   async function saveCap(cap: number): Promise<ConfirmOutcome> {
     const result = await callAction(() => saveUserCap(cap));
     if (!result.ok) return failure(result.error, { field: "cap" });
-    notices.info(capSavedMessage(result.value.cap, result.value.admitted));
+    notices.info(capSavedMessage(result.value.previous, result.value.cap, result.value.admitted));
     return null;
   }
 
   async function submit() {
-    const cap = parseWholeNumber(value, USER_CAP_MIN, USER_CAP_MAX);
-    if (cap === null) {
-      setError(CAP_ERROR);
+    const check = checkCapInput(value, settings.cap, USER_CAP_MIN, USER_CAP_MAX);
+    if (!check.ok) {
+      setError(check.kind === "same" ? null : check.message);
+      setAlready(check.kind === "same" ? check.message : null);
+      field.current?.focus();
       return;
     }
+    const cap = check.cap;
     setError(null);
+    setAlready(null);
     const change = capChange(settings.cap, cap, settings.taken, settings.waiting);
     if (change.kind !== "plain") {
       setAsking({ cap, kind: change.kind, admits: change.kind === "raise" ? change.admits : 0 });
@@ -82,6 +90,7 @@ function UserCapCard({ settings }: { settings: SignupSettings }) {
       </h2>
       <Facts
         facts={[
+          { label: "Cap", value: formatCount(settings.cap) },
           { label: "Places taken", value: formatCount(settings.taken) },
           { label: "Free", value: formatCount(settings.free) },
           { label: "Waiting", value: formatCount(settings.waiting) },
@@ -103,11 +112,15 @@ function UserCapCard({ settings }: { settings: SignupSettings }) {
         </p>
         <div className="flex flex-wrap items-start gap-2">
           <input
+            ref={field}
             id={fieldId}
             type="text"
             inputMode="numeric"
             value={value}
-            onChange={(e) => setValue(e.target.value)}
+            onChange={(e) => {
+              setValue(e.target.value);
+              setAlready(null);
+            }}
             disabled={pending}
             aria-invalid={error ? true : undefined}
             aria-describedby={cn(hintId, error && errorId) || undefined}
@@ -123,6 +136,10 @@ function UserCapCard({ settings }: { settings: SignupSettings }) {
             {error}
           </p>
         )}
+        {/* A polite live region, present from the start; visually hidden while empty, so it adds no gap. */}
+        <p role="status" className={cn("type-small text-muted", !already && "sr-only")}>
+          {already}
+        </p>
       </form>
       {asking && (
         <ConfirmDialog

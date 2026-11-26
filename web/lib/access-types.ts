@@ -102,5 +102,5 @@ export const USER_CAP_MAX = 1000;
 export const ADMIN_PAGE_SIZE = 50;
 
 /** Done counts by section on the admin Users list. Every item id belongs to exactly one. */
-export const DONE_SECTIONS = ["roadmap", "resources", "reading", "scaler", "certs", "projects", "career"] as const;
+export const DONE_SECTIONS = ["roadmap", "resources", "reading", "scaler", "certs", "projects", "career", "courses"] as const;
 export type DoneSection = (typeof DONE_SECTIONS)[number];

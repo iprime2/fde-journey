@@ -1,6 +1,7 @@
 // Server-side input rules for saving progress. Everything a Server Action receives is untrusted,
 // whatever its TypeScript type says, so each value is parsed here before it reaches the database.
 import { z } from "zod";
+import { COURSES } from "@/content/courses";
 import { trackerContent } from "@/content/tracker-data";
 import { JOURNAL_ID, listItems } from "./ids";
 import { LINK_ERROR, LINK_MAX, NOTE_MAX, NOTE_TOO_LONG, linkProblem } from "./notes";
@@ -8,8 +9,8 @@ import type { SaveError, SaveField } from "./save-result";
 
 export { LINK_MAX, NOTE_MAX };
 
-/** Ids that can be ticked: every item in the content. */
-export const ITEM_IDS: ReadonlySet<string> = new Set(listItems(trackerContent).map((i) => i.id));
+/** Ids that can be ticked: every item in the content, courses (`cr{n}`) included. */
+export const ITEM_IDS: ReadonlySet<string> = new Set(listItems(trackerContent, COURSES).map((i) => i.id));
 /** Ids that can hold a note: every item plus the weekly journal. */
 export const NOTE_IDS: ReadonlySet<string> = new Set([...ITEM_IDS, JOURNAL_ID]);
 
