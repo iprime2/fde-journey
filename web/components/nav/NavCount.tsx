@@ -1,5 +1,5 @@
 import { trackerContent } from "@/content/tracker-data";
-import { getProgress } from "@/lib/progress";
+import { getProgress } from "@/lib/data";
 import { type SectionKey, navCounts } from "@/lib/summary";
 import { Count } from "../ui";
 

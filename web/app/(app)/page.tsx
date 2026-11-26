@@ -8,8 +8,8 @@ import { CLASS_SCHEDULE_LABEL, READINESS_REVIEW } from "@/content/schedule";
 import { trackerContent } from "@/content/tracker-data";
 import { pageBanners } from "@/lib/banners";
 import { formatDate } from "@/lib/dates";
-import { READ_ONLY_PREVIEW } from "@/lib/mode";
-import { getProgress } from "@/lib/progress";
+import { getProgress } from "@/lib/data";
+import { isReadOnly } from "@/lib/mode";
 import { dashboardModel } from "@/lib/summary";
 import { getTodayIst } from "@/lib/today";
 
@@ -44,11 +44,11 @@ export default function HomePage() {
 }
 
 async function HomeContent() {
-  const [progress, today] = await Promise.all([getProgress(), getTodayIst()]);
+  const [progress, today, readOnly] = await Promise.all([getProgress(), getTodayIst(), isReadOnly()]);
   const model = dashboardModel(trackerContent, progress, today);
   return (
     <>
-      <BannerArea banners={pageBanners({ readOnly: READ_ONLY_PREVIEW, isHome: true, hasProgress: model.hasProgress })} />
+      <BannerArea banners={pageBanners({ readOnly, isHome: true, hasProgress: model.hasProgress })} />
       <StatTiles tiles={model.tiles} />
       <NowPanel now={model.now} />
     </>

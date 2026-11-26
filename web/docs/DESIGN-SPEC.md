@@ -1,7 +1,17 @@
-# FDE Journey web app: design spec (v0.2)
+# FDE Journey web app: design spec (v0.3)
 
-Status: for M1 and later. v0.1 written 2026-11-25 against `PLAN.md` v0.1, which the owner approved on 2026-11-25 (GitHub sign-in for the owner's account only; job applications are the first new section after go-live; four agents plus one skill). v0.2 written 2026-11-25 after the M1 screen review.
+Status: for M1 and later. v0.1 written 2026-11-25 against `PLAN.md` v0.1, which the owner approved on 2026-11-25 (GitHub sign-in for the owner's account only; job applications are the first new section after go-live; four agents plus one skill). v0.2 written 2026-11-25 after the M1 screen review. v0.3 written 2026-11-26 after the M2 screen review.
 Read with `.claude/skills/journey-app-dev/SKILL.md`. If this spec and the plan disagree, the plan wins; tell the lead.
+
+**Changes in v0.3** (from the M2 screen review)
+- Closing the note editor always closes it; anything not saved stays visible in the collapsed row with its own action (NoteEditor, "Closing with unsaved changes"). The preview shows what was typed.
+- Offline: ticks stay disabled, but note and Weekly notes fields stay editable; their changes wait and save by themselves when the connection returns ("Not saved yet. Saves when you're back online."). The save-failed banner is hidden while offline (sections 4, 6, 8).
+- Read-only fields (signed out) keep full-contrast text instead of the 0.5 opacity look, so notes stay readable (NoteEditor).
+- "Try again" and other inline text buttons get a 44 px tall hit area; after Try again, focus moves to a control that stays on screen (shared rules, ItemRow, NoteEditor, JournalEditor).
+- Live regions announce "Saved" and problems, not "Saving…" (NoteEditor).
+- Phone layout: `scroll-padding-bottom` so focus never hides under the bottom bar (section 3.1).
+- ResourceList is a button disclosure, as built (it replaced `<details>`). Banner actions that navigate are links.
+- NotePreview grid placement spelled out; new copy for note and link limits; contrast rows for `danger` and `warn` on `sunk`.
 
 **Changes in v0.2** (from the M1 screen review)
 - Toolbar: the status filter takes its natural width; search placeholders are short enough to fit 150 px (sections 4 and 8).
@@ -84,6 +94,8 @@ Computed with the WCAG 2.x formula (relative luminance with sRGB linearisation, 
 | Text | `warn` | `surface` | Warning text on cards | 5.67 | 9.24 |
 | Text | `danger` | `danger-soft` | Error banner | 5.75 | 7.36 |
 | Text | `danger` | `surface` | "Not saved", field error | 6.57 | 8.11 |
+| Text | `danger` | `sunk` | "Not saved" and tick errors in resource lists | 5.66 | 7.44 |
+| Text | `warn` | `sunk` | "Not saved yet" in resource lists | 4.88 | 8.48 |
 | UI | `line-strong` | `surface` | Field and tick-box border on cards | 3.93 | 3.68 |
 | UI | `line-strong` | `page` | Field border on the page | 3.61 | 3.99 |
 | UI | `line-strong` | `sunk` | Tick-box border in resource lists | 3.38 | 3.37 |
@@ -168,6 +180,7 @@ Nothing smaller than 12 px. Body text lines stay under about 75 characters (desc
 - **Bottom bar**, fixed: `surface` background, 1 px `line` top border, height 64 px plus `env(safe-area-inset-bottom)`. Five equal cells: **Home, Roadmap, Reading, Scaler, More**. Each cell is a 22 px icon above a `tab-label`, the whole cell is the target (at least 48 px tall). Default colour `muted`. Current page: icon and label `accent`, a 3 px by 24 px `accent` pill above the icon, and `aria-current="page"`. Focus ring inset (`outline-offset: -2px`) so the bottom edge of the screen never clips it.
 - **More** is a button (`aria-expanded`, `aria-controls`). It opens a sheet above the bar: `surface`, `lg` top corners, `shadow-overlay`, over a scrim of `rgb(0 0 0 / 0.3)`. Rows 52 px tall: Certifications, Projects, Career, then a divider and Sign out (M2 onwards). It closes on choosing a row, on Escape and on tapping the scrim; focus goes to the first row on open and back to More on close. When the current page is in the sheet, More takes the current style.
 - Side padding `max(16px, env(safe-area-inset-left/right))`. Bottom padding 24 px plus the bar height, so the last row is never hidden.
+- Set `scroll-padding-bottom: calc(64px + env(safe-area-inset-bottom) + 16px)` on `html` below `lg`, so a control reached with Tab (or scrolled to with `#item-…`) is never hidden under the bar. Without it, the M2 review found 8 of 40 Tab stops on `/roadmap` at 390 px hidden behind the bar (WCAG 2.4.11).
 
 ### 3.2 Desktop (1024 px and wider)
 - **Sidebar**, fixed on the left, 248 px wide, full height, `surface` with a 1 px `line` right border, padding 24 px by 16 px.
@@ -209,7 +222,9 @@ Shared rules:
 - Focus ring: `outline: 2px solid accent; outline-offset: 2px` on `:focus-visible`. Never removed, never transitioned (section 2.5). Exceptions: bottom-bar cells use `outline-offset: -2px` (section 3.1), and the Scaler card head draws the ring for its button (CollapsibleCard).
 - Disabled means `opacity: 0.5`, `cursor: not-allowed`, and the native `disabled` attribute.
 - Controls (buttons, fields, selects, tick boxes, summaries, nav items, tiles, the skip link) have hit areas at least 44 by 44 px, even when the visible shape is smaller (extend with padding or an inset `::before`).
-- Text links inside rows or sentences (item titles, note links) follow WCAG 2.5.8 instead: at least 24 by 24 px, or spaced so that a 24 px circle centred on each one does not overlap another target. One-line title links are about 19 px tall and pass by spacing.
+- Text links inside rows or sentences (item titles, note links, the "Sign in" link in a banner) follow WCAG 2.5.8 instead: at least 24 by 24 px, or spaced so that a 24 px circle centred on each one does not overlap another target. One-line title links are about 19 px tall and pass by spacing.
+- Inline text buttons ("Try again", "Fix link", "Fix note") are controls, so they get the 44 px rule: `inline-flex min-h-11 items-center` (the line that holds them grows to 44 px), underlined, `font-sans`, in the colour of their line. M2 built them 18 px tall.
+- A control that disappears when it has done its job must move focus first, never leave it on the page body. Each component says where focus goes.
 
 **SkipLink.** "Skip to content", the first focusable element on every page that has the sidebar or bottom bar; it targets `<main id="main">`. Visually hidden until focused (hidden with the `sr-only` technique, never `display: none`). When focused: fixed 12 px from the top and left, above everything (`z-50`), at least 44 px tall (`inline-flex items-center`, padding 0 16 px), `surface` background, 1 px `line-strong` border, `md` radius, `shadow-overlay`, `body-strong` in `accent`. In Tailwind, `focus:not-sr-only` resets padding to 0, so set the padding with `focus:` utilities after it. States: hidden, focused.
 
@@ -217,7 +232,7 @@ Shared rules:
 
 **Facts.** A `<dl>` that wraps: `dt` in `label`/`muted`, `dd` in `small` at weight 500, `ink`. Gap 8 px by 18 px. Loading: `dd` shows "–" until the client has computed it.
 
-**Banner.** Full-width strip, `md` radius, padding 10 px by 14 px, `small` text, optional action as an underlined text button. Variants: info (`ink` on `sunk`, `role="status"`), warning (`warn` on `warn-soft`, `role="status"`), error (`danger` on `danger-soft`, `role="alert"`). Banners have no close button: each goes away when its cause does ("Back online." hides itself after 4 s). Show at most two, highest first: error, warning, info.
+**Banner.** Full-width strip, `md` radius, padding 10 px by 14 px, `small` text, optional action after the message: an underlined link at weight 600 when it goes to another page ("Sign in" goes to `/login?next={this page}`), an inline text button when it acts on the page. Variants: info (`ink` on `sunk`, `role="status"`), warning (`warn` on `warn-soft`, `role="status"`), error (`danger` on `danger-soft`, `role="alert"`). Banners have no close button: each goes away when its cause does ("Back online." hides itself after 4 s). Show at most two, highest first: error, warning, info.
 
 **StatTile.** A link card to its section: `surface`, `line` border, `lg` radius, padding 14 px by 16 px. Number (`num-lg`), label (`small`, `muted`), ProgressBar. Hover: border `line-strong`. Focus: ring. Loading: skeleton. Zero is not special: "0/57" and an empty bar.
 
@@ -267,15 +282,49 @@ Shared rules:
 - Grid: `[44px] [1fr] [auto]`; padding 4 px 16 px 4 px 4 px, so the box lines up with the 16 px card padding. Below `md` the grid is `[44px] [1fr]` and the note button sits under the text, left-aligned.
 - Tick box: a real `<input type="checkbox">` styled with `appearance: none`: 20 px square, 2 px `line-strong` border, 5 px radius, centred in a 44 by 44 px `<label>` cell. Checked: `accent` fill and an `accent-ink` tick. Accessible name "Mark done: {title}". It must stay visible in forced-colours mode.
 - Text column: optional index (`num`, `muted`: "M1·01", "1.", "Week of 30 Nov"), title (`body-strong`; a link when the item has a URL, `accent`, underline offset 2 px, opens in a new tab with a small "↗" and visually hidden "(opens in a new tab)"), meta (`small`, `muted`), "why" line (`small`, `muted`). Meta and why lines are capped at `max-w-[75ch]`; the title can use the full width.
-- States: **default**; **done**: box checked, title `muted` with a line-through (links keep their underline); **focus**: ring around the 20 px box; **read-only** (M1, offline, signed out): box disabled. M1 has no note button (NoteButton arrives in M2); offline and signed out keep the note button enabled so notes can still be read; **saving**: none for ticks (they change at once); **save failed**: the tick goes back to its saved value and a line appears under the title in `small` `danger`: "Couldn't save this tick." with a "Try again" text button; **filtered out**: `hidden`.
+- States: **default**; **done**: box checked, title `muted` with a line-through (links keep their underline); **focus**: ring around the 20 px box; **read-only** (M1, offline, signed out): box disabled. M1 has no note button (NoteButton arrives in M2); offline and signed out keep the note button enabled so notes can still be read (and, offline, written; see NoteEditor); **saving**: none for ticks (they change at once); **save failed**: the tick goes back to its saved value and a line appears under the title in `small` `danger`: "Couldn't save this tick." with a "Try again" inline text button (44 px rule). Pressing Try again moves focus to the tick box first, because the line disappears once the tick saves. Ticks never retry by themselves; **filtered out**: `hidden`.
 
-**NoteButton** (built in M2). Secondary small button: 32 px visible height inside a 44 px hit area, padding 0 12 px, `md` radius, `small` 500. Labels: "Add note" (1 px `line-strong` border, `muted` text), "Edit note" when a note or link exists (`accent-soft` background, `accent` text, no border), "Hide note" while the editor is open. `aria-expanded` and `aria-controls` point at the editor. Hover: border and text `accent`. Disabled: shared rule.
+**NoteButton** (built in M2). Secondary small button: 32 px visible height inside a 44 px hit area, padding 0 12 px, `md` radius, `small` 500. Labels: "Add note" (1 px `line-strong` border, `muted` text), "Edit note" when the note or link fields hold any text, saved or not (`accent-soft` background, `accent` text, no border), "Hide note" while the editor is open. `aria-expanded`, and `aria-controls` pointing at the editor while it is open. While the collapsed row shows an unsaved line (NoteEditor), `aria-describedby` points at that line. Hover: border and text `accent`. Disabled: shared rule.
 
-**NotePreview.** Under the title when a note exists and the editor is closed: `small`, `muted`, keeps line breaks, first 220 characters then "…"; the link on its own line, as a link only if it starts with `https://`.
+**NotePreview.** Under the title when the editor is closed and the note or link fields hold text: `small`, `muted`, keeps line breaks, first 220 characters then "…"; the link on its own line, as a link only if it starts with `https://`. It shows what was typed, so an unsaved change is never hidden behind the old text (the line under it says it isn't saved). Placement: the text column, grid column 2; from `md`, columns 2 to the end (`col-start-2 md:col-end-[-1]`). Don't combine `col-start-2` with `col-span-2`: `grid-column: span 2` resets the start, and M2 shipped the preview at the card's left edge on desktop.
 
-**NoteEditor** (built in M2). Opens under the row. A textarea (min 96 px tall, resizes vertically) and a link field (`type="url"`, `inputmode="url"`, placeholder "https://…"), both 16 px, `surface`, 1 px `line-strong` border, `md` radius, padding 10 px 12 px, labels visually hidden: "Note for {title}" and "Link for {title}". A status line (`num`, `muted`, `aria-live="polite"`): "Saving…", then "Saved" (clears after 2.5 s), or "Not saved" in `danger` with a "Try again" button. Saves 800 ms after typing stops and on blur. Opening it focuses the textarea; Escape closes it and returns focus to the NoteButton. Link error (on blur, not empty and not `https://`): border `danger`, message under the field "Links must start with https://", `aria-invalid` and `aria-describedby`; the note text still saves, the link does not. Disabled: fields read-only with the shared disabled look.
+**NoteEditor** (built in M2). Opens under the row. A textarea (min 96 px tall, resizes vertically) and a link field (`type="url"`, `inputmode="url"`, placeholder "https://…"), both 16 px, `surface`, 1 px `line-strong` border, `md` radius, padding 10 px 12 px, labels visually hidden: "Note for {title}" and "Link for {title}". A status line under the fields (`num`, at least 44 px tall so Try again fits): "Saving…" (`muted`), then "Saved" (`muted`, clears after 2.5 s), "Not saved." in `danger` with a "Try again" inline text button, or "Not saved yet. Saves when you're back online." in `warn`. Saves 800 ms after typing stops and on blur. Opening it focuses the textarea; Escape closes it and returns focus to the NoteButton. Field errors (link not `https://`, shown on blur when not empty; or a limit the server reports): border `danger`, message under the field (section 8), `aria-invalid` and `aria-describedby`; the other field still saves.
+- **Announcements.** One polite live region per note area, present from the first render (empty when there is nothing to say), used whether the editor is open or closed. It announces "Saved", "Not saved.", field problems and "Not saved yet. Saves when you're back online.". "Saving…" is shown but not announced (render it outside the live region), so each save is one word, not two. As built: the live region holds text only and is visually hidden (`role="status"`, `aria-live="polite"`); the visible lines carry the inline buttons, with their words `aria-hidden` so they are not read twice, and each button's `aria-describedby` points at its words. Leaving a field (blur, Hide note, Escape) does not resend text whose save just failed and hasn't changed; Try again, a typing pause or the connection returning does.
+- **Try again** saves the note and the link again. It moves focus to the NoteButton first (the status changes to "Saving…" and the button goes away).
+- **Offline.** The fields stay editable. A change made while offline, or still unsaved when the connection drops (including a save that was in flight), shows "Not saved yet. Saves when you're back online." When the connection returns, every unsaved or failed note, link and Weekly notes change on the page saves by itself, once; after that, the usual "Saved" or "Not saved." with Try again. Text typed offline is lost if the page is closed or reloaded before then (see Later).
+- **Read-only** (signed out while using): fields `readonly`, not `disabled`, so the text can still be selected and copied. Look: `sunk` background, `ink` text at full contrast (no opacity), `line-strong` border, `cursor: default`. The shared 0.5 opacity is not used here: it put note text at 3.25:1 on light and made a saved note look like placeholder text.
 
-**ResourceList** (inside roadmap task rows). A `<details>`: summary "› Learning resources x/y" in `small` 600 `accent`, at least 44 px tall. Inside: "**Start here:** {text}" (`small`, `muted`, label in `ink`), then a list box (`sunk`, 1 px `line` border, `md` radius) of ItemRows (index "1.", linked title, meta "by · type · length · level", why line). Remembered per device (`fde-open-res`). Opens when a search or filter matches inside. It stays a native `<details>`, because there is no heading inside it.
+*Closing with unsaved changes* (decided 2026-11-26, option (b)). "Hide note" and Escape always close the editor at once, after starting a save of anything changed. The editor never stays open on its own and never reopens itself: a late jump in the layout under the owner's thumb is worse than one extra line. Instead, the collapsed row keeps the problem visible:
+
+```
+| [ ]  LLM APIs, streaming and structured outputs           [ Edit note ] |
+|      API integration                                                    |
+|      Read the streaming guide twice. Next: try the batch endpoint.      |   preview = typed text
+|      www.example.com/demo                                               |   not https: plain text
+|      Not saved.  Try again                                              |   danger, 44 px line
+|      Link not saved. Links must start with https://  Fix link           |   danger, 44 px line
+```
+
+| What is not saved after closing | Line under the preview | Colour | Action |
+|---|---|---|---|
+| The save is still running 1 s after closing (slow first load) | "Saving…" | `muted` | None. Faster saves show no line at all, so a normal close causes no flicker |
+| The save failed | "Not saved." | `danger` | "Try again": saves note and link again; moves focus to the NoteButton first; the line shows "Saving…" at once, then goes when saved |
+| The link breaks a rule (client check or the server) | "Link not saved." plus the rule, e.g. "Links must start with https://" | `danger` | "Fix link": opens the editor and focuses the link field, error shown |
+| The note is too long (server) | "Note not saved. Notes can be up to 10,000 characters." | `danger` | "Fix note": opens the editor and focuses the note |
+| Offline | "Not saved yet. Saves when you're back online." | `warn` | None; it saves when the connection returns |
+| Signed out while using | "Not saved." | `danger` | None; the error banner has "Sign in" |
+| Everything saved | No line | | |
+
+- Placement: under the NotePreview, same column; `small` (the field's own line uses `num`); at most two lines: the save line, then the field line.
+- When a save succeeds the line goes without a "Saved" message; the row looking normal is the confirmation.
+- Focus: Escape moves focus to the NoteButton, Hide note leaves it there; the NoteButton's `aria-describedby` reads the line ("Edit note, Not saved."). The note area's live region announces a failure that arrives after closing. The page's save-failed banner still appears, and its "use Try again next to it" is now true.
+- Reopening the editor shows the typed text and the same status.
+
+**ResourceList** (inside roadmap task rows). A disclosure made of a button and a body, as built in M1 (it replaced the `<details>` of v0.2). The open state is controlled from three places (the stored list, a search or filter that matches inside, and the owner's last click under the current filter), which a native `<details>` makes awkward because its `toggle` event also fires for changes made by code. The button follows the WAI-ARIA disclosure pattern, so nothing is lost for screen readers.
+- `<button type="button" aria-expanded aria-controls={bodyId}>` holding the caret (`aria-hidden`, turns 90° when open) and "Learning resources" plus the Count. Accessible name "Learning resources 3 of 10 done". `small` 600 `accent`, at least 44 px tall, `w-fit`, focus ring with `sm` radius. Not inside a heading, and none is needed.
+- Body: `<div id={bodyId} hidden={!open}>`: "**Start here:** {text}" (`small`, `muted`, label in `ink`), then a list box (`sunk`, 1 px `line` border, `md` radius) of ItemRows (index "1.", linked title, meta "by · type · length · level", why line).
+- Remembered per device (`fde-open-res`). Opens when a search or filter matches inside.
+- Optional, as for CollapsibleCard: `hidden="until-found"` on the body, so the browser's find-in-page can reach a closed list (`<details>` gave this in Chrome).
 
 **Toolbar.** One row, gap 8 px: SearchField takes the remaining width (minimum 180 px); StatusFilter takes its natural width (`flex: none; width: auto`, about 128 px with the longest option). At 390 px (358 px of content) that leaves about 170 px for placeholder text, so every placeholder must fit in 150 px at 16 px Inter: one or two words, about 16 characters (section 8). At 320 px the row wraps and the search takes the full width.
 - SearchField: `type="search"`, 44 px tall, 16 px text, magnifier icon (decorative), label "Search this page" (visually hidden), placeholder per page (section 8). Matches titles, meta, why lines, resource titles, note text and links. The placeholder is only a hint; the search still covers all of these.
@@ -293,7 +342,7 @@ Shared rules:
 
 **NowPanel** (Home). A card with two parts. Left: kicker "Roadmap · {phase dates}" (`label`, `muted`), `h2` "Phase {n} · {title}" plus StatusChip, "x/y tasks done" (`num`), ProgressBar; then kicker "Scaler · Module {n}", "{title}: {subtitle}", "x/y classes · next: {class}". Right: kicker "Up next this phase" and the first three tasks not yet done, each a link to `/roadmap#item-{id}` with an `accent` "→". Empty: "All tasks in this phase are done."
 
-**JournalEditor** (Weekly notes on Career). Card head "Weekly notes" with its sub line; one textarea (min 160 px) labelled by the card heading; status line and saving as in NoteEditor.
+**JournalEditor** (Weekly notes on Career). Card head "Weekly notes" with its sub line; one textarea (min 160 px) labelled by the card heading; status line, announcements, offline and read-only behaviour as in NoteEditor (the status line is in the DOM from page load). It never closes, so there is no collapsed state. Try again moves focus to the textarea first.
 
 **SignInCard** (`/login`). See section 5.
 
@@ -345,8 +394,8 @@ Next class (Mon, Wed and Fri, 09:00 to 11:30 IST): "In class now (until 11:30 IS
 **`/login`** (no sidebar or bottom bar)
 - One centred column, max 400 px; 64 px from the top on a phone, vertically centred on desktop.
 - Eyebrow "AI Engineering & FDE", `h1` "FDE Journey", text "A private tracker for an AI engineering and Forward Deployed Engineer (FDE) learning journey. Only the owner's GitHub account can sign in."
-- Primary button, full width: GitHub mark plus "Sign in with GitHub". Loading: "Opening GitHub…".
-- Banner area under the button for the messages in section 8.
+- Primary button, full width: GitHub mark plus "Sign in with GitHub". Loading: "Opening GitHub…", `aria-busy`, disabled. While the part of the page that reads the address streams in, the button shows disabled with no message (a split second).
+- Banner area under the button for the messages in section 8: `?error=not_owner` gives the "not allowed" error; any other `?error=` gives "Sign-in didn't finish. Try again."; `?status=signed-out` gives the info banner "You're signed out.".
 - M1 only (removed in M2): the button is disabled, an info banner says "Sign-in isn't available yet. It comes with saving progress.", and a secondary "Go to Home" link-button sits under the banner, so the page is not a dead end.
 
 **Not found** (`not-found.tsx`; no sidebar or bottom bar; `<title>` "Page not found · FDE Journey")
@@ -361,12 +410,12 @@ Next class (Mon, Wed and Fri, 09:00 to 11:30 IST): "In class now (until 11:30 IS
 | Read-only preview | M1 only | Info banner on every page: "Read-only preview. Ticks and notes can't be saved yet." | Tick boxes and weekly notes disabled; no note buttons (they arrive in M2). The first-visit banner is not shown. Search, filter, open and close, tiles and countdown work |
 | Signed out | Any page without a valid sign-in | Nothing from the page; goes straight to `/login?next={path}` | After sign-in, return to `next`. No flash of content |
 | Not the owner | Sign-in with another GitHub account | `/login` with the "not allowed" error | No account is kept for that user |
-| Signed out while using | A save is refused for sign-in reasons | Error banner with a "Sign in" action | Write controls disabled; typed note text stays in place until the page is left |
+| Signed out while using | A save is refused for sign-in reasons | Error banner with a "Sign in" link | Write controls disabled; note fields read-only but readable (NoteEditor), so typed text can be copied before leaving. Typed note text stays in place until the page is left |
 | First visit, no progress | No progress saved yet | Zeros and empty bars; NowPanel shows today's phase with its first three tasks; info banner on Home only, and not while the read-only banner shows (it asks for ticks that can't be saved yet) | Banner disappears once anything is saved (based on data, not a dismiss) |
 | Loading | A page is waiting for data | The page header renders at once (facts show "–" until computed). Skeleton for the rest: toolbar block, then three cards of four rows (Home: six tiles and the panel). After 3 s add the "still loading" line | Navigation stays usable. The free database sleeps after 5 idle minutes, so the first load can be slow |
-| Saving | Tick or note change | Ticks change at once; notes show "Saving…" | Ticks are optimistic |
-| Save failed | A save errors | Inline message on the item and one error banner for the page | Tick goes back to its saved value; note text is kept. Banner stays until every failed item is saved or the page is left |
-| Offline | Browser reports offline | Warning banner | Write controls disabled; reading, search and filter still work. A save in flight counts as failed. Back online: info banner for 4 s, controls enabled again |
+| Saving | Tick or note change | Ticks change at once; notes show "Saving…" (in a closed row only after 1 s) | Ticks are optimistic |
+| Save failed | A save errors while online | Inline message with Try again on the item (in the collapsed row too, NoteEditor) and one error banner for the page | Tick goes back to its saved value; note text is kept and shown. Banner stays until every failed item is saved or the page is left |
+| Offline | Browser reports offline | Warning banner. Unsaved notes show "Not saved yet. Saves when you're back online." | Tick boxes disabled; note and Weekly notes fields stay editable and their changes wait. Reading, search and filter work. The save-failed banner is hidden while offline (Try again can't work; the offline banner explains). Back online: info banner for 4 s, tick boxes enabled, waiting and failed note changes save by themselves once; failed ticks keep their Try again |
 | Page error | Server error while rendering | Card "This page didn't load." with "Try again" (primary) and "Go to Home" (secondary) | `error.tsx` per route group |
 | Not found | Unknown address | The `/login` layout with the app name, then "This page doesn't exist." and "Go to Home" (section 5) | `not-found.tsx` |
 
@@ -376,13 +425,13 @@ The conventions checklist, applied:
 | Check | How it applies here |
 |---|---|
 | Text contrast at least 4.5:1 | Every text pair in 2.2 passes in both schemes; lowest 4.52. Field borders, tick boxes, focus ring and progress fill are 3:1 or more |
-| Visible focus | 2 px `accent` ring with 2 px offset on every interactive element, including summaries, tiles, nav links, the tick box and the Scaler card heads. It appears at once (no `outline-color` transition), is inset on bottom-bar cells, and hugs the `h1` (`w-fit`) after navigation. Never `outline: none` without a replacement |
-| Full keyboard use | SkipLink "Skip to content" first on every page, at least 44 px tall when focused. Tab order follows reading order. Space ticks; Enter and Space open and close summaries and the Scaler card buttons; Escape closes the More sheet and the note editor. After client navigation, focus moves to the page `h1`. After "Clear search and filter", focus moves to the search field |
+| Visible focus | 2 px `accent` ring with 2 px offset on every interactive element, including disclosure buttons, tiles, nav links, the tick box and the Scaler card heads. It appears at once (no `outline-color` transition), is inset on bottom-bar cells, and hugs the `h1` (`w-fit`) after navigation. Never `outline: none` without a replacement. Below `lg`, `scroll-padding-bottom` keeps the focused control above the bottom bar (section 3.1) |
+| Full keyboard use | SkipLink "Skip to content" first on every page, at least 44 px tall when focused. Tab order follows reading order; in a row: tick, title link, note button, note link, Learning resources. Space ticks; Enter and Space open and close disclosure buttons; Escape closes the More sheet and the note editor (focus back to the note button). After client navigation, focus moves to the page `h1`. After "Clear search and filter", focus moves to the search field. After Try again: tick line to the tick box, note to the note button, Weekly notes to its textarea. Focus never falls to the page body |
 | Labelled controls | Tick boxes "Mark done: {title}" (contains the visible title). Search, filter, note and link fields have labels (visually hidden is fine). Icon-only controls do not exist; bottom-bar icons sit above visible labels |
-| Touch targets at least 44 px | Applies to controls: tick cell 44 by 44; note button, summaries, fields, select, buttons, nav links, skip link 44 px; Scaler card heads 56 px; bottom-bar cells 48 px; More sheet rows 52 px. Text links in rows and sentences follow WCAG 2.5.8 (24 px, or spaced so a 24 px circle on each does not overlap another target); one-line title links pass by spacing |
+| Touch targets at least 44 px | Applies to controls: tick cell 44 by 44; note button, disclosure buttons, fields, select, buttons, inline text buttons (Try again, Fix link, Fix note), nav links, skip link 44 px; Scaler card heads 56 px; bottom-bar cells 48 px; More sheet rows 52 px. Text links in rows and sentences follow WCAG 2.5.8 (24 px, or spaced so a 24 px circle on each does not overlap another target); one-line title links pass by spacing |
 | Reduced motion | All transitions and the skeleton pulse are off under `prefers-reduced-motion` |
 | Structure | Landmarks: `nav` (sidebar or bottom bar, "Sections"), `main`. One `h1` per page; cards use `h2`. On Scaler the `h2` holds the disclosure button; never put a heading inside a `<summary>`. `<html lang="en">` |
-| Status messages | Save status, filter result count and banners are announced (`aria-live="polite"`; error banner `role="alert"`). Counts read as "3 of 7 done" |
+| Status messages | Save status, filter result count and banners are announced (`aria-live="polite"`; error banner `role="alert"`). Save status announces "Saved" and problems only, never "Saving…", and never per keystroke (saves wait for an 800 ms pause). Each "Try again" gets `aria-describedby` pointing at its message, so a list of buttons reads "Try again, Couldn't save this tick." rather than many identical "Try again". Counts read as "3 of 7 done" |
 | Not colour alone | Chips always carry text; done items have a checked box and a line-through; the current nav item also has a shape (pill or background), not just colour |
 | Reflow and zoom | Works at 320 px wide and at 200% text size with no sideways scrolling. Long titles wrap (`overflow-wrap: anywhere` for links and notes) |
 | Links that open new tabs | Small "↗" plus visually hidden "(opens in a new tab)"; `rel="noopener noreferrer"` |
@@ -418,13 +467,18 @@ Each check is part of the M1 screen review at 390x844 and 1280x900, light and da
 | First visit banner (Home) | "Nothing ticked yet. Tick items as you finish them and your progress will show here." |
 | Read-only preview (M1) | "Read-only preview. Ticks and notes can't be saved yet." |
 | Still loading (after 3 s) | "Still loading. The first load after a quiet spell can take a few seconds." |
-| Note status | "Saving…" / "Saved" / "Not saved" + "Try again" |
+| Note status | "Saving…" / "Saved" / "Not saved." + "Try again" (the full stop makes it read as two parts: "Not saved. Try again") |
+| Note waiting for the connection | "Not saved yet. Saves when you're back online." |
+| Collapsed row, link problem | "Link not saved." + the rule, e.g. "Links must start with https://". Button: "Fix link" |
+| Collapsed row, note too long | "Note not saved. Notes can be up to 10,000 characters." Button: "Fix note" |
+| Note too long (under the field) | "Notes can be up to 10,000 characters." |
+| Link too long, or with a user name | "Links can be up to 2,000 characters." / "Links can't include a user name or password." |
 | Tick failed (inline) | "Couldn't save this tick." + "Try again" |
 | Save failed (banner) | "A change wasn't saved. Check your connection, then use Try again next to it." |
 | Link not https | "Links must start with https://" |
 | Offline | "You're offline. You can read and search, but changes won't save until you're back online." |
 | Back online | "Back online." |
-| Signed out while using | "You were signed out, so that change wasn't saved." Action: "Sign in" |
+| Signed out while using | "You were signed out, so that change wasn't saved." Action: "Sign in". When a note or Weekly notes change is unsaved on the page: "You were signed out, so that change wasn't saved. Copy any text you typed, then sign in." (signing in leaves the page) |
 | Login: not the owner | "This GitHub account can't sign in. The app is private to its owner." |
 | Login: GitHub failed | "Sign-in didn't finish. Try again." |
 | Login: after sign-out | "You're signed out." |
@@ -445,4 +499,4 @@ Each check is part of the M1 screen review at 390x844 and 1280x900, light and da
 
 **Scaler: open the new current module once.** When the course moves on to the next module, add that module to the stored open list once (and remember that it was added), so the new module is open without undoing the owner's other choices. Today, once anything is stored, the new current module stays closed until the owner opens it, as in the tracker.
 
-**Other ideas, not planned:** a light, dark or system theme switch; a "Jump to current phase" link on `/roadmap`; a sticky toolbar on long pages; search across all sections; the installable phone app from the plan's list.
+**Other ideas, not planned:** a light, dark or system theme switch; a "Jump to current phase" link on `/roadmap`; a sticky toolbar on long pages; search across all sections; the installable phone app from the plan's list; a browser "leave page?" warning while a note change is unsaved, or keeping unsaved note text in the browser until it saves (text typed offline is lost if the page closes first); a "Go to it" action on the save-failed banner that scrolls to the first failed item.

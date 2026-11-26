@@ -1,26 +1,25 @@
 import { expect, test } from "./fixtures";
 import { READ_ONLY_TEXT, SECTION_PAGES, expectNoSidewaysScroll, gotoReady, pageHeading } from "./helpers";
 
-test.describe("read-only preview", () => {
+test.describe("signed in as the owner", () => {
   for (const s of SECTION_PAGES) {
-    test(`${s.path} shows the read-only banner and fits the screen`, async ({ page }) => {
+    test(`${s.path} renders without the read-only banner and fits the screen`, async ({ page }) => {
       await gotoReady(page, s.path);
       await expect(pageHeading(page)).toHaveText(s.h1);
       await expect(page).toHaveTitle(s.title);
-      await expect(page.getByRole("status").filter({ hasText: READ_ONLY_TEXT })).toBeVisible();
+      await expect(page.getByText(READ_ONLY_TEXT)).toHaveCount(0);
       await expectNoSidewaysScroll(page);
     });
   }
 
-  test("tick boxes are disabled, note buttons hidden, weekly notes disabled", async ({ page }) => {
+  test("tick boxes and weekly notes are enabled", async ({ page }) => {
     await gotoReady(page, "/roadmap");
     const tick = page.getByRole("checkbox", { name: "Mark done: Python for AI, FastAPI, Pydantic and async programming" });
-    await expect(tick).toBeDisabled();
+    await expect(tick).toBeEnabled();
     await expect(tick).not.toBeChecked();
-    await expect(page.getByRole("button", { name: /note/i })).toHaveCount(0);
 
     await gotoReady(page, "/career");
-    await expect(page.getByRole("textbox", { name: "Weekly notes" })).toBeDisabled();
+    await expect(page.getByRole("textbox", { name: "Weekly notes" })).toBeEnabled();
   });
 
   test("works at 320 px wide without sideways scrolling", async ({ page }) => {
@@ -63,14 +62,16 @@ test.describe("other pages", () => {
     await expect(pageHeading(page)).toHaveText("FDE Journey");
   });
 
-  test("sign-in page shows a disabled GitHub button until saving arrives", async ({ page }) => {
-    await gotoReady(page, "/login");
-    await expect(pageHeading(page)).toHaveText("FDE Journey");
-    await expect(page.getByRole("button", { name: "Sign in with GitHub" })).toBeDisabled();
-    await expect(page.getByText("Sign-in isn't available yet. It comes with saving progress.")).toBeVisible();
-    await expect(page.getByRole("link", { name: "Go to Home" })).toHaveAttribute("href", "/");
-    await expect(page.getByRole("navigation")).toHaveCount(0);
-    await expectNoSidewaysScroll(page);
+  test.describe("signed out", () => {
+    // A signed-in owner opening /login goes straight on to Home (session.spec.ts).
+    test.use({ signedIn: false });
+
+    test("sign-in page offers GitHub sign-in and fits the screen", async ({ page }) => {
+      await gotoReady(page, "/login");
+      await expect(pageHeading(page)).toHaveText("FDE Journey");
+      await expect(page.getByRole("button", { name: "Sign in with GitHub" })).toBeEnabled();
+      await expectNoSidewaysScroll(page);
+    });
   });
 });
 
@@ -80,14 +81,17 @@ test.describe("connection", () => {
     const offline = page.getByRole("status").filter({ hasText: /^You're offline\./ });
     await context.setOffline(true);
     await expect(offline).toBeVisible();
-    // The read-only notice stays: at most two banners, the warning first.
-    await expect(page.getByRole("status").filter({ hasText: READ_ONLY_TEXT })).toBeVisible();
     await expect(page.getByRole("searchbox", { name: "Search this page" })).toBeEnabled();
+    // Ticks can't save offline, so they are disabled; notes can still be opened and read.
+    const tick = page.getByRole("checkbox", { name: "Mark done: Python for AI, FastAPI, Pydantic and async programming" });
+    await expect(tick).toBeDisabled();
+    await expect(page.locator("#item-l1-1").getByRole("button", { name: "Add note" })).toBeEnabled();
 
     await context.setOffline(false);
     await expect(offline).toBeHidden();
     const back = page.getByRole("status").filter({ hasText: "Back online." });
     await expect(back).toBeVisible();
     await expect(back).toBeHidden({ timeout: 6000 });
+    await expect(tick).toBeEnabled();
   });
 });

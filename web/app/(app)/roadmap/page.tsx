@@ -10,8 +10,8 @@ import { ListSkeleton } from "@/components/Skeleton";
 import { ROADMAP_DESCRIPTION, SEARCH_PLACEHOLDERS } from "@/content/page-copy";
 import { trackerContent } from "@/content/tracker-data";
 import { filterFromRecord } from "@/lib/filter";
-import { READ_ONLY_PREVIEW } from "@/lib/mode";
-import { getProgress } from "@/lib/progress";
+import { getProgress } from "@/lib/data";
+import { isReadOnly } from "@/lib/mode";
 import { getTodayIst } from "@/lib/today";
 import { filterEntries, roadmapView } from "@/lib/views";
 
@@ -30,14 +30,14 @@ export default function RoadmapPage({ searchParams }: PageProps<"/roadmap">) {
 }
 
 async function RoadmapContent({ searchParams }: Pick<PageProps<"/roadmap">, "searchParams">) {
-  const [sp, progress, today] = await Promise.all([searchParams, getProgress(), getTodayIst()]);
+  const [sp, progress, today, readOnly] = await Promise.all([searchParams, getProgress(), getTodayIst(), isReadOnly()]);
   const cards = roadmapView(trackerContent, progress, today);
   return (
     <FilterProvider path="/roadmap" entries={filterEntries(cards)} initial={filterFromRecord(sp)}>
       <Toolbar placeholder={SEARCH_PLACEHOLDERS.roadmap} />
       <div className="grid gap-3">
         {cards.map((card) => (
-          <SectionCard key={card.key} card={card} readOnly={READ_ONLY_PREVIEW} />
+          <SectionCard key={card.key} card={card} readOnly={readOnly} />
         ))}
         <FilterEmpty />
       </div>

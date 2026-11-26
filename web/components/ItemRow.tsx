@@ -1,39 +1,14 @@
 // Every task, class, resource, paper, book and milestone (design spec 4, ItemRow).
-// Server Component; the row element itself is a small client wrapper that hides it when filtered.
-import { isHttpsUrl, notePreview } from "@/lib/notes";
+// Server Component. The row element, the tick box and the note controls are small client parts;
+// the title's done style follows the tick box in CSS (.item-row in globals.css), so an optimistic
+// tick restyles the title at once.
 import type { RowModel } from "@/lib/views";
 import { cn } from "./cn";
-import { FilterRow } from "./filter/Filtered";
-import { CheckIcon } from "./icons";
+import { NoteArea } from "./notes/NoteArea";
 import { ResourceList } from "./ResourceList";
+import { RowShell } from "./row/RowShell";
+import { TickBox, TickError } from "./row/TickBox";
 import { Count, ExternalLink } from "./ui";
-
-export function TickBox({ title, done, disabled }: { title: string; done: boolean; disabled: boolean }) {
-  return (
-    <label className={cn("relative grid size-11 place-items-center", disabled ? "cursor-not-allowed" : "cursor-pointer")}>
-      <input type="checkbox" className="tick peer" defaultChecked={done} disabled={disabled} aria-label={`Mark done: ${title}`} />
-      <CheckIcon size={14} className="pointer-events-none absolute hidden text-accent-ink peer-checked:block" />
-    </label>
-  );
-}
-
-/** Note and link under the title when a note exists (design spec 4, NotePreview). */
-export function NotePreview({ note, link }: { note: string; link: string }) {
-  if (!note && !link) return null;
-  return (
-    <div className="type-small mt-1 whitespace-pre-wrap text-muted [overflow-wrap:anywhere]">
-      {note && <p>{notePreview(note)}</p>}
-      {link &&
-        (isHttpsUrl(link) ? (
-          <p>
-            <ExternalLink href={link}>{link}</ExternalLink>
-          </p>
-        ) : (
-          <p>{link}</p>
-        ))}
-    </div>
-  );
-}
 
 export function ItemRow({
   row,
@@ -45,30 +20,38 @@ export function ItemRow({
   /** Inside a resource list box: no divider above the first row. */
   inList?: boolean;
 }) {
-  const titleClass = cn("type-body-strong", row.done && "text-muted line-through");
   return (
-    <FilterRow
+    <RowShell
       id={row.id}
+      done={row.done}
+      readOnly={readOnly}
       className={cn(
-        "grid grid-cols-[44px_minmax(0,1fr)] items-start border-t border-line py-1 pr-4 pl-1 md:grid-cols-[44px_minmax(0,1fr)_auto]",
+        "item-row grid grid-cols-[44px_minmax(0,1fr)] items-start border-t border-line py-1 pr-4 pl-1 md:grid-cols-[44px_minmax(0,1fr)_auto]",
         inList && "first:border-t-0 pr-3",
       )}
     >
-      <TickBox title={row.title} done={row.done} disabled={readOnly} />
-      <div className="min-w-0 py-2.5">
+      <TickBox title={row.title} />
+      <div className="item-text min-w-0 py-2.5">
         {row.index && <span className="type-num mr-1.5 text-muted">{row.index}</span>}
         {row.url ? (
-          <ExternalLink href={row.url} className={cn(titleClass, row.done && "[text-decoration-line:underline_line-through]")}>
+          <ExternalLink href={row.url} className="item-title type-body-strong">
             {row.title}
           </ExternalLink>
         ) : (
-          <span className={cn(titleClass, "[overflow-wrap:anywhere]")}>{row.title}</span>
+          <span className="item-title type-body-strong [overflow-wrap:anywhere]">{row.title}</span>
         )}
         {row.meta && <span className="type-small block max-w-[75ch] text-muted">{row.meta}</span>}
         {row.why && <span className="type-small block max-w-[75ch] text-muted">{row.why}</span>}
-        {/* Notes stay readable when the row is read-only (none exist until saving arrives in M2). */}
-        <NotePreview note={row.note} link={row.link} />
+        <TickError />
       </div>
+      <NoteArea
+        itemId={row.id}
+        title={row.title}
+        note={row.note}
+        link={row.link}
+        placeholder={row.notePlaceholder}
+        readOnly={readOnly}
+      />
       {row.resources && (
         <ResourceList
           taskId={row.id}
@@ -90,7 +73,7 @@ export function ItemRow({
           </ul>
         </ResourceList>
       )}
-    </FilterRow>
+    </RowShell>
   );
 }
 

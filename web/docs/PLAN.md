@@ -94,6 +94,10 @@ Carried into M2 from the M1 code review:
 - Wrap `getProgress()` in React `cache()` before it reads the database (about seven calls per request).
 - Refresh the date-based chips ("This phase", "This week") when a tab stays open past midnight IST.
 
+Carried into M3 from the M2 code review:
+- Rate-limit sign-in (Vercel firewall or Better Auth's limiter). The sign-in Server Action calls `auth.api.signInSocial`, which skips Better Auth's limiter: it only runs inside the `/api/auth/*` HTTP router, is not exported for `auth.api` calls, and by default keeps its counts in each server instance's memory. Until then, expired sign-in attempts are deleted before each new one, so the `verification` table cannot grow without bound.
+- Import of tracker records: a record dated in the future (a device clock running ahead) is capped and inserted once, but once real time passes that date, a re-run would treat it as newer than an app edit made in between. Run the import once at cut-over; before any re-run after the app is live, add an import log (item id plus source time already applied) or make re-runs insert-only.
+
 Candidate new sections, in suggested order:
 1. Job applications tracker (companies, roles, status, next step).
 2. Weekly plan (classes, tasks due, revision due).

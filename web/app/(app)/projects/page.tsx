@@ -10,8 +10,8 @@ import { ListSkeleton } from "@/components/Skeleton";
 import { PROJECTS_DESCRIPTION, SEARCH_PLACEHOLDERS } from "@/content/page-copy";
 import { trackerContent } from "@/content/tracker-data";
 import { filterFromRecord } from "@/lib/filter";
-import { READ_ONLY_PREVIEW } from "@/lib/mode";
-import { getProgress } from "@/lib/progress";
+import { getProgress } from "@/lib/data";
+import { isReadOnly } from "@/lib/mode";
 import { filterEntries, projectsView } from "@/lib/views";
 
 export const metadata: Metadata = { title: "Projects" };
@@ -29,14 +29,14 @@ export default function ProjectsPage({ searchParams }: PageProps<"/projects">) {
 }
 
 async function ProjectsContent({ searchParams }: Pick<PageProps<"/projects">, "searchParams">) {
-  const [sp, progress] = await Promise.all([searchParams, getProgress()]);
+  const [sp, progress, readOnly] = await Promise.all([searchParams, getProgress(), isReadOnly()]);
   const cards = projectsView(trackerContent, progress);
   return (
     <FilterProvider path="/projects" entries={filterEntries(cards)} initial={filterFromRecord(sp)}>
       <Toolbar placeholder={SEARCH_PLACEHOLDERS.projects} />
       <div className="grid gap-3">
         {cards.map((card) => (
-          <SectionCard key={card.key} card={card} readOnly={READ_ONLY_PREVIEW} />
+          <SectionCard key={card.key} card={card} readOnly={readOnly} />
         ))}
         <FilterEmpty />
       </div>

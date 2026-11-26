@@ -12,8 +12,8 @@ import { SCALER_DESCRIPTION, SEARCH_PLACEHOLDERS } from "@/content/page-copy";
 import { CLASS_SCHEDULE_LABEL } from "@/content/schedule";
 import { trackerContent } from "@/content/tracker-data";
 import { filterFromRecord } from "@/lib/filter";
-import { READ_ONLY_PREVIEW } from "@/lib/mode";
-import { getProgress } from "@/lib/progress";
+import { getProgress } from "@/lib/data";
+import { isReadOnly } from "@/lib/mode";
 import { filterEntries, scalerView } from "@/lib/views";
 
 export const metadata: Metadata = { title: "Scaler course" };
@@ -43,7 +43,7 @@ const GROUPS = [
 ] as const;
 
 async function ScalerContent({ searchParams }: Pick<PageProps<"/scaler">, "searchParams">) {
-  const [sp, progress] = await Promise.all([searchParams, getProgress()]);
+  const [sp, progress, readOnly] = await Promise.all([searchParams, getProgress(), isReadOnly()]);
   const cards = scalerView(trackerContent, progress);
   const current = cards.find((m) => m.isCurrent)?.n ?? cards[0].n;
   return (
@@ -56,7 +56,7 @@ async function ScalerContent({ searchParams }: Pick<PageProps<"/scaler">, "searc
             {cards
               .filter((m) => m.kind === g.kind)
               .map((m) => (
-                <ModuleCard key={m.key} card={m} currentModule={current} readOnly={READ_ONLY_PREVIEW} />
+                <ModuleCard key={m.key} card={m} currentModule={current} readOnly={readOnly} />
               ))}
           </Fragment>
         ))}

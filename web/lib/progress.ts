@@ -1,4 +1,6 @@
 // Saved progress, keyed by item id (lib/ids.ts). Same fields as the tracker's records.
+// Safe to import from client components: no database code here. The database read is
+// `getProgress()` in lib/data.ts; saving goes through the Server Actions in app/actions/progress.ts.
 
 export interface ProgressRecord {
   done: boolean;
@@ -9,15 +11,14 @@ export interface ProgressRecord {
   updatedAt: string | null;
 }
 
+/** One saved record with its item id, as returned by the save actions. */
+export interface ProgressEntry extends ProgressRecord {
+  itemId: string;
+}
+
 export type ProgressMap = ReadonlyMap<string, ProgressRecord>;
 
-/**
- * M1: there is no database yet, so nothing is saved and every item shows as not done.
- * M2 replaces this with a database read for the signed-in owner; callers stay the same.
- */
-export async function getProgress(): Promise<ProgressMap> {
-  return new Map();
-}
+export const EMPTY_RECORD: ProgressRecord = { done: false, note: "", link: "", doneAt: null, updatedAt: null };
 
 export const isDone = (progress: ProgressMap, id: string) => progress.get(id)?.done === true;
 

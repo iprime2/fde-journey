@@ -1,11 +1,15 @@
 // Frame for every signed-in page: sidebar on desktop, bottom bar on phones (design spec 3).
+// The save status (signed out while using, failed saves, offline) is shared by every page.
+import { MidnightRefresh } from "@/components/MidnightRefresh";
 import { BottomBar } from "@/components/nav/BottomBar";
 import { RouteFocus } from "@/components/nav/RouteFocus";
 import { Sidebar } from "@/components/nav/Sidebar";
+import { SaveStatusProvider } from "@/components/save/SaveStatusProvider";
+import { SessionKeeper } from "@/components/SessionKeeper";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
-    <>
+    <SaveStatusProvider>
       <a
         href="#main"
         className="sr-only z-50 rounded-md border border-line-strong bg-surface type-body-strong text-accent shadow-overlay focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:inline-flex focus:min-h-11 focus:items-center focus:px-4 focus:py-2.5"
@@ -21,6 +25,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       </main>
       <BottomBar />
       <RouteFocus />
-    </>
+      <SessionKeeper />
+      <MidnightRefresh />
+    </SaveStatusProvider>
   );
 }

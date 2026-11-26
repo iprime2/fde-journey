@@ -1,15 +1,16 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { redirect, unstable_rethrow } from "next/navigation";
+import { Suspense } from "react";
+import { signInWithGitHub } from "@/app/actions/auth";
 import { Banner } from "@/components/Banner";
 import { CenteredPage } from "@/components/CenteredPage";
-import { cn } from "@/components/cn";
-import { GitHubMark } from "@/components/icons";
-import { buttonStyles } from "@/components/ui";
+import { SignInButton } from "@/components/SignInButton";
+import { type LoginNotice, parseLoginParams } from "@/lib/login";
+import { getOwnerSession } from "@/lib/session";
 
 export const metadata: Metadata = { title: "Sign in" };
 
-// M1: sign-in arrives with saving (M2), so the button is shown but disabled.
-export default function LoginPage() {
+export default function LoginPage({ searchParams }: PageProps<"/login">) {
   return (
     <CenteredPage>
       <header className="grid gap-1.5">
@@ -20,15 +21,55 @@ export default function LoginPage() {
           owner&apos;s GitHub account can sign in.
         </p>
       </header>
-      <button type="button" disabled className={cn(buttonStyles.primary, "w-full")}>
-        <GitHubMark size={20} />
-        Sign in with GitHub
-      </button>
-      <Banner tone="info">Sign-in isn&apos;t available yet. It comes with saving progress.</Banner>
-      {/* M1 only: the pages are open while nothing can be saved. Remove in M2, when every page needs sign-in. */}
-      <Link href="/" className={cn(buttonStyles.secondary, "w-full")}>
-        Go to Home
-      </Link>
+      {/* The address and the sign-in cookie decide what shows, so this part streams in. */}
+      <Suspense fallback={<SignInButton disabled />}>
+        <SignInForm searchParams={searchParams} />
+      </Suspense>
     </CenteredPage>
   );
+}
+
+async function SignInForm({ searchParams }: Pick<PageProps<"/login">, "searchParams">) {
+  const { next, notice } = parseLoginParams(await searchParams);
+  // Already signed in as the owner: go on to `next` (already checked by safeNextPath) or Home.
+  // Whatever the message: after sign-out or a failed sign-in there is no owner session, and an
+  // owner who is signed in has nothing to do here.
+  if (await signedInOwner()) redirect(next);
+  return (
+    <>
+      <form action={signInWithGitHub}>
+        <input type="hidden" name="next" value={next} />
+        <SignInButton />
+      </form>
+      <LoginMessage notice={notice} />
+    </>
+  );
+}
+
+/**
+ * True when the visitor is the signed-in owner. If the check itself fails (database unreachable),
+ * the sign-in page still shows, as it did before this check existed.
+ */
+async function signedInOwner(): Promise<boolean> {
+  try {
+    return (await getOwnerSession()) !== null;
+  } catch (error) {
+    unstable_rethrow(error);
+    console.error(`Sign-in page: session check failed (${error instanceof Error ? error.name : "unknown"})`);
+    return false;
+  }
+}
+
+/** Design spec 8: the messages under the sign-in button. */
+function LoginMessage({ notice }: { notice: LoginNotice }) {
+  switch (notice) {
+    case "not-owner":
+      return <Banner tone="error">This GitHub account can&apos;t sign in. The app is private to its owner.</Banner>;
+    case "failed":
+      return <Banner tone="error">Sign-in didn&apos;t finish. Try again.</Banner>;
+    case "signed-out":
+      return <Banner tone="info">You&apos;re signed out.</Banner>;
+    default:
+      return null;
+  }
 }
