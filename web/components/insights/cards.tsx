@@ -37,7 +37,7 @@ import { CARD_STYLES, CardHead } from "../Card";
 import { cn } from "../cn";
 import { Facts } from "../PageHeader";
 import { Tile } from "../Tile";
-import { Count, ProgressBar, StatusChip } from "../ui";
+import { Count, NameWithCode, ProgressBar, StatusChip } from "../ui";
 import { ActivityCalendar, ActivityTable, TableDisclosure, WeeklyChart, WeeklyTable } from "./charts";
 
 const MUTED_LINE = "type-small max-w-[34em] text-muted";
@@ -93,7 +93,7 @@ export function AtAGlance({ thisWeek, settings }: { thisWeek: Insights["thisWeek
       {hidden && (
         <p className={MUTED_LINE}>
           {hidden.text}{" "}
-          <Link href="/settings" className={TEXT_LINK}>
+          <Link href="/settings" className={cn(TEXT_LINK, "whitespace-nowrap")}>
             {hidden.link}
           </Link>
         </p>
@@ -229,7 +229,9 @@ function CertRow({ cert }: { cert: CertInsight }) {
   return (
     <li className="grid gap-1.5 border-t border-line px-4 py-3">
       <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
-        <p className="type-body-strong min-w-0 flex-[1_1_180px] [overflow-wrap:anywhere]">{cert.name}</p>
+        <p className="type-body-strong min-w-0 flex-[1_1_180px] [overflow-wrap:anywhere]">
+          <NameWithCode name={cert.name} />
+        </p>
         <div className="flex items-center gap-3 whitespace-nowrap">
           {cert.passed ? <StatusChip chip={{ label: "Passed", variant: "ok" }} /> : <Count done={cert.done} total={cert.total} />}
         </div>
@@ -244,7 +246,7 @@ export function CertsCard({ certs }: { certs: readonly CertInsight[] }) {
   const titleId = useId();
   return (
     <section aria-labelledby={titleId} className={CARD_STYLES}>
-      <CardHead titleId={titleId} title="Certifications" sub="Prep steps done, in the order to take them." done={passedCount(certs)} total={certs.length} />
+      <CardHead titleId={titleId} title="Certifications" sub="Prep steps done, in the order to take them." done={passedCount(certs)} total={certs.length} countWord="passed" />
       {/* From xl two columns, filled row by row in rank order. The top border of each row is the divider. */}
       <ul className="grid xl:grid-cols-2 xl:gap-x-6">
         {certs.map((c) => (

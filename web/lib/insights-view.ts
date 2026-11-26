@@ -202,8 +202,8 @@ export interface WeeklyRow {
   label: string;
   current: boolean;
   total: number;
-  /** "Roadmap tasks 2 · Learning resources 3", or null for "Nothing done". */
-  byKind: string | null;
+  /** ["Roadmap tasks 2", "Learning resources 3"] (shown joined by " · "), or null for "Nothing done". */
+  byKind: string[] | null;
 }
 
 /** The "Show as table" rows for the bar chart, newest week first. */
@@ -211,7 +211,7 @@ export function weeklyRows(weekly: readonly WeekCompletions[], kinds: readonly K
   return [...weekly].reverse().map((w) => {
     const counts = chartCounts(w.byKind);
     const parts = kinds.filter((k) => counts[k.key] > 0).map((k) => `${k.label} ${counts[k.key]}`);
-    return { weekStart: w.weekStart, label: formatDayMonth(w.weekStart), current: w.weekStart === thisWeek, total: w.total, byKind: parts.length ? parts.join(" · ") : null };
+    return { weekStart: w.weekStart, label: formatDayMonth(w.weekStart), current: w.weekStart === thisWeek, total: w.total, byKind: parts.length ? parts : null };
   });
 }
 
@@ -307,8 +307,8 @@ export interface ActivityRow {
   label: string;
   current: boolean;
   activeDays: number;
-  /** "Mon 3 · Wed 1 · Sat 5", or null for "No activity". */
-  savesByDay: string | null;
+  /** ["Mon 3", "Wed 1", "Sat 5"] (shown joined by " · "), or null for "No activity". */
+  savesByDay: string[] | null;
 }
 
 const WEEKDAY_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
@@ -325,14 +325,14 @@ export function activityRows(days: readonly ActivityDay[], windowStart: string, 
       label: formatDayMonth(weekStart),
       current: week.some((d) => d.date === today),
       activeDays: activeDayCount(week),
-      savesByDay: saves.length ? saves.join(" · ") : null,
+      savesByDay: saves.length ? saves : null,
     });
   }
   return rows.reverse();
 }
 
 /** The estimate line shows while the window reaches back before the event history. */
-export const ESTIMATE_LINE = `Days before ${formatDate(EVENT_HISTORY_START)} are estimated from when items were marked done, so they may show less than you did.`;
+export const ESTIMATE_LINE = `Days up to ${formatDate(EVENT_HISTORY_START)} are estimated from when items were marked done, so they may show less than you did.`;
 
 // ---- At a glance (spec 10.2 A)
 

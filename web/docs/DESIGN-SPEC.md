@@ -1257,7 +1257,7 @@ Checked against `web/lib/login.ts` on 2026-11-26: `AccessMode` is `"owner-only" 
 
 ## 10. Insights (M5a, v0.8)
 
-Route `/insights`, `<title>` "Insights · FDE Journey". Behind the same gate as every app page; usual app frame. Scope and counting rules are `M5-DESIGN.md` (weeks start Monday in IST; a completion is an item done **now**, in the week of its `done_at`; activity comes from `progress_event`, and from `done_at` before 26 Nov 2026; hidden or locked sections are left out everywhere). This section decides how it looks and reads.
+Route `/insights`, `<title>` "Insights · FDE Journey". Behind the same gate as every app page; usual app frame. Scope and counting rules are `M5-DESIGN.md` (weeks start Monday in IST; a completion is an item done **now**, in the week of its `done_at`; activity comes from `progress_event`, and up to and including 26 Nov 2026 also from `done_at` (the larger of the two per day); hidden or locked sections are left out everywhere). This section decides how it looks and reads.
 
 **Kinds.** One list, used in the same order everywhere (stack order bottom to top, legend order, "By kind" order). A kind shows only while its section is on; Scaler only once unlocked.
 
@@ -1347,7 +1347,7 @@ Cards use Card and CardHead (section 4): `h2` in `title`, sub line `small` `mute
   1. Facts (the existing Facts component): "Last 30 days" "12 active days"; "Last 26 weeks" "48 active days" ("1 active day" for one).
   2. The calendar heatmap (10.4), 12 px below.
   3. Its key (10.4).
-  4. While the 26 weeks reach back before 26 Nov 2026 (until the week of Mon 24 May 2027): the estimate line (`small`, `muted`, `max-w-[34em]`): "Days before 26 Nov 2026 are estimated from when items were marked done, so they may show less than you did."
+  4. While the 26 weeks reach back to 26 Nov 2026 or earlier (until the week of Mon 24 May 2027): the estimate line (`small`, `muted`, `max-w-[34em]`): "Days up to 26 Nov 2026 are estimated from when items were marked done, so they may show less than you did." (26 Nov itself is estimated too: ticks made that morning, before the release, have no events; the back end takes the larger of a day's saves and its completions.)
   5. Summary sentence and "Show as table" (10.5).
 - Empty (no activity in the 26 weeks): no facts, chart, key or table. Paragraph: "No activity in the last 26 weeks yet. Each day you tick an item or save a note fills in a square here."
 - Skeleton: head blocks; a 14 px line at 60% (facts); one block `aspect-[26/7] w-full max-w-[488px]` with a 32 px left margin (the calendar); a 14 px line at 40% (key).
@@ -1472,7 +1472,7 @@ Plain SVG made in a Server Component, no library. **Marks are SVG; every piece o
   - Row 2, column 1: day labels "Mon", "Wed" and "Fri" for rows 1, 3 and 5. **The calendar sets the height, the labels don't** (corrected after the build review). A `grid-rows-7` column of 13 px labels is at least 91 px tall, taller than the calendar below about 620 px of column width (60 px at 320, 79 px at 390), so the grid row grows, the labels spread over 91 px and drift down: in the build "Wed" sat beside Thursday and "Fri" beside Sunday at 320 px, with about 30 px of empty space under the squares. Instead: the column is `relative` (it stretches to the SVG's height and adds none of its own), and each label is `absolute left-0 -translate-y-1/2 type-num leading-none text-muted whitespace-nowrap` at `top: {(row + 0.5) / 7 × 100}%` (rows 0, 2 and 4: 7.14%, 35.7%, 64.3%). At 320 px a 13 px label overhangs its 8.5 px row by about 2 px each side into the empty rows around it, which is fine; "Mon" may rise 2 px into the month-label row's gap.
   - Row 2, column 2: `<svg viewBox="0 0 312 84" class="block h-auto w-full" aria-hidden="true" focusable="false">`. Each day: `<rect x={c×12+1} y={r×12+1} width="10" height="10" rx="1.5" fill="var(--heat-n)"/>` (12-unit pitch, 2-unit gap).
 - **Today:** an extra `<rect x={c×12} y={r×12} width="12" height="12" rx="2" fill="none" stroke="var(--ink)" stroke-width="2" vector-effect="non-scaling-stroke"/>`, a ring in the gap around today's square. A shape, not a colour, so it reads in every scheme and colour vision. Today shows even with no saves.
-- **Steps:** by saves that day (each `progress_event` row; before 26 Nov 2026, items whose `done_at` is that day): 0 → `heat-0`, 1–2 → `heat-1`, 3–5 → `heat-2`, 6–9 → `heat-3`, 10 or more → `heat-4`.
+- **Steps:** by saves that day (each `progress_event` row; up to and including 26 Nov 2026, the larger of that and the items whose `done_at` is that day): 0 → `heat-0`, 1–2 → `heat-1`, 3–5 → `heat-2`, 6–9 → `heat-3`, 10 or more → `heat-4`.
 - **Key** under the grid, 12 px gap, as for the bar chart: `<ul aria-label="Colour key">` preceded by the `label`-type text "Saves per day", then 12 px squares labelled "None", "1–2", "3–5", "6–9", "10 or more", and "Today" with an outlined square (2 px `ink` ring on `surface`).
 
 **Progress: bars, not rings.** Current phase and each certification use the existing ProgressBar (6 px, `accent` on `sunk`, `aria-hidden`, the Count beside it says the same). Rings would be a new component, need a number inside to be readable, and take more room per row; bars line up in a list and match Home.
@@ -1532,7 +1532,7 @@ Each chart block has this structure:
 | Done per week | `h2` "Done per week"; sub "Last 12 weeks. An item counts in the week you marked it done; if you untick it, it leaves the chart."; empty "Nothing marked done in the last 12 weeks. Tick your first item to start your weekly chart." + "Go to the Roadmap" |
 | Kind labels | "Roadmap tasks", "Learning resources", "Reading", "Scaler classes", "Certification prep", "Courses", "Projects and career" ("Projects" or "Career" alone) |
 | Active days | `h2` "Active days"; sub "Last 26 weeks. A day is active when you tick or untick an item, or save a note or link."; facts "Last 30 days" "12 active days", "Last 26 weeks" "48 active days"; empty "No activity in the last 26 weeks yet. Each day you tick an item or save a note fills in a square here." |
-| Estimate line | "Days before 26 Nov 2026 are estimated from when items were marked done, so they may show less than you did." |
+| Estimate line | "Days up to 26 Nov 2026 are estimated from when items were marked done, so they may show less than you did." |
 | Heatmap key | "Saves per day": "None", "1–2", "3–5", "6–9", "10 or more", "Today" |
 | Chart names (`aria-label`) | "Bar chart of items done per week, last 12 weeks" / "Calendar of active days, last 26 weeks" |
 | Summaries (hidden) | See 10.5 |

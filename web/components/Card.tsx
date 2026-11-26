@@ -18,6 +18,7 @@ export function CardHead({
   chip,
   done,
   total,
+  countWord,
   className,
 }: {
   /** The heading's content: text, or a disclosure button for a collapsible card. */
@@ -28,13 +29,15 @@ export function CardHead({
   chip?: ChipState;
   done?: number;
   total?: number;
+  /** The Count's hidden word: "3 of 7 done" by default, "1 of 7 passed" with "passed". */
+  countWord?: string;
   className?: string;
 }) {
   const hasCount = done !== undefined && total !== undefined;
   return (
     <div className={cn("flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3.5", className)}>
       <div className="min-w-0 flex-[1_1_220px]">
-        <h2 id={titleId} className="type-title">
+        <h2 id={titleId} className="type-title [overflow-wrap:anywhere]">
           {title}
         </h2>
         {sub && <p className={cn("max-w-[34em] text-muted", subIsDate ? "type-num" : "type-small")}>{sub}</p>}
@@ -42,7 +45,7 @@ export function CardHead({
       {(chip || hasCount) && (
         <div className="flex items-center gap-3 self-start whitespace-nowrap">
           {chip && <StatusChip chip={chip} />}
-          {hasCount && <Count done={done} total={total} />}
+          {hasCount && <Count done={done} total={total} word={countWord} />}
         </div>
       )}
     </div>

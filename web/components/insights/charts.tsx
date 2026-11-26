@@ -2,6 +2,7 @@
 // SVG; every piece of text is HTML beside or over it, so it keeps the type scale and follows text
 // zoom. Each chart is one `role="img"` with a short name, then its key, a hidden summary sentence
 // and a native "Show as table" disclosure with the same numbers. Nothing here animates.
+import { Fragment } from "react";
 import {
   type ActivityRow,
   type Bar,
@@ -134,6 +135,13 @@ export function WeeklyChart({
 
 // ---- Activity calendar
 
+/** Day labels beside rows 0, 2 and 4 (Monday at the top). */
+const DAY_LABELS = [
+  { row: 0, label: "Mon" },
+  { row: 2, label: "Wed" },
+  { row: 4, label: "Fri" },
+] as const;
+
 export function ActivityCalendar({ cells, months, summary }: { cells: readonly HeatCell[]; months: readonly MonthLabel[]; summary: string }) {
   const today = cells.find((c) => c.today);
   return (
@@ -147,10 +155,16 @@ export function ActivityCalendar({ cells, months, summary }: { cells: readonly H
             </span>
           ))}
         </div>
-        <div aria-hidden="true" className="type-num grid grid-rows-7 text-muted">
-          {["Mon", "", "Wed", "", "Fri", "", ""].map((d, i) => (
-            <span key={i} className="self-center leading-none">
-              {d}
+        {/* The calendar sets the row's height; the labels add none, so they stay beside their rows
+            however small the squares get (design spec 10.4). */}
+        <div aria-hidden="true" className="relative">
+          {DAY_LABELS.map(({ row, label }) => (
+            <span
+              key={label}
+              className="type-num absolute left-0 -translate-y-1/2 whitespace-nowrap leading-none text-muted"
+              style={{ top: `${((row + 0.5) / 7) * 100}%` }}
+            >
+              {label}
             </span>
           ))}
         </div>
@@ -229,9 +243,25 @@ function WeekOf({ label, current }: { label: string; current: boolean }) {
   return (
     <>
       <span className="block">{label}</span>
-      {current && <span className="type-small block font-normal text-muted">this week</span>}
+      {current && <span className="type-small block font-sans font-normal text-muted">this week</span>}
     </>
   );
+}
+
+/**
+ * "Roadmap tasks 2 · Learning resources 3": each entry an inline span carrying its own trailing
+ * " ·", so a wrapped line never starts with the separator (design spec 10.5).
+ */
+function Entries({ items }: { items: readonly string[] }) {
+  return items.map((item, i) => (
+    <Fragment key={item}>
+      <span>
+        {item}
+        {i < items.length - 1 && " ·"}
+      </span>
+      {i < items.length - 1 && " "}
+    </Fragment>
+  ));
 }
 
 export function WeeklyTable({ rows }: { rows: readonly WeeklyRow[] }) {
@@ -240,7 +270,7 @@ export function WeeklyTable({ rows }: { rows: readonly WeeklyRow[] }) {
       <caption className="sr-only">Items done per week, last 12 weeks, newest first</caption>
       <thead>
         <tr>
-          <th scope="col" className={cn(TH, "w-[72px] text-left")}>
+          <th scope="col" className={cn(TH, "w-[72px] text-left md:w-24")}>
             Week of
           </th>
           <th scope="col" className={cn(TH, "w-14 text-right")}>
@@ -258,7 +288,9 @@ export function WeeklyTable({ rows }: { rows: readonly WeeklyRow[] }) {
               <WeekOf label={r.label} current={r.current} />
             </th>
             <td className={cn(CELL, "type-num text-right")}>{r.total}</td>
-            <td className={cn(CELL, "type-small [overflow-wrap:anywhere]", !r.byKind && "text-muted")}>{r.byKind ?? "Nothing done"}</td>
+            <td className={cn(CELL, "type-small [overflow-wrap:anywhere]", !r.byKind && "text-muted")}>
+              {r.byKind ? <Entries items={r.byKind} /> : "Nothing done"}
+            </td>
           </tr>
         ))}
       </tbody>
@@ -272,7 +304,7 @@ export function ActivityTable({ rows }: { rows: readonly ActivityRow[] }) {
       <caption className="sr-only">Active days per week, last 26 weeks, newest first</caption>
       <thead>
         <tr>
-          <th scope="col" className={cn(TH, "w-[72px] text-left")}>
+          <th scope="col" className={cn(TH, "w-[72px] text-left md:w-24")}>
             Week of
           </th>
           <th scope="col" className={cn(TH, "w-[72px] text-right")}>
@@ -290,7 +322,9 @@ export function ActivityTable({ rows }: { rows: readonly ActivityRow[] }) {
               <WeekOf label={r.label} current={r.current} />
             </th>
             <td className={cn(CELL, "type-num text-right")}>{r.activeDays}</td>
-            <td className={cn(CELL, "type-small [overflow-wrap:anywhere]", !r.savesByDay && "text-muted")}>{r.savesByDay ?? "No activity"}</td>
+            <td className={cn(CELL, "type-small [overflow-wrap:anywhere]", !r.savesByDay && "text-muted")}>
+              {r.savesByDay ? <Entries items={r.savesByDay} /> : "No activity"}
+            </td>
           </tr>
         ))}
       </tbody>
