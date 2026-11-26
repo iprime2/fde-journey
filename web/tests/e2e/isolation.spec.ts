@@ -3,7 +3,7 @@
 // may reach the owner's pages: no ticks, no counts, no text, not even in the page's hidden data.
 import { E2E_OTHER_LINK, E2E_OTHER_NOTE } from "../../scripts/lib/e2e-data.mjs";
 import { expect, test } from "./fixtures";
-import { SECTION_PAGES, gotoReady } from "./helpers";
+import { SECTION_PAGES, gotoReady, isPhone } from "./helpers";
 
 // The note's apostrophe is escaped in HTML, so search for a part without it.
 const NOTE_PART = E2E_OTHER_NOTE.slice(E2E_OTHER_NOTE.indexOf("made-up"));
@@ -20,5 +20,19 @@ test.describe("another user's progress", () => {
     }
     await gotoReady(page, "/career");
     await expect(page.getByRole("textbox", { name: "Weekly notes" })).toHaveValue("");
+  });
+
+  // Counts catch a tick-only leak that sits in a collapsed section, out of sight of the checks above.
+  test("leaves every done count at 0", { tag: "@fresh" }, async ({ page }, testInfo) => {
+    await gotoReady(page, "/");
+    const tiles = page.getByRole("region", { name: "Summary" }).getByRole("link");
+    await expect(tiles).toHaveCount(6);
+    for (let i = 0; i < 6; i++) await expect(tiles.nth(i)).toHaveAccessibleName(/^(0%|0 of \d+ done),/);
+    if (!isPhone(testInfo)) {
+      // The sidebar shows a count beside each section (the phone bar has none).
+      const counted = page.getByRole("navigation", { name: "Sections" }).getByRole("link", { name: / of \d+ done$/ });
+      await expect(counted).toHaveCount(6);
+      for (let i = 0; i < 6; i++) await expect(counted.nth(i)).toHaveAccessibleName(/ 0 of \d+ done$/);
+    }
   });
 });

@@ -11,13 +11,22 @@ Status: written 2026-11-26 by the backend engineer for the lead. Nothing here ha
 Expected in production today: 1 user, 12 progress rows, 2 applied migrations.
 
 ## Order of the release
-The new code needs the new schema, and the old code can't save against it. Saves (not reads) fail in between, with the usual "That change wasn't saved" message. So:
+Vercel deploys `main` automatically, so **merging the pull request is the deploy**. Run the migration on production first, then merge.
+
 1. Rehearse on a Neon branch (below).
-2. Apply the migration to production when the owner isn't using the app.
-3. Deploy the M4a code straight after.
+2. On production, when the owner isn't using the app: take a backup branch, run the "Before" queries (required, right before applying; stop if any result differs from what is expected), then apply the migration and run the "After" queries.
+3. Merge the pull request straight after. Vercel deploys it.
+
+Between steps 2 and 3 the old code still reads, but its saves fail with the usual "That change wasn't saved" message: it upserts on `item_id` alone and doesn't send `user_id`.
+
+**If the code ships first** (the pull request is merged before the migration runs), every signed-in page errors (`column "user_id" does not exist`) until the migration runs. No data is lost: run the migration, and the pages work again without a redeploy.
 
 ## Option A: `npm run db:migrate`
-`DATABASE_URL=<production URL> npm run db:migrate` applies exactly this, in one transaction, and records it. It should print `Migrations: 1 applied now, 3 in total.`
+`DATABASE_URL=<production URL> OWNER_GITHUB_ID=<owner's numeric GitHub id> npm run db:migrate` applies exactly this, in one transaction, and records it.
+
+Before migrating, it checks that the only user is the owner (`scripts/lib/migrate-check.mjs`): while 0002 is still to be applied and `progress` has rows, it needs `OWNER_GITHUB_ID`, and that the single user has the GitHub account with that id. Otherwise it prints `Migration refused: …`, exits with code 2 and changes nothing. On success it prints `Owner check passed: the only user is the owner.` then `Migrations: 1 applied now, 3 in total.`
+
+Option B does not run this check, so with option B the "Before" queries 1 and 2 are the owner check: don't apply unless they give exactly 12 rows, 1 user and 1 owner.
 
 ## Option B: the Neon tools, by hand
 Run these as **one transaction** (for example `run_sql_transaction`), in this order. Statement 3 is a single `DO` block: pass it as one statement.
@@ -77,30 +86,34 @@ The migrator decides what to apply by `created_at` only, so a later `npm run db:
 
 ## Rehearsal on a Neon branch
 1. Create a branch from production (a copy of its data).
-2. Run the "Before" queries on the branch and note the results.
+2. Run the "Before" queries on the branch and note the results. Stop if any differs from what is expected.
 3. Apply option A (with the branch's URL) or option B on the branch.
 4. Run the "After" queries. Compare.
 5. Delete the branch when done.
 
-These statements, the "Before" and "After" queries and the rollback were run on PGlite 0.6.0 (Postgres 19) with 1 made-up user and 12 made-up rows on 2026-11-26: counts and the fingerprint matched before and after, the rollback restored the 0001 state with the same fingerprint, and a fresh `migrate` re-applied 0002 afterwards.
+These statements, the "Before" and "After" queries and the rollback were run on PGlite 0.6.0 (Postgres 19) with 1 made-up user and 12 made-up rows on 2026-11-26 (re-run after the review fixes): counts and the fingerprint matched before and after (the "After" queries ran in another session time zone), the rollback restored the 0001 state with the same fingerprint, and a fresh `migrate` re-applied 0002 afterwards.
 
-Before production, also create a branch from production as a backup point.
+On production, repeat the same steps right before applying (the "Before" queries are required there too, as the data may have changed since the rehearsal), after creating a branch from production as a backup point.
 
 ## Verification queries
 They print counts, names and hashes only, never note or link text.
 
 ### Before
 ```sql
--- 1. Rows and users: expect 12 and 1.
+-- 1. Rows and users: expect 12 (or more, if the owner has saved since) and exactly 1.
 SELECT (SELECT count(*) FROM progress) AS progress_rows, (SELECT count(*) FROM "user") AS users;
--- 2. The one user is the owner: expect 1. Replace <OWNER_GITHUB_ID> with the value from Vercel.
-SELECT count(*) FROM account WHERE provider_id = 'github' AND account_id = '<OWNER_GITHUB_ID>';
+-- 2. That one user is the owner: expect 1. Replace <OWNER_GITHUB_ID> with the value from Vercel.
+SELECT count(*) AS owners
+FROM account a JOIN "user" u ON u.id = a.user_id
+WHERE a.provider_id = 'github' AND a.account_id = '<OWNER_GITHUB_ID>';
 -- 3. Applied migrations: expect 2 rows, created_at 1795654351646 and 1795660912022.
 SELECT id, created_at FROM drizzle.__drizzle_migrations ORDER BY created_at;
 -- 4. The old primary key's name: expect progress_pkey (statement 5 drops it by this name).
 SELECT conname FROM pg_constraint WHERE conrelid = 'public.progress'::regclass AND contype = 'p';
--- 5. A fingerprint of the data (hashes only): note the value.
-SELECT md5(string_agg(item_id || '|' || done || '|' || md5(note) || '|' || md5(link) || '|' || coalesce(done_at::text, '-') || '|' || updated_at::text, ',' ORDER BY item_id)) AS fingerprint
+-- 5. A fingerprint of the data (hashes only): note the value. Times are epoch seconds, so the
+--    result doesn't depend on the session's time zone.
+SELECT md5(string_agg(item_id || '|' || done::text || '|' || md5(note) || '|' || md5(link) || '|'
+  || coalesce(extract(epoch FROM done_at)::text, '-') || '|' || extract(epoch FROM updated_at)::text, ',' ORDER BY item_id)) AS fingerprint
 FROM progress;
 ```
 
@@ -113,7 +126,8 @@ SELECT count(*) AS progress_rows,
        bool_and(user_id = (SELECT id FROM "user")) AS all_owner
 FROM progress;
 -- 2. Same fingerprint as before (the query ignores user_id).
-SELECT md5(string_agg(item_id || '|' || done || '|' || md5(note) || '|' || md5(link) || '|' || coalesce(done_at::text, '-') || '|' || updated_at::text, ',' ORDER BY item_id)) AS fingerprint
+SELECT md5(string_agg(item_id || '|' || done::text || '|' || md5(note) || '|' || md5(link) || '|'
+  || coalesce(extract(epoch FROM done_at)::text, '-') || '|' || extract(epoch FROM updated_at)::text, ',' ORDER BY item_id)) AS fingerprint
 FROM progress;
 -- 3. Primary key on (user_id, item_id): expect progress_user_id_item_id_pk | {user_id,item_id}.
 SELECT c.conname, array_agg(a.attname ORDER BY k.n) AS columns
@@ -128,7 +142,7 @@ GROUP BY c.conname;
 --    (Filtered by type: Postgres 18 and later also list NOT NULL constraints here.)
 SELECT conname FROM pg_constraint WHERE conrelid = 'public.progress'::regclass AND contype IN ('c', 'p', 'f') ORDER BY conname;
 -- 5. user_id is not null: expect NO.
-SELECT is_nullable FROM information_schema.columns WHERE table_name = 'progress' AND column_name = 'user_id';
+SELECT is_nullable FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'progress' AND column_name = 'user_id';
 -- 6. The event table: empty, with its index.
 SELECT (SELECT count(*) FROM progress_event) AS events,
        (SELECT count(*) FROM pg_indexes WHERE indexname = 'progress_event_user_at_idx') AS index_present;
@@ -139,12 +153,14 @@ SELECT id, hash, created_at FROM drizzle.__drizzle_migrations ORDER BY created_a
 After the deploy, tick and untick one item in the app, then: `SELECT kind, count(*) FROM progress_event GROUP BY kind;` should show one `done` and one `undone`.
 
 ## If it fails
+- **`db:migrate` refuses** (the owner check): nothing was run. Check the "Before" queries and `OWNER_GITHUB_ID`.
 - **The migration stops** (wrong user count, or `progress_pkey` has another name): the transaction rolls back by itself and nothing changes. Check the "Before" queries, fix the cause, and run it again.
-- **After applying, before deploying**: the old app still reads, but saves fail. Either deploy M4a or roll back as below.
+- **After applying, before merging**: the old app still reads, but saves fail. Either merge M4a or roll back as below.
+- **Merged before migrating**: signed-in pages error until the migration runs; no data is lost. Run the migration.
 
 ## Rollback
 Only while there is one user (M4a keeps sign-in owner-only, so this holds until M4b). Event history recorded since the release is lost.
-1. Roll the app back to the previous deployment in Vercel (instant rollback). Reads keep working against the new schema; saves fail until step 2.
+1. Roll the app back to the previous deployment in Vercel (instant rollback; revert the merge on `main` afterwards so the next push doesn't redeploy M4a). Reads keep working against the new schema; saves fail until step 2.
 2. Run in one transaction:
    ```sql
    DROP TABLE "progress_event";

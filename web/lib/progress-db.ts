@@ -71,7 +71,9 @@ export async function readEvents(userId: string, db: Db): Promise<ProgressEvent[
 //   value again writes nothing: no event, and `updated_at` and `done_at` stay as they were.
 // - A new row gets an event only when its value differs from the default (a first untick or an
 //   empty note on an item never saved changes nothing a user can see).
-// - `(xmax = 0)` is true for a row this statement inserted, false for one it updated.
+// - `(xmax = 0)` is true for a row this statement inserted, false for one it updated. This relies on
+//   how Postgres stores row versions (not a documented API); on Postgres 18 and later,
+//   `RETURNING old.*` can replace it.
 
 type Field = "done" | "note" | "link";
 

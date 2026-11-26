@@ -4,7 +4,10 @@
 // Sign-in is owner-only in M4a, so "switching users" points OWNER_GITHUB_ID at the user whose
 // session cookie the request carries: each user then signs in for real, through the same
 // requireUser() path production uses. Every SQL statement the app sends is recorded and checked
-// for a user filter (the runtime half of isolation-guard.test.ts).
+// for a user filter (the runtime half of isolation-guard.test.ts). That covers the Server Actions
+// and getProgress(), the one data function every page and the sidebar counts read through.
+// Rendering the pages themselves here isn't practical (async Server Components need Next's
+// renderer); the static guard is what keeps pages from querying the tables any other way.
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const request = vi.hoisted(() => ({ headers: new Headers() }));

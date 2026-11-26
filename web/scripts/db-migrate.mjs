@@ -3,7 +3,13 @@
 // Uses Neon's WebSocket pool so all pending migrations run in one transaction (the HTTP driver
 // the app uses cannot do that). Local PGlite databases migrate themselves; this is only for Neon.
 // Prints counts only.
+//
+// Before migration 0002 (progress per user) it also needs OWNER_GITHUB_ID, and refuses unless
+// the only user is the owner (scripts/lib/migrate-check.mjs).
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { MIGRATIONS_FOLDER } from "./lib/db.mjs";
+import { checkBeforeMigrate } from "./lib/migrate-check.mjs";
 
 const url = process.env.DATABASE_URL?.trim();
 if (!url) {
@@ -30,10 +36,18 @@ const countApplied = async () => {
 };
 
 try {
-  const before = await countApplied();
-  await migrate(drizzle({ client: pool }), { migrationsFolder: MIGRATIONS_FOLDER });
-  const after = await countApplied();
-  console.log(`Migrations: ${after - before} applied now, ${after} in total.`);
+  const journal = JSON.parse(readFileSync(path.join(MIGRATIONS_FOLDER, "meta", "_journal.json"), "utf8"));
+  const check = await checkBeforeMigrate(async (text, params) => (await pool.query(text, params)).rows, process.env, journal);
+  if (!check.ok) {
+    console.error(`Migration refused: ${check.reason}`);
+    process.exitCode = 2;
+  } else {
+    if (check.checked) console.log("Owner check passed: the only user is the owner.");
+    const before = await countApplied();
+    await migrate(drizzle({ client: pool }), { migrationsFolder: MIGRATIONS_FOLDER });
+    const after = await countApplied();
+    console.log(`Migrations: ${after - before} applied now, ${after} in total.`);
+  }
 } catch (error) {
   console.error(`Migration failed: ${error instanceof Error ? error.message : "unknown error"}`);
   process.exitCode = 1;
