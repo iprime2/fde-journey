@@ -6,10 +6,12 @@ import { dbConfigFromEnv } from "@/db/client";
 import { checkE2eSeedEnv } from "../../scripts/lib/e2e-guard.mjs";
 
 const WEB = "/repo/web";
+const SPARES = ["a".repeat(43), "b".repeat(43)];
 const good = {
   E2E_AUTH: "1",
   PGLITE_DIR: ".data/pglite-e2e",
   E2E_SESSION_TOKEN: "t".repeat(43),
+  E2E_SPARE_SESSION_TOKENS: SPARES.join(","),
   OWNER_GITHUB_ID: "900000000001",
 };
 
@@ -19,8 +21,15 @@ describe("e2e seed guard", () => {
       ok: true,
       dataDir: path.join(WEB, ".data", "pglite-e2e"),
       token: good.E2E_SESSION_TOKEN,
+      spareTokens: SPARES,
       ownerId: good.OWNER_GITHUB_ID,
     });
+  });
+
+  it("spare sessions are optional", () => {
+    for (const value of [undefined, ""]) {
+      expect(checkE2eSeedEnv({ ...good, E2E_SPARE_SESSION_TOKENS: value }, WEB)).toMatchObject({ ok: true, spareTokens: [] });
+    }
   });
 
   it.each([
@@ -39,6 +48,12 @@ describe("e2e seed guard", () => {
     ["a short session token", { E2E_SESSION_TOKEN: "short" }],
     ["no session token", { E2E_SESSION_TOKEN: undefined }],
     ["no owner id", { OWNER_GITHUB_ID: undefined }],
+    ["a short spare token", { E2E_SPARE_SESSION_TOKENS: `${SPARES[0]},short` }],
+    ["an empty spare token", { E2E_SPARE_SESSION_TOKENS: `${SPARES[0]},,${SPARES[1]}` }],
+    ["a spare token with other characters", { E2E_SPARE_SESSION_TOKENS: `${"x".repeat(40)}';--` }],
+    ["a repeated spare token", { E2E_SPARE_SESSION_TOKENS: `${SPARES[0]},${SPARES[0]}` }],
+    ["a spare token equal to the shared one", { E2E_SPARE_SESSION_TOKENS: "t".repeat(43) }],
+    ["too many spare tokens", { E2E_SPARE_SESSION_TOKENS: Array.from({ length: 65 }, (_, i) => `${i}`.padStart(43, "s")).join(",") }],
   ])("refuses with %s", (_label, change) => {
     const result = checkE2eSeedEnv({ ...good, ...change }, WEB);
     expect(result.ok).toBe(false);
@@ -68,12 +83,13 @@ describe("no test sign-in in production code", () => {
   const files = (p: string): string[] =>
     statSync(p).isDirectory() ? readdirSync(p).flatMap((name) => files(path.join(p, name))) : /\.(ts|tsx)$/.test(p) ? [p] : [];
 
-  it("the app never reads the e2e session token, and only db/client.ts looks at E2E_AUTH (to refuse a real database)", () => {
+  it("the app never reads the e2e session tokens, and only db/client.ts looks at E2E_AUTH (to refuse a real database)", () => {
     const all = roots.flatMap((r) => files(path.join(process.cwd(), r)));
     expect(all.length).toBeGreaterThan(20);
     for (const file of all) {
       const text = readFileSync(file, "utf8");
       expect(text.includes("E2E_SESSION_TOKEN"), file).toBe(false);
+      expect(text.includes("E2E_SPARE_SESSION_TOKENS"), file).toBe(false);
       if (!file.endsWith(path.join("db", "client.ts"))) expect(/E2E_AUTH/.test(text), file).toBe(false);
     }
   });

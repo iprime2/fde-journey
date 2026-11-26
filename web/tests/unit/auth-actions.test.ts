@@ -112,7 +112,10 @@ describe("signInWithGitHub", () => {
     // The three new attempts are still valid (10 minutes), so they stay.
     expect(left).toHaveLength(4);
     // The delete is one query on an indexed column.
-    const indexes = await db.execute<{ indexdef: string }>(sql`select indexdef from pg_indexes where tablename = 'verification'`);
+    // (The test database is PGlite, whose results carry `rows`.)
+    const indexes = (await db.execute(sql`select indexdef from pg_indexes where tablename = 'verification'`)) as unknown as {
+      rows: { indexdef: string }[];
+    };
     expect(indexes.rows.map((r) => r.indexdef).some((d) => /\(expires_at\)/.test(d))).toBe(true);
   });
 

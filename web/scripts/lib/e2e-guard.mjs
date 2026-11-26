@@ -5,10 +5,13 @@
 import path from "node:path";
 import { WEB_DIR } from "./db.mjs";
 
+const TOKEN = /^[A-Za-z0-9_-]{32,128}$/;
+const MAX_SPARE_TOKENS = 64;
+
 /**
  * @param {Record<string, string | undefined>} env
  * @param {string} [webDir]
- * @returns {{ ok: true, dataDir: string, token: string, ownerId: string } | { ok: false, reason: string }}
+ * @returns {{ ok: true, dataDir: string, token: string, spareTokens: string[], ownerId: string } | { ok: false, reason: string }}
  */
 export function checkE2eSeedEnv(env, webDir = WEB_DIR) {
   if (env.E2E_AUTH !== "1") return { ok: false, reason: "E2E_AUTH=1 is required." };
@@ -28,9 +31,19 @@ export function checkE2eSeedEnv(env, webDir = WEB_DIR) {
   }
 
   const token = env.E2E_SESSION_TOKEN ?? "";
-  if (!/^[A-Za-z0-9_-]{32,128}$/.test(token)) return { ok: false, reason: "E2E_SESSION_TOKEN must be 32 to 128 letters, digits, - or _." };
+  if (!TOKEN.test(token)) return { ok: false, reason: "E2E_SESSION_TOKEN must be 32 to 128 letters, digits, - or _." };
+  // Optional: more sessions for the same test owner, for tests that sign out (comma-separated).
+  const spareSetting = env.E2E_SPARE_SESSION_TOKENS?.trim() ?? "";
+  const spareTokens = spareSetting ? spareSetting.split(",") : [];
+  if (spareTokens.length > MAX_SPARE_TOKENS) return { ok: false, reason: `E2E_SPARE_SESSION_TOKENS holds at most ${MAX_SPARE_TOKENS} tokens.` };
+  if (!spareTokens.every((t) => TOKEN.test(t))) {
+    return { ok: false, reason: "E2E_SPARE_SESSION_TOKENS must be comma-separated tokens of 32 to 128 letters, digits, - or _." };
+  }
+  if (new Set([token, ...spareTokens]).size !== spareTokens.length + 1) {
+    return { ok: false, reason: "E2E_SPARE_SESSION_TOKENS must not repeat a token or E2E_SESSION_TOKEN." };
+  }
   const ownerId = env.OWNER_GITHUB_ID?.trim() ?? "";
   if (!/^[1-9]\d{0,19}$/.test(ownerId)) return { ok: false, reason: "OWNER_GITHUB_ID must be a number." };
 
-  return { ok: true, dataDir, token, ownerId };
+  return { ok: true, dataDir, token, spareTokens, ownerId };
 }
