@@ -55,7 +55,9 @@ const isOwnerSql = (userColumn: SQL) =>
 /** Monday 00:00 IST of this week (M4-DESIGN 10.4: "this week" starts Monday, IST, until M5). */
 const WEEK_START_IST = sql.raw(`(date_trunc('week', now() at time zone 'Asia/Kolkata') at time zone 'Asia/Kolkata')`);
 /** Which section an item id belongs to (lib/ids.ts), for done counts. */
+// Courses ("cr1") come first, before any rule on a single letter, so no other rule can take them.
 const SECTION_OF_ITEM = sql.raw(`case
+  when item_id ~ '^cr[0-9]' then 'courses'
   when item_id ~ '^l[0-9]' then 'roadmap'
   when item_id ~ '^r[0-9]' then 'resources'
   when item_id ~ '^(pp|bk)[0-9]' then 'reading'

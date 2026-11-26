@@ -376,6 +376,18 @@ describe("what admins can read: counts and dates, never notes, links or emails",
     expect(second.nextOffset).toBeNull();
   });
 
+  it("users: a done course (cr…) counts under courses and in the total, as on the overview", async () => {
+    await setDone("alex", db, "cr1", true);
+    await setDone("alex", db, "cr4", true);
+    await setDone("alex", db, "c1-1", true);
+    as(holder("users.view"));
+    const alex = (await adminDb.listAdminUsers()).rows.find((r) => r.id === "alex");
+    expect(alex?.done).toEqual({ roadmap: 1, resources: 0, reading: 0, scaler: 0, certs: 1, projects: 0, career: 0, courses: 2, total: 4 });
+    // The overview's done-this-week count includes the same rows, so the two pages agree.
+    as(holder("metrics.view"));
+    expect((await adminDb.getAdminOverview()).doneThisWeek).toBe(4);
+  });
+
   it("nothing an admin reads holds a note, a link or an email address", async () => {
     as("owner");
     await adminDb.suspendUser("alex");

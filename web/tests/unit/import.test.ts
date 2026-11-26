@@ -1,6 +1,6 @@
 // The tracker import: made-up fixtures in tests/fixtures/import, run twice.
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
@@ -103,6 +103,24 @@ describe("import", () => {
     // No timestamps in the export: a fixed one, so a second run still changes nothing.
     expect(new Date(rows[1].updated_at).toISOString()).toBe("1970-01-01T00:00:00.000Z");
     expect((await runImport(path.join(FIXTURES, "array.json"))).applied.inserted).toBe(0);
+  });
+
+  it("skips a course id (cr…) as unknown: courses exist only in the app, never in the tracker", async () => {
+    // The script builds its known ids from listTrackerItems (as knownIds does here), not listItems.
+    const script = readFileSync(path.join(process.cwd(), "scripts", "import-progress.mjs"), "utf8");
+    expect(script).toContain("listTrackerItems(trackerContent)");
+    expect(script).not.toMatch(/\blistItems\b/);
+    expect(knownIds.has("cr1")).toBe(false);
+
+    const entries = [
+      { id: "cr1", value: { done: true, updatedAt: "2026-11-02T00:00:00Z", doneAt: "2026-11-02T00:00:00Z" } },
+      { id: "l1-1", value: { done: true, updatedAt: "2026-11-02T00:00:00Z", doneAt: "2026-11-02T00:00:00Z" } },
+    ];
+    const plan = planImport(entries, new Map(), knownIds, linkProblem);
+    expect(plan.counts).toMatchObject({ records: 2, unknown: 1, invalid: 0 });
+    expect(plan.writes.map((w: { itemId: string }) => w.itemId)).toEqual(["l1-1"]);
+    await applyImport(db, OWNER, plan.writes);
+    expect((await db.query("select item_id from progress where user_id = $1", [OWNER])).map((r) => r.item_id)).toEqual(["l1-1"]);
   });
 
   it("keeps the newest of duplicate records", async () => {

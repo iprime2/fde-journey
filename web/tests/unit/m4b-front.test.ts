@@ -119,9 +119,10 @@ describe("admin wording (design spec 8)", () => {
   });
 
   it("lists done counts by section, only those above zero", () => {
-    const none = { roadmap: 0, resources: 0, reading: 0, scaler: 0, certs: 0, projects: 0, career: 0 };
+    const none = { roadmap: 0, resources: 0, reading: 0, scaler: 0, certs: 0, projects: 0, career: 0, courses: 0 };
     expect(doneLine(none)).toBe("Nothing yet");
     expect(doneLine({ ...none, roadmap: 12, resources: 30, reading: 3 })).toBe("Roadmap 12 · Resources 30 · Reading 3");
+    expect(doneLine({ ...none, career: 1, courses: 2 })).toBe("Career 1 · Courses 2");
   });
 
   it("tells a waitlisted person how many are ahead", () => {

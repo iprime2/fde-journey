@@ -34,5 +34,10 @@ test.describe("another user's progress", () => {
       await expect(counted).toHaveCount(7);
       for (let i = 0; i < 7; i++) await expect(counted.nth(i)).toHaveAccessibleName(/ 0 of \d+ done$/);
     }
+    // The other user's course (cr4) gives a badge, so a leak would show in either fact.
+    await gotoReady(page, "/courses");
+    const fact = (label: string) => page.locator("header dl > div").filter({ has: page.locator("dt", { hasText: label }) }).locator("dd");
+    await expect(fact("Done")).toHaveText(/^0 of \d+$/);
+    await expect(fact("Badges earned")).toHaveText(/^0 of \d+$/);
   });
 });

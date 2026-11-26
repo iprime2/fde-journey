@@ -38,6 +38,7 @@ const DONE_LABELS: Record<DoneSection, string> = {
   certs: "Certifications",
   projects: "Projects",
   career: "Career",
+  courses: "Courses",
 };
 
 /** "Roadmap 12 · Resources 30 · Reading 3", listing only sections with at least one; "Nothing yet". */
