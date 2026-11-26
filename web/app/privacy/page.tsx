@@ -5,7 +5,7 @@
 // Numbers here are checked facts tied to their source (design spec 5, "Numbers on the page"): the
 // 6-hour restore history is Neon's history_retention_seconds (21,600) on the production project.
 // Vercel publishes no log retention for Hobby, so the page gives none. The owner-access sentence
-// waits for the owner's approval before launch.
+// was approved by the owner as written on 2026-11-26: change it only with their approval.
 import type { Metadata } from "next";
 import Link from "next/link";
 import { CenteredPage } from "@/components/CenteredPage";
