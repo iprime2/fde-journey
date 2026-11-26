@@ -3,7 +3,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const request = vi.hoisted(() => ({ headers: new Headers() }));
 const fail = vi.hoisted(() => ({ next: false }));
-vi.mock("next/headers", () => ({ headers: async () => request.headers }));
+// As in a Server Action: cookies can be set. Better Auth imports "next/headers.js" too.
+const nextHeaders = vi.hoisted(() => () => ({
+  headers: async () => request.headers,
+  cookies: async () => ({ get: () => undefined, set: () => {} }),
+}));
+vi.mock("next/headers", nextHeaders);
+vi.mock("next/headers.js", nextHeaders);
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/progress-db", async (importOriginal) => {
   const real = await importOriginal<typeof import("@/lib/progress-db")>();

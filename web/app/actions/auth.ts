@@ -5,13 +5,16 @@
 //           Sends the browser to GitHub. Afterwards Better Auth returns it to `next`, or to
 //           /login?next=…&error=… when sign-in fails ("not_owner" for another account).
 // Sign-out: <form action={signOut}>…</form>. Ends the session, then opens /login?status=signed-out.
+// Renewal: `await refreshSession()` from a client component, at most once a day. Returns { ok }.
 //
-// Neither needs the owner check: sign-in is how the owner proves who they are (the owner rule
-// runs inside Better Auth, see lib/auth.ts), and sign-out only ends the caller's own session.
+// Sign-in and sign-out need no owner check: sign-in is how the owner proves who they are (the
+// owner rule runs inside Better Auth, see lib/auth.ts), and sign-out only ends the caller's own
+// session. refreshSession checks the owner first.
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getAuth } from "@/lib/auth";
 import { SIGNED_OUT_STATUS, loginHref, safeNextPath } from "@/lib/login";
+import { getOwnerSession } from "@/lib/session";
 
 export async function signInWithGitHub(formData: FormData): Promise<void> {
   const next = safeNextPath(formData.get("next"));
@@ -40,4 +43,22 @@ export async function signOut(): Promise<void> {
     // No session (already signed out) or the database is unreachable: still leave the app.
   }
   redirect(`/login?status=${SIGNED_OUT_STATUS}`);
+}
+
+/**
+ * Keeps the owner signed in while they use the app. Pages cannot set cookies, so they never renew
+ * the session; this Server Action can. When the session is due (a day after it was last renewed)
+ * Better Auth extends it to 30 days from now in the database and in the cookie together; otherwise
+ * nothing changes. Owner only: returns { ok: false } and does nothing when signed out or for any
+ * other account (whose session getOwnerSession revokes).
+ */
+export async function refreshSession(): Promise<{ ok: boolean }> {
+  try {
+    if (!(await getOwnerSession())) return { ok: false };
+    const auth = await getAuth();
+    const result = await auth.api.getSession({ headers: await headers(), query: { disableCookieCache: true } });
+    return { ok: result !== null };
+  } catch {
+    return { ok: false };
+  }
 }

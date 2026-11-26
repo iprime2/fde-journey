@@ -1,8 +1,18 @@
-// The auth route handler and the sign-in and sign-out actions: signed out, wrong user, owner.
+// The auth route handler and the sign-in, sign-out and refresh actions: signed out, wrong user, owner.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const request = vi.hoisted(() => ({ headers: new Headers() }));
-vi.mock("next/headers", () => ({ headers: async () => request.headers, cookies: async () => ({ set: () => {}, get: () => undefined }) }));
+const request = vi.hoisted(() => ({ headers: new Headers(), cookiesSet: [] as { name: string; options: { maxAge?: number } }[] }));
+// Better Auth's Next.js plugin writes cookies through cookies().set(), as it does in a Server
+// Action. It imports "next/headers.js" (with the extension), so both names are mocked.
+const nextHeaders = vi.hoisted(() => () => ({
+  headers: async () => request.headers,
+  cookies: async () => ({
+    set: (name: string, _value: string, options: { maxAge?: number }) => request.cookiesSet.push({ name, options }),
+    get: () => undefined,
+  }),
+}));
+vi.mock("next/headers", nextHeaders);
+vi.mock("next/headers.js", nextHeaders);
 vi.mock("next/navigation", () => ({
   redirect: (url: string) => {
     throw new Error(`REDIRECT ${url}`);
@@ -10,8 +20,9 @@ vi.mock("next/navigation", () => ({
 }));
 
 import { GET, POST } from "@/app/api/auth/[...all]/route";
-import { signInWithGitHub, signOut } from "@/app/actions/auth";
+import { refreshSession, signInWithGitHub, signOut } from "@/app/actions/auth";
 import type { Db } from "@/db/client";
+import { eq } from "drizzle-orm";
 import { session, verification } from "@/db/schema";
 import { emptyDb, resetAuth, seedOtherUser, seedOwner, setTestEnv } from "./support/db";
 
@@ -22,6 +33,7 @@ let db: Db;
 beforeEach(async () => {
   db = await emptyDb();
   request.headers = new Headers();
+  request.cookiesSet = [];
   process.env.GITHUB_CLIENT_ID = "test-client-id";
   process.env.GITHUB_CLIENT_SECRET = "test-client-secret";
   resetAuth();
@@ -108,5 +120,43 @@ describe("signOut", () => {
     request.headers = new Headers({ cookie: (await seedOwner(db)).cookie });
     expect(await redirectOf(signOut())).toBe("/login?status=signed-out");
     expect(await db.select().from(session)).toEqual([]);
+  });
+});
+
+describe("refreshSession", () => {
+  const DAY = 24 * 60 * 60 * 1000;
+  const sessionCookieSets = () => request.cookiesSet.filter((c) => c.name === "better-auth.session_token");
+  const expiryOf = async (userId: string) => (await db.select().from(session).where(eq(session.userId, userId)))[0]?.expiresAt;
+
+  it("signed out: does nothing", async () => {
+    expect(await refreshSession()).toEqual({ ok: false });
+    expect(request.cookiesSet).toEqual([]);
+  });
+
+  it("wrong user: does nothing for them, and their session is revoked", async () => {
+    await seedOwner(db);
+    request.headers = new Headers({ cookie: (await seedOtherUser(db)).cookie });
+    expect(await refreshSession()).toEqual({ ok: false });
+    expect(sessionCookieSets()).toEqual([]);
+    expect((await db.select().from(session)).map((s) => s.userId)).toEqual(["owner"]);
+  });
+
+  it("owner, session due: renews it for 30 days in the database and in the cookie", async () => {
+    // Seeded sessions expire in one day, so they are due for renewal.
+    request.headers = new Headers({ cookie: (await seedOwner(db)).cookie });
+    expect(await refreshSession()).toEqual({ ok: true });
+    const expires = await expiryOf("owner");
+    expect(expires!.getTime()).toBeGreaterThan(Date.now() + 29 * DAY);
+    expect(sessionCookieSets()).toHaveLength(1);
+    expect(sessionCookieSets()[0].options.maxAge).toBe(30 * 24 * 60 * 60);
+  });
+
+  it("owner, renewed less than a day ago: changes nothing", async () => {
+    request.headers = new Headers({ cookie: (await seedOwner(db)).cookie });
+    const fresh = new Date(Date.now() + 30 * DAY);
+    await db.update(session).set({ expiresAt: fresh }).where(eq(session.userId, "owner"));
+    expect(await refreshSession()).toEqual({ ok: true });
+    expect((await expiryOf("owner"))!.getTime()).toBe(fresh.getTime());
+    expect(sessionCookieSets()).toEqual([]);
   });
 });

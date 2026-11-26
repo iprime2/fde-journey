@@ -11,6 +11,9 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["tests/unit/**/*.test.ts"],
+    // Run Better Auth through Vitest's pipeline so its own `import("next/headers.js")` sees the
+    // tests' mocks (the cookie a Server Action sets can then be checked).
+    server: { deps: { inline: [/better-auth/] } },
     // In-memory Postgres (PGlite) starts in about a second per test file.
     testTimeout: 30_000,
     hookTimeout: 30_000,

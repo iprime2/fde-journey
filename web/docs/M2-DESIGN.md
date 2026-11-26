@@ -10,9 +10,11 @@ Status: built 2026-11-26 by the backend engineer. Front-end wiring (tick boxes, 
 GitHub sign-in through Better Auth (`lib/auth.ts`, route `app/api/auth/[...all]/route.ts`). Only the account whose numeric GitHub id equals `OWNER_GITHUB_ID` gets in (logins can be renamed, ids cannot). Enforced three times:
 1. `user.validateUserInfo` (`lib/owner.ts`) runs before Better Auth creates a user, links an account, and on every GitHub sign-in, with GitHub's fresh profile. Anyone else is sent to `/login?next=…&error=not_owner` and no user, account or session row is written (proved end to end in `tests/unit/auth-flow.test.ts` with a fake GitHub).
 2. `databaseHooks.session.create.before` refuses a session for any user without the owner's GitHub account, whatever path asks.
-3. `getOwnerSession()` (`lib/session.ts`) re-checks the account on every request, so changing `OWNER_GITHUB_ID` locks the old account out at once.
+3. `getOwnerSession()` (`lib/session.ts`) re-checks the account on every request. A valid session whose user fails the check is deleted (revoked) as well as refused. If `OWNER_GITHUB_ID` is missing, nobody gets in, but sessions are kept: a misconfiguration should not wipe them.
 
-Also: account linking off, OAuth tokens encrypted at rest, unused Better Auth endpoints answer 404, telemetry off, 30-day sessions refreshed daily. Better Auth turns its origin/CSRF check off when `NODE_ENV=test`; it is forced on so tests cover it.
+Also: account linking off, OAuth tokens encrypted at rest, unused Better Auth endpoints answer 404, telemetry off. Better Auth turns its origin/CSRF check off when `NODE_ENV=test`; it is forced on so tests cover it.
+
+Session renewal: sessions last 30 days. Pages cannot set cookies, so page reads never renew a session (`disableRefresh`). Otherwise Better Auth would extend it in the database but not in the browser. Renewal happens only in the `refreshSession()` Server Action. It checks the owner first; once a day has passed since the last renewal, it extends the session to 30 days from now in the database and in the cookie together. The owner is signed out only after 30 days without opening the app.
 
 `proxy.ts` sends visitors without a session cookie to `/login?next=…` before any page renders (no flash of content). It only checks that the cookie exists, as the Next docs advise; the real check is in the data layer. `next` is validated by `safeNextPath()` (same-site paths only; no `//`, backslashes, control characters, `/login` or `/api/`). Server Action requests pass the proxy and get a typed `signed-out` result instead of a redirect.
 
@@ -41,4 +43,10 @@ Input: a folder of `*.json` files (one record each; id from the `id` field or th
 - Data: `getProgress()` from `@/lib/data` (now redirects non-owners to `/login`); `isReadOnly()` from `@/lib/mode` replaces `READ_ONLY_PREVIEW` (server-only and async: call it inside `<Suspense>` and pass `readOnly` down). Pure helpers and types stay in `@/lib/progress`.
 - Saving (`@/app/actions/progress`): `toggleDone(itemId, done)`, `saveNote(itemId, note)`, `saveLink(itemId, link)`, `saveJournal(note)`. Each returns `SaveResult` (`@/lib/save-result`): `{ ok: true, record }` or `{ ok: false, error }`, where `error.code` is `signed-out` (show the "signed out" banner), `invalid` (with `field` and a message ready to show, e.g. "Links must start with https://"), or `failed` (retry). Each success refreshes every page (`revalidatePath("/", "layout")`), and the current page re-renders in the same response.
 - Shared link rule: `linkProblem()` in `@/lib/notes` (the same rule the server applies).
+- Keeping the owner signed in: `refreshSession()` from `@/app/actions/auth`, called at most once a day from a small client component (for example on mount, remembering the last call in `localStorage`). Returns `{ ok }`: `ok: false` means signed out or not the owner (do nothing; the next page load goes to `/login`). Calling it more often is harmless: renewal only happens once a day has passed.
 - Sign-in page: `parseLoginParams(searchParams)` from `@/lib/login` gives `next` and the notice (`not-owner`, `failed`, `signed-out`). Button: `<form action={signInWithGitHub}>` with a hidden `next` input (`@/app/actions/auth`). Sign out: `<form action={signOut}>`; it lands on `/login?status=signed-out`.
+
+## M3 setup notes
+- Sign-in works on the production address only: `BETTER_AUTH_URL` and the GitHub OAuth app's callback URL point there. Vercel preview deployments cannot sign in, so they show nothing private (every page sends them to `/login`).
+- Changing `OWNER_GITHUB_ID` signs everyone else out on their next request: their sessions fail the owner check and are deleted.
+- Run `DATABASE_URL=… npm run db:migrate` before the first deploy and after every new migration.

@@ -2,12 +2,22 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const request = vi.hoisted(() => ({ headers: new Headers(), reads: 0 }));
-vi.mock("next/headers", () => ({
+// As in a Server Component: headers can be read, cookies cannot be set. Better Auth's Next.js
+// plugin imports "next/headers.js", so both names are mocked.
+const nextHeaders = vi.hoisted(() => () => ({
   headers: async () => {
     request.reads += 1;
     return request.headers;
   },
+  cookies: async () => ({
+    get: () => undefined,
+    set: () => {
+      throw new Error("Cookies can only be modified in a Server Action or Route Handler.");
+    },
+  }),
 }));
+vi.mock("next/headers", nextHeaders);
+vi.mock("next/headers.js", nextHeaders);
 vi.mock("next/navigation", () => ({
   redirect: (url: string) => {
     throw new Error(`REDIRECT ${url}`);
@@ -57,19 +67,39 @@ describe("getOwnerSession", () => {
     expect(await isReadOnly()).toBe(false);
   });
 
-  it("returns null for a valid session of another GitHub account", async () => {
+  it("returns null for a valid session of another GitHub account, and revokes that session", async () => {
     const db = await emptyDb();
+    await seedOwner(db);
     useCookie((await seedOtherUser(db)).cookie);
     expect(await getOwnerSession()).toBeNull();
+    expect((await db.select().from(session)).map((s) => s.userId)).toEqual(["owner"]);
   });
 
-  it("returns null when OWNER_GITHUB_ID changes after sign-in", async () => {
+  it("signs the old owner out when OWNER_GITHUB_ID changes after sign-in", async () => {
     const db = await emptyDb();
     useCookie((await seedOwner(db)).cookie);
     process.env.OWNER_GITHUB_ID = "900000000009";
     expect(await getOwnerSession()).toBeNull();
+    expect(await db.select().from(session)).toEqual([]);
+    process.env.OWNER_GITHUB_ID = OWNER_ID;
+    expect(await getOwnerSession()).toBeNull();
+  });
+
+  it("keeps sessions when OWNER_GITHUB_ID is missing (a misconfiguration), but lets nobody in", async () => {
+    const db = await emptyDb();
+    useCookie((await seedOwner(db)).cookie);
     delete process.env.OWNER_GITHUB_ID;
     expect(await getOwnerSession()).toBeNull();
+    expect(await db.select().from(session)).toHaveLength(1);
+  });
+
+  it("never renews the session while reading it (pages cannot set cookies)", async () => {
+    const db = await emptyDb();
+    useCookie((await seedOwner(db)).cookie);
+    const [before] = await db.select().from(session);
+    expect(await getOwnerSession()).not.toBeNull();
+    const [after] = await db.select().from(session);
+    expect(after.expiresAt.getTime()).toBe(before.expiresAt.getTime());
   });
 
   it("returns null for a forged signature, an unknown token or an expired session", async () => {

@@ -3,8 +3,10 @@ import "server-only";
 import { getSessionCookie } from "better-auth/cookies";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { eq } from "drizzle-orm";
 import { cache } from "react";
 import { getDb } from "@/db/client";
+import { session } from "@/db/schema";
 import { getAuth, isOwnerUser } from "./auth";
 import { PATH_HEADER, loginHref } from "./login";
 import { ownerGithubId } from "./owner";
@@ -29,10 +31,18 @@ export const getOwnerSession = cache(async (): Promise<OwnerSession | null> => {
   if (!ownerId) return null;
   if (!getSessionCookie(requestHeaders)) return null;
   const auth = await getAuth();
-  const result = await auth.api.getSession({ headers: requestHeaders });
+  // Read-only: pages cannot set cookies, so a refresh here would extend the session in the
+  // database but not in the browser. Renewal happens only in refreshSession() (app/actions/auth.ts),
+  // which updates both together.
+  const result = await auth.api.getSession({ headers: requestHeaders, query: { disableRefresh: true } });
   if (!result) return null;
-  // Re-check the owner on every request: OWNER_GITHUB_ID may have changed since sign-in.
-  if (!(await isOwnerUser(await getDb(), result.user.id, ownerId))) return null;
+  // Re-check the owner on every request: OWNER_GITHUB_ID may have changed since sign-in. A valid
+  // session that fails the check is revoked, so changing the owner signs everyone else out.
+  const db = await getDb();
+  if (!(await isOwnerUser(db, result.user.id, ownerId))) {
+    await db.delete(session).where(eq(session.id, result.session.id));
+    return null;
+  }
   return { userId: result.user.id, name: result.user.name, image: result.user.image ?? null };
 });
 
