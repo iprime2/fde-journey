@@ -1,0 +1,262 @@
+"use client";
+
+// Settings: the Sections card (design spec 5, /settings) and, until Scaler is unlocked, the
+// "Scaler course" access-code card (M4-DESIGN 10.2). They share one state: entering the code
+// unlocks Scaler and turns it on, so its switch changes too.
+//
+// Switches save like ticks: they change at once; a failed save puts the switch back and shows
+// "Couldn't save this change." with Try again (focus to the switch first). Offline or signed out,
+// they are disabled. Each change refreshes the navigation (the actions revalidate the layout).
+import { useId, useRef, useState } from "react";
+import { setSectionVisible, unlockScalerSection } from "@/app/actions/settings";
+import { type SectionChoices, SWITCHABLE_SECTIONS, type SwitchableSection } from "@/lib/access-types";
+import { SECTION_LABELS } from "@/lib/nav";
+import { CARD_STYLES, CardHead } from "../Card";
+import { cn } from "../cn";
+import { callAction, useNotices } from "../notices";
+import { InlineButton } from "../save/SaveLines";
+import { useCanWrite, useSaveStatus } from "../save/SaveStatusProvider";
+import { Switch } from "../Switch";
+import { Spinner, buttonStyles } from "../ui";
+
+const DESCRIPTIONS: Record<keyof SectionChoices, string> = {
+  roadmap: "Phases, tasks and learning resources.",
+  reading: "Research papers and books.",
+  scaler: "Classes for the Scaler course. Turn on if you're taking it.",
+  certs: "Certifications in a suggested order.",
+  projects: "Three portfolio projects, step by step.",
+  career: "Career milestones and your Weekly notes.",
+};
+
+const SCALER_LOCKED = "Needs the Scaler access code first (below).";
+
+export function SectionSettings({ initial, scalerUnlocked: initialUnlocked }: { initial: SectionChoices; scalerUnlocked: boolean }) {
+  const [sections, setSections] = useState(initial);
+  const [scalerUnlocked, setScalerUnlocked] = useState(initialUnlocked);
+  const scalerSwitch = useRef<HTMLInputElement>(null);
+  const titleId = useId();
+
+  return (
+    <>
+      <section aria-labelledby={titleId} className={CARD_STYLES}>
+        <CardHead
+          titleId={titleId}
+          title="Sections"
+          sub="Choose what shows in your menu and on Home. Hidden sections keep their progress, so you can turn them back on any time."
+        />
+        <ul>
+          <li className="grid min-h-16 grid-cols-[minmax(0,1fr)_auto] items-start gap-x-4 border-t border-line px-4 py-2.5">
+            <div className="grid gap-0.5 py-0.5">
+              <span className="type-body-strong">{SECTION_LABELS.roadmap}</span>
+              <span className="type-small max-w-[34em] text-muted">{DESCRIPTIONS.roadmap}</span>
+            </div>
+            <span className="type-small -my-2.5 flex min-h-11 items-center text-muted">Always on</span>
+          </li>
+          {SWITCHABLE_SECTIONS.map((section) => (
+            <SectionRow
+              key={section}
+              section={section}
+              on={sections[section]}
+              locked={section === "scaler" && !scalerUnlocked}
+              inputRef={section === "scaler" ? scalerSwitch : undefined}
+              onSaved={setSections}
+            />
+          ))}
+        </ul>
+      </section>
+      {!scalerUnlocked && (
+        <ScalerCodeCard
+          onUnlocked={(next) => {
+            setSections(next);
+            setScalerUnlocked(true);
+            // The card goes; focus moves to the switch it just turned on.
+            requestAnimationFrame(() => scalerSwitch.current?.focus());
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+function SectionRow({
+  section,
+  on,
+  locked,
+  inputRef,
+  onSaved,
+}: {
+  section: SwitchableSection;
+  on: boolean;
+  locked: boolean;
+  inputRef?: React.RefObject<HTMLInputElement | null>;
+  onSaved(next: SectionChoices): void;
+}) {
+  const inputId = useId();
+  const descriptionId = useId();
+  const lockedId = useId();
+  const failedId = useId();
+  const ownRef = useRef<HTMLInputElement>(null);
+  const ref = inputRef ?? ownRef;
+  const save = useSaveStatus();
+  const canWrite = useCanWrite(false);
+  // What the switch shows: the saved value, or the change on its way.
+  const [shown, setShown] = useState<boolean | null>(null);
+  const [failedTarget, setFailedTarget] = useState<boolean | null>(null);
+  const checked = shown ?? on;
+  const failureKey = `section:${section}`;
+
+  async function change(next: boolean) {
+    setShown(next);
+    setFailedTarget(null);
+    const result = await callAction(() => setSectionVisible(section, next));
+    setShown(null);
+    if (result.ok) {
+      save.clearFailure(failureKey);
+      onSaved(result.value);
+      return;
+    }
+    if (result.error.code === "signed-out") {
+      save.markSignedOut();
+      return;
+    }
+    setFailedTarget(next);
+    save.reportFailure(failureKey);
+  }
+
+  return (
+    <li className="grid min-h-16 grid-cols-[minmax(0,1fr)_auto] items-start gap-x-4 border-t border-line px-4 py-2.5">
+      <div className="grid gap-0.5 py-0.5">
+        <label htmlFor={inputId} className="type-body-strong w-fit cursor-pointer">
+          {SECTION_LABELS[section]}
+        </label>
+        <span id={descriptionId} className="type-small max-w-[34em] text-muted">
+          {DESCRIPTIONS[section]}
+        </span>
+        {locked && (
+          <span id={lockedId} className="type-small max-w-[34em] text-muted">
+            {SCALER_LOCKED}
+          </span>
+        )}
+        {failedTarget !== null && (
+          <p className="type-small text-danger">
+            <span id={failedId}>Couldn&apos;t save this change.</span>{" "}
+            <InlineButton
+              describedBy={failedId}
+              disabled={!canWrite}
+              onClick={() => {
+                // The line goes once the change saves, so focus moves to the switch first.
+                ref.current?.focus();
+                void change(failedTarget);
+              }}
+            >
+              Try again
+            </InlineButton>
+          </p>
+        )}
+      </div>
+      <span className="-my-2.5">
+        <Switch
+          id={inputId}
+          inputRef={ref}
+          checked={checked}
+          disabled={!canWrite || locked}
+          describedBy={cn(descriptionId, locked && lockedId) || undefined}
+          onChange={(next) => void change(next)}
+        />
+      </span>
+    </li>
+  );
+}
+
+const CODE_FAILED = "Couldn't check the code. Check your connection and try again.";
+
+/** Unlocks Scaler with the access code. Five tries an hour; the server counts them. */
+function ScalerCodeCard({ onUnlocked }: { onUnlocked(next: SectionChoices): void }) {
+  const titleId = useId();
+  const fieldId = useId();
+  const hintId = useId();
+  const errorId = useId();
+  const field = useRef<HTMLInputElement>(null);
+  const save = useSaveStatus();
+  const notices = useNotices();
+  const canWrite = useCanWrite(false);
+  const [code, setCode] = useState("");
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit() {
+    if (pending) return;
+    if (code.trim() === "") {
+      setError("Enter the access code.");
+      field.current?.focus();
+      return;
+    }
+    setPending(true);
+    setError(null);
+    const result = await callAction(() => unlockScalerSection(code));
+    setPending(false);
+    if (result.ok) {
+      notices.info("Scaler course is unlocked and on.");
+      onUnlocked(result.value.sections);
+      return;
+    }
+    if (result.error.code === "signed-out") {
+      save.markSignedOut();
+      return;
+    }
+    setError(result.error.code === "failed" ? CODE_FAILED : result.error.message);
+    requestAnimationFrame(() => field.current?.focus());
+  }
+
+  return (
+    <section aria-labelledby={titleId} className={CARD_STYLES}>
+      <CardHead titleId={titleId} title="Scaler course" />
+      <form
+        className="grid gap-3 px-4 pb-4"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void submit();
+        }}
+      >
+        <p id={hintId} className="type-small max-w-[34em] text-muted">
+          The Scaler section is for people taking the Scaler course. Enter the access code you were given to unlock it.
+          You only need to do this once.
+        </p>
+        <div className="grid gap-1.5">
+          <label htmlFor={fieldId} className="type-body-strong w-fit">
+            Access code
+          </label>
+          <div className="flex flex-wrap items-start gap-2">
+            <input
+              ref={field}
+              id={fieldId}
+              type="text"
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              autoComplete="off"
+              autoCapitalize="characters"
+              spellCheck={false}
+              maxLength={64}
+              disabled={pending}
+              aria-invalid={error ? true : undefined}
+              aria-describedby={cn(hintId, error && errorId) || undefined}
+              className={cn(
+                "type-input h-11 min-w-0 flex-[1_1_200px] rounded-md border bg-surface px-3 text-ink",
+                error ? "border-danger" : "border-line-strong",
+              )}
+            />
+            <button type="submit" disabled={!canWrite || pending} aria-busy={pending || undefined} className={buttonStyles.secondary}>
+              {pending && <Spinner />}
+              {pending ? "Checking…" : "Unlock"}
+            </button>
+          </div>
+          {error && (
+            <p id={errorId} className="type-small text-danger">
+              {error}
+            </p>
+          )}
+        </div>
+      </form>
+    </section>
+  );
+}

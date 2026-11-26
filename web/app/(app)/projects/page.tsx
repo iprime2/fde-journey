@@ -13,6 +13,7 @@ import { filterFromRecord } from "@/lib/filter";
 import { getProgress } from "@/lib/data";
 import { isReadOnly } from "@/lib/mode";
 import { filterEntries, projectsView } from "@/lib/views";
+import { requireSection } from "@/components/nav/navData";
 
 export const metadata: Metadata = { title: "Projects" };
 
@@ -29,6 +30,7 @@ export default function ProjectsPage({ searchParams }: PageProps<"/projects">) {
 }
 
 async function ProjectsContent({ searchParams }: Pick<PageProps<"/projects">, "searchParams">) {
+  await requireSection("projects");
   const [sp, progress, readOnly] = await Promise.all([searchParams, getProgress(), isReadOnly()]);
   const cards = projectsView(trackerContent, progress);
   return (

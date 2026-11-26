@@ -180,7 +180,7 @@ export function ConfirmDialog({
             />
             {fieldError && (
               <p id={fieldErrorId} className="type-small text-danger">
-                {fieldError}
+                <NoBreak text={fieldError} word={typed.expected} />
               </p>
             )}
           </div>
@@ -208,4 +208,16 @@ export function ConfirmDialog({
       </form>
     </dialog>
   );
+}
+
+/** `text` with every `word` in it kept on one line (a username must not break at its hyphen). */
+function NoBreak({ text, word }: { text: string; word: string }) {
+  if (!word || !text.includes(word)) return text;
+  const parts = text.split(word);
+  return parts.map((part, i) => (
+    <span key={i}>
+      {part}
+      {i < parts.length - 1 && <span className="whitespace-nowrap">{word}</span>}
+    </span>
+  ));
 }

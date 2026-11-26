@@ -3,18 +3,21 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "../cn";
-import { SECTIONS, isCurrentSection } from "./sections";
+import { ADMIN_ITEM, type ExtraItem, SETTINGS_ITEM, isCurrentExtra, isCurrentSection, sectionFor } from "./sections";
 
-/** A desktop sidebar link (design spec 3.2). `count` is rendered on the server. */
-export function NavLink({ href, count }: { href: string; count?: React.ReactNode }) {
+/**
+ * A desktop sidebar link (design spec 3.2): a section (looked up by `href`), or Settings or Admin
+ * (`item`, design spec 3.5; Admin is current on every admin page). `count` is rendered on the server.
+ */
+export function NavLink({ href, item, count }: { href: string; item?: ExtraItem; count?: React.ReactNode }) {
   const pathname = usePathname();
-  const section = SECTIONS.find((s) => s.href === href);
-  if (!section) return null;
-  const current = isCurrentSection(pathname, href);
-  const { Icon } = section;
+  const entry = item ? (item === "settings" ? SETTINGS_ITEM : ADMIN_ITEM) : sectionFor(href);
+  if (!entry) return null;
+  const current = item ? isCurrentExtra(pathname, item) : isCurrentSection(pathname, href);
+  const { Icon } = entry;
   return (
     <Link
-      href={section.href}
+      href={href}
       aria-current={current ? "page" : undefined}
       className={cn(
         "flex min-h-11 items-center gap-3 rounded-md px-3 motion-safe:transition-[color,background-color,border-color] motion-safe:duration-150",
@@ -22,7 +25,7 @@ export function NavLink({ href, count }: { href: string; count?: React.ReactNode
       )}
     >
       <Icon size={20} className={current ? "text-accent" : "text-muted"} />
-      <span className="type-body-strong flex-1">{section.label}</span>
+      <span className="type-body-strong flex-1">{entry.label}</span>
       {count}
     </Link>
   );

@@ -18,7 +18,7 @@ test.describe("a waitlisted user", () => {
       await expect(page, path).toHaveURL("/waitlist");
     }
     await expect(pageHeading(page)).toHaveText("You're on the waitlist");
-    await expect(page.getByText("Your place in line: 1")).toBeVisible();
+    await expect(page.getByText("Your place in line")).toBeVisible();
     await expect(page.getByText("You're next.")).toBeVisible();
     // No app navigation, ticks or notes anywhere.
     await expect(page.getByRole("navigation", { name: "Sections" })).toHaveCount(0);

@@ -61,6 +61,17 @@ export function parseWholeNumber(value: string, min: number, max: number): numbe
   return n >= min && n <= max ? n : null;
 }
 
+/**
+ * The typed confirm for "Delete my account": the GitHub username, trimmed, without a leading "@",
+ * any case (GitHub usernames are case-insensitive). Null when it matches.
+ */
+export function usernameProblem(typed: string, expected: string): string | null {
+  const value = typed.trim().replace(/^@/, "");
+  if (!value) return "Type your GitHub username to confirm.";
+  if (value.toLowerCase() !== expected.toLowerCase()) return `That doesn't match your username. Type ${expected}.`;
+  return null;
+}
+
 // ---- Waitlist: letting people in
 
 /** The most that "Let them in" may ask for: the smaller of free places and people waiting. */

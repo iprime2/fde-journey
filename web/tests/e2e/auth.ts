@@ -56,8 +56,26 @@ export function spareSessionToken(name: SpareSession, project: string, attempt: 
  * `test.use({ as: "waitlisted" })`. Each has its own session per project and attempt, as spare
  * sessions do, so a test that ends one (a suspended user's is ended on sight) touches no other.
  */
-export const E2E_USER_KEYS = ["active", "waitlisted", "suspended", "admin"] as const;
+export const E2E_USER_KEYS = [
+  "active",
+  "waitlisted",
+  "suspended",
+  "admin",
+  "settings-desktop",
+  "settings-phone",
+  "deleter-desktop",
+  "deleter-phone",
+  "leaver-desktop",
+  "leaver-phone",
+] as const;
 export type E2eUser = (typeof E2E_USER_KEYS)[number];
+
+/**
+ * Spare users that tests change (scripts/lib/e2e-data.mjs): `test.use({ as: "settings" })` signs
+ * in as "settings-desktop" or "settings-phone", by the project, so the two never share one.
+ */
+export const PER_PROJECT_USERS = ["settings", "deleter", "leaver"] as const;
+export type PerProjectUser = (typeof PER_PROJECT_USERS)[number];
 
 export function userSessionToken(user: E2eUser, project: string, attempt: number): string {
   if (!Number.isInteger(attempt) || attempt < 0 || attempt >= SPARE_ATTEMPTS) {

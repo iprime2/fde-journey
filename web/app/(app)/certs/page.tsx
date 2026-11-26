@@ -13,6 +13,7 @@ import { filterFromRecord } from "@/lib/filter";
 import { getProgress } from "@/lib/data";
 import { isReadOnly } from "@/lib/mode";
 import { certsView, filterEntries } from "@/lib/views";
+import { requireSection } from "@/components/nav/navData";
 
 export const metadata: Metadata = { title: "Certifications" };
 
@@ -29,6 +30,7 @@ export default function CertsPage({ searchParams }: PageProps<"/certs">) {
 }
 
 async function CertsContent({ searchParams }: Pick<PageProps<"/certs">, "searchParams">) {
+  await requireSection("certs");
   const [sp, progress, readOnly] = await Promise.all([searchParams, getProgress(), isReadOnly()]);
   const cards = certsView(trackerContent, progress);
   return (

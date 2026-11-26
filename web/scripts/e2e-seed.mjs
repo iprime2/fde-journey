@@ -17,6 +17,7 @@
 // Nothing in the app knows about this: there is no test sign-in route or flag in production code.
 // The seed refuses to run unless scripts/lib/e2e-guard.mjs passes (E2E_AUTH=1, not on Vercel, no
 // DATABASE_URL, and a folder named pglite-e2e* directly inside web/.data/).
+import { randomBytes, scryptSync } from "node:crypto";
 import { rmSync } from "node:fs";
 import { checkE2eSeedEnv } from "./lib/e2e-guard.mjs";
 import { openScriptDb } from "./lib/db.mjs";
@@ -28,6 +29,8 @@ import {
   E2E_OTHER_LINK,
   E2E_OTHER_NOTE,
   E2E_OTHER_USER,
+  E2E_SCALER_CODE,
+  E2E_TARGETS,
   E2E_USERS,
 } from "./lib/e2e-data.mjs";
 
@@ -75,18 +78,20 @@ try {
 
   // M4b users. The waitlisted user joined a day ago; the owner's GitHub login is set as sign-in would.
   await db.query(`update "user" set github_login = 'sam-example' where id = 'e2e-owner'`);
-  for (const u of Object.values(E2E_USERS)) {
+  for (const u of [...Object.values(E2E_USERS), ...Object.values(E2E_TARGETS)]) {
+    // Wren Waiting joined a day ago; every spare waitlisted user an hour ago, so Wren stays first.
+    const joined = u.id === E2E_USERS.waitlisted.id ? "1 day" : "1 hour";
     await db.query(
       `insert into "user" (id, name, email, email_verified, github_login, status, activated_at, waitlisted_at, created_at, updated_at)
        values ($1, $2, $3, true, $4, $5,
-         case when $5 = 'active' then now() end, case when $5 = 'waitlisted' then now() - interval '1 day' end, now() - interval '2 days', now())`,
-      [u.id, u.name, `${u.login}@example.com`, u.login, u.status],
+         case when $5 = 'active' then now() end, case when $5 = 'waitlisted' then now() - $6::interval end, now() - interval '2 days', now())`,
+      [u.id, u.name, `${u.login}@example.com`, u.login, u.status, joined],
     );
     await db.query(
       `insert into account (id, account_id, provider_id, user_id, created_at, updated_at) values ($1, $2, 'github', $3, now(), now())`,
       [`${u.id}-github`, u.githubId, u.id],
     );
-    for (const permission of u.permissions) {
+    for (const permission of u.permissions ?? []) {
       await db.query(`insert into user_permission (user_id, permission, granted_by) values ($1, $2, 'e2e-owner')`, [u.id, permission]);
     }
   }
@@ -99,6 +104,14 @@ try {
   if (check.exportKeyHash) {
     await db.query(`insert into export_token (user_id, token_hash) values ($1, $2)`, [E2E_USERS.active.id, check.exportKeyHash]);
   }
+
+  // The made-up Scaler access code, stored as the app stores it (lib/access-code.ts): scrypt with
+  // N=2^15, r=8, p=1 over the normalised code (trimmed, NFKC, upper case).
+  const salt = randomBytes(16);
+  const key = scryptSync(E2E_SCALER_CODE.normalize("NFKC").trim().toUpperCase(), salt, 32, { N: 32768, r: 8, p: 1, maxmem: 64 * 1024 * 1024 });
+  await db.query(`insert into app_setting (key, value) values ('scaler_code_hash', $1)`, [
+    ["scrypt", 32768, 8, 1, salt.toString("base64url"), key.toString("base64url")].join("$"),
+  ]);
 
   const sessions = [
     ["e2e-session", check.token, "e2e-owner"],

@@ -13,6 +13,7 @@ import { filterFromRecord } from "@/lib/filter";
 import { getProgress } from "@/lib/data";
 import { isReadOnly } from "@/lib/mode";
 import { JOURNAL_SUB, careerView, filterEntries, journalEntry } from "@/lib/views";
+import { requireSection } from "@/components/nav/navData";
 
 export const metadata: Metadata = { title: "Career" };
 
@@ -29,6 +30,7 @@ export default function CareerPage({ searchParams }: PageProps<"/career">) {
 }
 
 async function CareerContent({ searchParams }: Pick<PageProps<"/career">, "searchParams">) {
+  await requireSection("career");
   const [sp, progress, readOnly] = await Promise.all([searchParams, getProgress(), isReadOnly()]);
   const { milestones, journalNote } = careerView(trackerContent, progress);
   const entries = [...filterEntries([milestones]), journalEntry(journalNote)];

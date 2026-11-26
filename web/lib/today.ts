@@ -10,3 +10,9 @@ export async function getTodayIst(): Promise<string> {
   await connection();
   return istDate(Date.now());
 }
+
+/** The current time at request time (epoch ms), for "Today", "Yesterday" and the like. */
+export async function getNowMs(): Promise<number> {
+  await connection();
+  return Date.now();
+}
