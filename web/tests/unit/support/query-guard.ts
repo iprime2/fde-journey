@@ -1,4 +1,5 @@
-// Static check that every query on the per-user tables is scoped to a user. Used by
+// Static check that every query on the per-user tables (progress, progress_event, user_settings,
+// export_token) is scoped to a user. Used by
 // tests/unit/isolation-guard.test.ts on the app's own files, and on small bad examples (the
 // reviewer's probes among them) to prove it catches them. It reads code with the TypeScript
 // parser; nothing is run.
@@ -23,10 +24,18 @@
 // 5. In the allowed TypeScript files, exported functions (declarations, arrow functions, and
 //    functions wrapped in a call such as `cache(...)`) that take a database (`Db`) take
 //    `userId: string` as their required first argument, except pure helpers in PURE_EXPORTS.
+// 6. Admin modules (`adminFiles`, M4b) read across users on purpose, so rules 3 and 4 don't apply
+//    to them. Instead:
+//    - every exported function starts with `await requirePermission(…)` (as a statement, or as the
+//      initializer of its first `const`), so nothing in the module runs before the permission check;
+//    - SQL naming a per-user table sits inside one of the module's reviewed functions (listed by
+//      name with the file), and names only progress or progress_event, never their note or link
+//      columns: counts and dates only;
+//    - the module imports no table object for a per-user table (raw SQL only, so all of it is seen).
 import ts from "typescript";
 
-export const TABLE_OBJECTS = ["progress", "progressEvent"] as const;
-export const TABLE_NAMES = ["progress", "progress_event"] as const;
+export const TABLE_OBJECTS = ["progress", "progressEvent", "userSettings", "exportToken"] as const;
+export const TABLE_NAMES = ["progress", "progress_event", "user_settings", "export_token"] as const;
 const TABLE_KEYS: readonly string[] = [...TABLE_OBJECTS, ...TABLE_NAMES];
 
 export interface GuardOptions {
@@ -39,6 +48,11 @@ export interface GuardOptions {
    * matched exactly, per file. Each one needs a reason where it is listed.
    */
   reviewed?: ReadonlyMap<string, readonly string[]>;
+  /**
+   * Admin modules (rule 6): file → the names of its functions reviewed to read per-user tables
+   * across users (counts only). Every exported function there must check a permission first.
+   */
+  adminFiles?: ReadonlyMap<string, readonly string[]>;
 }
 
 export interface Finding {
@@ -49,10 +63,31 @@ export interface Finding {
 
 // ---- SQL text
 
-const TABLE_REF_SOURCE = String.raw`\b(from|into|update|join)\s+(?:"public"\.)?"?(progress_event|progress)"?(?![\w."])`;
+const TABLE_ALTERNATION = "progress_event|progress|user_settings|export_token";
+const TABLE_REF_SOURCE = String.raw`\b(from|into|update|join)\s+(?:"public"\.)?"?(${TABLE_ALTERNATION})"?(?![\w."])`;
 /** A fresh regex each time: a shared global one carries `lastIndex` between calls. */
 const tableRefs = () => new RegExp(TABLE_REF_SOURCE, "gi");
-const mentionsTable = (text: string) => tableRefs().test(text) || /\bon\s+conflict\b/i.test(text);
+
+/**
+ * Each `on conflict (…)` with the table its insert writes to: the nearest `insert into` before it.
+ * `table` is null when that isn't a plain name (a `${…}` placeholder, say), which counts as a
+ * per-user table, to be safe.
+ */
+function conflicts(text: string): { table: string | null; target: string }[] {
+  const out: { table: string | null; target: string }[] = [];
+  for (const m of text.matchAll(/\bon\s+conflict\s*(?:\(([^)]*)\))?/gi)) {
+    const before = text.slice(0, m.index ?? 0);
+    const inserts = [...before.matchAll(/\binsert\s+into\s+(\S+)/gi)];
+    const raw = inserts.at(-1)?.[1] ?? "";
+    const plain = /^(?:"?public"?\.)?"?([a-z_][a-z0-9_]*)"?(?:\(|$)/i.exec(raw);
+    out.push({ table: plain ? plain[1].toLowerCase() : null, target: m[1] ?? "" });
+  }
+  return out;
+}
+const PER_USER = new Set<string>(["progress_event", "progress", "user_settings", "export_token"]);
+/** An `on conflict` on a per-user table (or one whose table can't be told). */
+const perUserConflicts = (text: string) => conflicts(text).filter((c) => c.table === null || PER_USER.has(c.table));
+const mentionsTable = (text: string) => tableRefs().test(text) || perUserConflicts(text).length > 0;
 
 /** Clause keywords that end a `where` clause at its own level. */
 const CLAUSE_END = /^(returning|order\s+by|group\s+by|having|limit|offset|union|intersect|except|window|for\s+(update|share)|on\s+conflict)\b/i;
@@ -143,7 +178,7 @@ function topLevelItems(inner: string): string[] {
  */
 export function userIdBindings(text: string): string[] {
   const bindings = [...text.matchAll(/"?user_id"?\s*=\s*(\$\d+|\$\{[^}]*\})/gi)].map((m) => m[1]);
-  for (const m of text.matchAll(/\binto\s+(?:"public"\.)?"?(?:progress_event|progress)"?\s*\(([^)]*)\)\s*values\s*\(/gi)) {
+  for (const m of text.matchAll(new RegExp(String.raw`\binto\s+(?:"public"\.)?"?(?:${TABLE_ALTERNATION})"?\s*\(([^)]*)\)\s*values\s*\(`, "gi"))) {
     const cols = m[1].split(",").map((c) => c.trim().replaceAll('"', ""));
     const start = (m.index ?? 0) + m[0].length;
     const values = topLevelItems(text.slice(start, start + topLevel(text.slice(start)).length));
@@ -152,7 +187,7 @@ export function userIdBindings(text: string): string[] {
   }
   // insert … (cols) select a, b from source: user_id must be the user's id, or the source's own
   // user_id column (a source that is itself filtered, such as the upsert's returned row).
-  for (const m of text.matchAll(/\binto\s+(?:"public"\.)?"?(?:progress_event|progress)"?\s*\(([^)]*)\)\s*select\b([\s\S]*?)\bfrom\b/gi)) {
+  for (const m of text.matchAll(new RegExp(String.raw`\binto\s+(?:"public"\.)?"?(?:${TABLE_ALTERNATION})"?\s*\(([^)]*)\)\s*select\b([\s\S]*?)\bfrom\b`, "gi"))) {
     const cols = m[1].split(",").map((c) => c.trim().replaceAll('"', ""));
     const at = cols.indexOf("user_id");
     const item = at >= 0 ? (topLevelItems(m[2])[at] ?? "") : null;
@@ -194,8 +229,8 @@ export function checkSqlText(text: string): string[] {
     if (!USER_FILTER.test(flat)) problems.push(`${keyword} ${table} without a top-level user_id = $n condition`);
     if (/\bor\b/i.test(flat)) problems.push(`${keyword} ${table} has a top-level or in its where clause`);
   });
-  for (const m of text.matchAll(/\bon\s+conflict\s*\(([^)]*)\)/gi)) {
-    if (!/user_id/.test(m[1])) problems.push("on conflict without user_id in its target");
+  for (const c of perUserConflicts(text)) {
+    if (!/user_id/.test(c.target)) problems.push("on conflict without user_id in its target");
   }
   for (const binding of userIdBindings(text)) {
     if (!/^(\$\d+|\$\{userId\})$/.test(binding)) problems.push(`user_id is bound to ${binding || "nothing"}, not the user's id`);
@@ -323,11 +358,13 @@ const PURE_EXPORTS = new Set(["toEntry"]);
 const TABLE_METHODS = new Set(["from", "update", "delete", "insert"]);
 
 /** Checks one file. `rel` is its path relative to web/. */
-export function checkSource(rel: string, source: string, { allowed, seedFiles = new Set(), reviewed = new Map() }: GuardOptions): Finding[] {
+export function checkSource(rel: string, source: string, { allowed, seedFiles = new Set(), reviewed = new Map(), adminFiles = new Map() }: GuardOptions): Finding[] {
   const sf = ts.createSourceFile(rel, source, ts.ScriptTarget.Latest, true, scriptKind(rel));
   const findings: Finding[] = [];
   const add = (node: ts.Node, problem: string) => findings.push({ file: rel, line: lineOf(sf, node), problem });
   const isAllowed = allowed.has(rel);
+  const adminReviewed = adminFiles.get(rel);
+  const isAdmin = adminReviewed !== undefined;
   /** Local names of the table objects imported in this file. */
   const tables = new Set<string>();
   /** Variable initializers by name, to follow `db.query(UPSERT, ...)` and `db.execute(query)`. */
@@ -372,7 +409,8 @@ export function checkSource(rel: string, source: string, { allowed, seedFiles = 
           const imported = (el.propertyName ?? el.name).text;
           if (!(TABLE_OBJECTS as readonly string[]).includes(imported)) continue;
           tables.add(el.name.text);
-          if (!isAllowed) add(el, `imports the ${imported} table: only ${[...allowed].join(", ")} may query it`);
+          if (isAdmin) add(el, `imports the ${imported} table: admin modules use reviewed SQL only`);
+          else if (!isAllowed) add(el, `imports the ${imported} table: only ${[...allowed].join(", ")} may query it`);
           if (el.propertyName) add(el, `renames the ${imported} table on import, which hides it from this check`);
         }
       }
@@ -408,12 +446,14 @@ export function checkSource(rel: string, source: string, { allowed, seedFiles = 
       if (asTableArgument) checkChain(node, p as ts.CallExpression);
     }
 
-    // Rule 4: SQL text.
+    // Rule 4: SQL text (rule 6 in admin modules).
     const text = literalText(sf, node);
-    if (text !== null && mentionsTable(text) && !reviewed.get(rel)?.includes(text)) {
+    if (text !== null && mentionsTable(text) && isAdmin) checkAdminSql(node, text);
+    else if (text !== null && mentionsTable(text) && !reviewed.get(rel)?.includes(text)) {
       if (!isAllowed) add(node, "SQL that names a per-user table outside the allowed files");
       for (const problem of checkSqlText(text)) add(node, problem);
     }
+    if (isAdmin && ts.isSourceFile(node.parent ?? node)) checkAdminExport(node);
     if (isAllowed && !seedFiles.has(rel) && ts.isCallExpression(node) && ["query", "execute"].includes(callName(node) ?? "")) checkSqlCall(node);
 
     // Rule 5: signatures.
@@ -473,6 +513,55 @@ export function checkSource(rel: string, source: string, { allowed, seedFiles = 
       bindings.length > 0 &&
       bindings.every((b) => (b.startsWith("${") ? b === "${userId}" : !!elements && isUserId(elements[Number(b.slice(1)) - 1])));
     if (!passesUserId) add(call, "SQL on a per-user table that is not given userId");
+  }
+
+  /** The top-level function a node sits in (the outermost one), with its exported name if any. */
+  function topLevelFunction(node: ts.Node): { name: string | null; exported: boolean } | null {
+    let found: { name: string | null; exported: boolean } | null = null;
+    for (let current: ts.Node | undefined = node.parent; current; current = current.parent) {
+      if (ts.isFunctionDeclaration(current) && current.parent && ts.isSourceFile(current.parent)) {
+        found = { name: current.name?.text ?? null, exported: !!ts.getModifiers(current)?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword) };
+      }
+      if (ts.isVariableStatement(current) && current.parent && ts.isSourceFile(current.parent)) {
+        const decl = current.declarationList.declarations[0];
+        found = { name: decl && ts.isIdentifier(decl.name) ? decl.name.text : null, exported: !!ts.getModifiers(current)?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword) };
+      }
+    }
+    return found;
+  }
+
+  /** Rule 6: cross-user SQL only in reviewed, exported functions, and counts only. */
+  function checkAdminSql(node: ts.Node, text: string) {
+    const fn = topLevelFunction(node);
+    if (!fn?.exported || !fn.name || !adminReviewed?.includes(fn.name)) {
+      add(node, "cross-user SQL outside the reviewed admin functions");
+    }
+    if (/\b(note|link|token_hash)\b/i.test(text)) add(node, "admin SQL that names note, link or token_hash");
+    if (/\b(user_settings|export_token)\b/i.test(text)) add(node, "admin SQL that names user_settings or export_token");
+  }
+
+  /** Rule 6: an exported function's first statement is the permission check. */
+  function checkAdminExport(node: ts.Node) {
+    const exported = ts.canHaveModifiers(node) && !!ts.getModifiers(node)?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword);
+    if (!exported) return;
+    const fns: { name: string; fn: AnyFunction }[] = [];
+    if (ts.isFunctionDeclaration(node) && node.name) fns.push({ name: node.name.text, fn: node });
+    if (ts.isVariableStatement(node)) {
+      for (const d of node.declarationList.declarations) {
+        if (d.initializer && ts.isIdentifier(d.name) && (ts.isArrowFunction(d.initializer) || ts.isFunctionExpression(d.initializer))) fns.push({ name: d.name.text, fn: d.initializer });
+      }
+    }
+    for (const { name, fn } of fns) {
+      const body = fn.body && ts.isBlock(fn.body) ? fn.body : null;
+      const first = body?.statements[0];
+      const call = (expr: ts.Expression | undefined) =>
+        !!expr && ts.isAwaitExpression(expr) && ts.isCallExpression(expr.expression) && ts.isIdentifier(expr.expression.expression) && expr.expression.expression.text === "requirePermission";
+      const checksFirst =
+        !!first &&
+        ((ts.isExpressionStatement(first) && call(first.expression)) ||
+          (ts.isVariableStatement(first) && first.declarationList.declarations.length === 1 && call(first.declarationList.declarations[0].initializer)));
+      if (!checksFirst) add(fn, `${name} must start with await requirePermission(…)`);
+    }
   }
 
   function checkSignature(node: ts.Node) {

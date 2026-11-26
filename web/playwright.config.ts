@@ -1,5 +1,5 @@
 import { type PlaywrightTestConfig, defineConfig, devices } from "@playwright/test";
-import { E2E_BASE_URL, E2E_OWNER_GITHUB_ID, E2E_PORT, e2eRunSecrets, spareSessionTokens } from "./tests/e2e/auth";
+import { E2E_BASE_URL, E2E_OWNER_GITHUB_ID, E2E_PORT, e2eExportKeyHash, e2eRunSecrets, spareSessionTokens, userSessionTokens } from "./tests/e2e/auth";
 
 // End-to-end tests run against a production build: `npm run build` first.
 // The server uses a fresh local test database (web/.data/pglite-e2e) seeded with a made-up owner,
@@ -21,6 +21,8 @@ const projects: NonNullable<PlaywrightTestConfig["projects"]> = [
 ];
 // Tests that sign out end a spare session of their own, one per project and attempt (auth.ts).
 const spareTokens = spareSessionTokens(projects.map((p) => p.name ?? ""));
+// M4b's made-up users (waitlisted, suspended, an admin, another active user) get sessions the same way.
+const userTokens = userSessionTokens(projects.map((p) => p.name ?? ""));
 
 export default defineConfig({
   testDir: "tests/e2e",
@@ -44,6 +46,11 @@ export default defineConfig({
       E2E_AUTH: "1",
       E2E_SESSION_TOKEN: token,
       E2E_SPARE_SESSION_TOKENS: spareTokens.join(","),
+      E2E_USER_SESSION_TOKENS: userTokens.join(","),
+      E2E_EXPORT_KEY_HASH: e2eExportKeyHash(),
+      // M4b: capped sign-up, so waitlisted and suspended users behave as they will in production.
+      // The owner's experience is the same in both modes.
+      SIGNUP_MODE: "capped",
       PGLITE_DIR: ".data/pglite-e2e",
       BETTER_AUTH_SECRET: secret,
       BETTER_AUTH_URL: E2E_BASE_URL,

@@ -1,5 +1,5 @@
 import { expect, test as base } from "@playwright/test";
-import { type E2eSession, SESSION_COOKIE, signedSessionCookie, spareSessionToken } from "./auth";
+import { type E2eSession, type E2eUser, SESSION_COOKIE, signedSessionCookie, spareSessionToken, userSessionToken } from "./auth";
 import { AVATAR_ROUTE, TEST_AVATAR_PNG } from "./avatar";
 
 /**
@@ -19,6 +19,8 @@ import { AVATAR_ROUTE, TEST_AVATAR_PNG } from "./avatar";
 export const test = base.extend<{
   signedIn: boolean;
   session: E2eSession;
+  /** Who is signed in: the owner (default) or one of M4b's made-up users (tests/e2e/auth.ts). */
+  as: "owner" | E2eUser;
   allowedConsoleErrors: RegExp[];
   ownerSession: void;
   avatarRoute: void;
@@ -26,15 +28,21 @@ export const test = base.extend<{
 }>({
   signedIn: [true, { option: true }],
   session: ["shared", { option: true }],
+  as: ["owner", { option: true }],
   /**
    * Console errors a test causes on purpose, for example the browser's "Failed to load resource"
    * when the test cuts a save request. Opt in per test with `test.use({ allowedConsoleErrors: [...] })`.
    */
   allowedConsoleErrors: [[], { option: true }],
   ownerSession: [
-    async ({ context, signedIn, session, baseURL }, use, testInfo) => {
+    async ({ context, signedIn, session, as, baseURL }, use, testInfo) => {
       if (signedIn) {
-        const token = session === "shared" ? undefined : spareSessionToken(session, testInfo.project.name, testInfo.retry);
+        const token =
+          as !== "owner"
+            ? userSessionToken(as, testInfo.project.name, testInfo.retry)
+            : session === "shared"
+              ? undefined
+              : spareSessionToken(session, testInfo.project.name, testInfo.retry);
         await context.addCookies([
           { name: SESSION_COOKIE, value: signedSessionCookie(token), url: baseURL ?? "", httpOnly: true, sameSite: "Lax" },
         ]);

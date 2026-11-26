@@ -9,13 +9,27 @@
 // and no session. The owner starts with nothing saved (the @fresh tests check that), so any of
 // Alex's rows showing up on the owner's pages would fail them. Every progress row has its user_id.
 //
+// M4b adds made-up users in every state (E2E_USERS): another active user with progress and a Claude
+// export key (its hash only, E2E_EXPORT_KEY_HASH), a waitlisted user, a suspended user (with
+// sessions, to prove they end on sight), and an admin with some permissions. Each gets its own
+// sessions (E2E_USER_SESSION_TOKENS, one per project and attempt).
+//
 // Nothing in the app knows about this: there is no test sign-in route or flag in production code.
 // The seed refuses to run unless scripts/lib/e2e-guard.mjs passes (E2E_AUTH=1, not on Vercel, no
 // DATABASE_URL, and a folder named pglite-e2e* directly inside web/.data/).
 import { rmSync } from "node:fs";
 import { checkE2eSeedEnv } from "./lib/e2e-guard.mjs";
 import { openScriptDb } from "./lib/db.mjs";
-import { E2E_OTHER_DONE, E2E_OTHER_GITHUB_ID, E2E_OTHER_LINK, E2E_OTHER_NOTE, E2E_OTHER_USER } from "./lib/e2e-data.mjs";
+import {
+  E2E_ACTIVE_DONE,
+  E2E_ACTIVE_NOTE,
+  E2E_OTHER_DONE,
+  E2E_OTHER_GITHUB_ID,
+  E2E_OTHER_LINK,
+  E2E_OTHER_NOTE,
+  E2E_OTHER_USER,
+  E2E_USERS,
+} from "./lib/e2e-data.mjs";
 
 /** Made-up avatar URL for the test owner. u/0 is not a GitHub account; tests route it anyway. */
 const E2E_OWNER_IMAGE = "https://avatars.githubusercontent.com/u/0?v=4";
@@ -59,18 +73,48 @@ try {
   }
   await db.query(`insert into progress (user_id, item_id, note, updated_at) values ($1, 'journal', $2, now())`, [E2E_OTHER_USER, E2E_OTHER_NOTE]);
 
-  const sessions = [
-    ["e2e-session", check.token],
-    ...check.spareTokens.map((token, i) => [`e2e-spare-session-${i + 1}`, token]),
-  ];
-  for (const [id, token] of sessions) {
+  // M4b users. The waitlisted user joined a day ago; the owner's GitHub login is set as sign-in would.
+  await db.query(`update "user" set github_login = 'sam-example' where id = 'e2e-owner'`);
+  for (const u of Object.values(E2E_USERS)) {
     await db.query(
-      `insert into session (id, expires_at, token, created_at, updated_at, user_id)
-       values ($1, now() + interval '1 day', $2, now(), now(), 'e2e-owner')`,
-      [id, token],
+      `insert into "user" (id, name, email, email_verified, github_login, status, activated_at, waitlisted_at, created_at, updated_at)
+       values ($1, $2, $3, true, $4, $5,
+         case when $5 = 'active' then now() end, case when $5 = 'waitlisted' then now() - interval '1 day' end, now() - interval '2 days', now())`,
+      [u.id, u.name, `${u.login}@example.com`, u.login, u.status],
+    );
+    await db.query(
+      `insert into account (id, account_id, provider_id, user_id, created_at, updated_at) values ($1, $2, 'github', $3, now(), now())`,
+      [`${u.id}-github`, u.githubId, u.id],
+    );
+    for (const permission of u.permissions) {
+      await db.query(`insert into user_permission (user_id, permission, granted_by) values ($1, $2, 'e2e-owner')`, [u.id, permission]);
+    }
+  }
+  for (const itemId of E2E_ACTIVE_DONE) {
+    await db.query(
+      `insert into progress (user_id, item_id, done, note, done_at, updated_at) values ($1, $2, true, $3, now(), now())`,
+      [E2E_USERS.active.id, itemId, E2E_ACTIVE_NOTE],
     );
   }
-  console.log(`e2e seed: test database ready (${sessions.length} sessions, 1 other user with ${E2E_OTHER_DONE.length + 1} progress rows).`);
+  if (check.exportKeyHash) {
+    await db.query(`insert into export_token (user_id, token_hash) values ($1, $2)`, [E2E_USERS.active.id, check.exportKeyHash]);
+  }
+
+  const sessions = [
+    ["e2e-session", check.token, "e2e-owner"],
+    ...check.spareTokens.map((token, i) => [`e2e-spare-session-${i + 1}`, token, "e2e-owner"]),
+    ...check.userTokens.map(({ user, token }, i) => [`e2e-user-session-${i + 1}`, token, E2E_USERS[user].id]),
+  ];
+  for (const [id, token, userId] of sessions) {
+    await db.query(
+      `insert into session (id, expires_at, token, created_at, updated_at, user_id)
+       values ($1, now() + interval '1 day', $2, now(), now(), $3)`,
+      [id, token, userId],
+    );
+  }
+  console.log(
+    `e2e seed: test database ready (${sessions.length} sessions, 1 other user with ${E2E_OTHER_DONE.length + 1} progress rows, ${Object.keys(E2E_USERS).length} M4b users).`,
+  );
 } finally {
   await db.close();
 }

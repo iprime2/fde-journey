@@ -23,7 +23,7 @@ import { SheetAccount, SidebarAccount } from "@/components/account/Account";
 import { type Db, openDb } from "@/db/client";
 import { type Auth, createAuth } from "@/lib/auth";
 import { SafeError } from "@/lib/safe-log";
-import { getOwnerSession } from "@/lib/session";
+import { getIdentity } from "@/lib/session";
 import { captureOutput } from "./support/capture-output";
 import { resetAuth, setTestEnv, signedCookieValue } from "./support/db";
 
@@ -77,7 +77,7 @@ beforeEach(() => {
   neonFetch.calls = 0;
   output = captureOutput();
   request.headers = new Headers({ cookie: COOKIE });
-  // getOwnerSession reads through the app's memoised session reader: use the fake Neon one.
+  // getIdentity reads through the app's memoised session reader: use the fake Neon one.
   resetAuth();
   (globalThis as { __fdeJourneySessionReader?: Promise<Auth> }).__fdeJourneySessionReader = Promise.resolve(auth);
 });
@@ -105,8 +105,8 @@ describe("a failing session lookup (database unreachable)", () => {
     expect(output).toEqual(["error: [Better Auth] error: INTERNAL_SERVER_ERROR DrizzleQueryError < NeonDbError < TypeError"]);
   });
 
-  it("makes getOwnerSession throw a SafeError that carries nothing from the database error", async () => {
-    const error = await getOwnerSession().catch((e: unknown) => e);
+  it("makes getIdentity throw a SafeError that carries nothing from the database error", async () => {
+    const error = await getIdentity().catch((e: unknown) => e);
     expect(error).toBeInstanceOf(SafeError);
     expect((error as SafeError).message).toBe(
       "Session check failed (APIError FAILED_TO_GET_SESSION < DrizzleQueryError < NeonDbError < TypeError)",
@@ -145,8 +145,8 @@ describe("a prerender that completes while the session is being read", () => {
     expect(output).toEqual([]);
   });
 
-  it("reaches Next as Next's own error from getOwnerSession, not as a session failure", async () => {
-    await expect(getOwnerSession()).rejects.toBe(interruption);
+  it("reaches Next as Next's own error from getIdentity, not as a session failure", async () => {
+    await expect(getIdentity()).rejects.toBe(interruption);
     expect(output).toEqual([]);
   });
 
@@ -157,13 +157,13 @@ describe("a prerender that completes while the session is being read", () => {
   });
 });
 
-describe("getOwnerSession in a prerender", () => {
+describe("getIdentity in a prerender", () => {
   it("waits for a real request (connection) before any database work", async () => {
     neonFetch.fail = () => Promise.reject(new Error("must not be called"));
     resetAuth();
     vi.mocked(connection).mockReturnValueOnce(new Promise(() => {}));
     const settled = await Promise.race([
-      getOwnerSession().then(() => "settled", () => "settled"),
+      getIdentity().then(() => "settled", () => "settled"),
       new Promise((resolve) => setTimeout(() => resolve("pending"), 200)),
     ]);
     expect(settled).toBe("pending");
@@ -176,7 +176,7 @@ describe("getOwnerSession in a prerender", () => {
   it("answers signed-out visitors without waiting or touching the database", async () => {
     request.headers = new Headers();
     vi.mocked(connection).mockClear();
-    expect(await getOwnerSession()).toBeNull();
+    expect(await getIdentity()).toBeNull();
     expect(connection).not.toHaveBeenCalled();
     expect(neonFetch.calls).toBe(0);
   });

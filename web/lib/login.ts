@@ -38,31 +38,48 @@ export function loginHref(next: unknown): string {
 
 /** Query value `/login?status=signed-out` set by the sign-out action. */
 export const SIGNED_OUT_STATUS = "signed-out";
+/** `/login?status=deleted`, after "Delete my account". */
+export const DELETED_STATUS = "deleted";
+/** `/login?status=left-waitlist`, after "Leave the waitlist". */
+export const LEFT_WAITLIST_STATUS = "left-waitlist";
 /** Error code for a GitHub account that is not the owner's (Better Auth adds it as `?error=`). */
 export const NOT_OWNER_ERROR = "not_owner";
+/** Error code for a suspended account (capped mode): from sign-in, or a session that was ended. */
+export const SUSPENDED_ERROR = "suspended";
 
 /** Which message the sign-in page shows (design spec section 8). */
-export type LoginNotice = "not-owner" | "failed" | "signed-out" | null;
+export type LoginNotice = "not-owner" | "failed" | "signed-out" | "suspended" | "deleted" | "left-waitlist" | null;
 
 type Params = Record<string, string | string[] | undefined>;
 const first = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
+
+const STATUS_NOTICES: Record<string, LoginNotice> = {
+  [SIGNED_OUT_STATUS]: "signed-out",
+  [DELETED_STATUS]: "deleted",
+  [LEFT_WAITLIST_STATUS]: "left-waitlist",
+};
 
 /** Reads the sign-in page's query: where to go after sign-in, and which message to show. */
 export function parseLoginParams(params: Params): { next: string; notice: LoginNotice } {
   const next = safeNextPath(first(params.next));
   const error = first(params.error);
-  if (error) return { next, notice: error === NOT_OWNER_ERROR ? "not-owner" : "failed" };
-  if (first(params.status) === SIGNED_OUT_STATUS) return { next, notice: "signed-out" };
-  return { next, notice: null };
+  if (error) {
+    if (error === NOT_OWNER_ERROR) return { next, notice: "not-owner" };
+    if (error === SUSPENDED_ERROR) return { next, notice: "suspended" };
+    return { next, notice: "failed" };
+  }
+  const status = first(params.status);
+  return { next, notice: (status && Object.hasOwn(STATUS_NOTICES, status) ? STATUS_NOTICES[status] : null) ?? null };
 }
 
 /** Who may sign in (design spec 8). Only the access line and the not-allowed error depend on it. */
-export type AccessMode = "owner-only" | "invite-only" | "open";
+export type AccessMode = "owner-only" | "capped" | "open";
 
 /**
  * The sign-up mode the sign-in page describes. This changes the wording only; it does not decide
- * who can sign in. The real gate is ownerGate (lib/owner.ts) and isOwnerUser (lib/auth.ts): when
- * sign-up opens up (M4), change those and this line together.
+ * who can sign in. The real gate is SIGNUP_MODE on the server (lib/signup-mode.ts): ownerGate and
+ * isOwnerUser in owner-only mode, the cap and the user's status in capped mode (lib/auth.ts,
+ * lib/places.ts, lib/session.ts). Change this line when SIGNUP_MODE changes.
  */
 export const ACCESS_MODE: AccessMode = "owner-only";
 
@@ -72,15 +89,18 @@ export const ACCESS_COPY: Record<AccessMode, { access: string; notAllowed: strin
     access: "Private for now: only the owner's GitHub account can sign in.",
     notAllowed: "This GitHub account can't sign in. FDE Journey is private to its owner for now.",
   },
-  "invite-only": {
-    access: "Invite only for now. Use the GitHub account your invite was sent to.",
-    notAllowed: "This GitHub account doesn't have an invite yet.",
+  capped: {
+    access: "New here? Continue with GitHub to start your own tracker. Places are limited; if they're full you'll join the waitlist.",
+    notAllowed: null,
   },
   open: {
     access: "New here? Continue with GitHub to start your own tracker.",
     notAllowed: null,
   },
 };
+
+/** The suspended notice (design spec 8). The front end adds the "Open an issue" link after it. */
+export const SUSPENDED_MESSAGE = "This account is suspended, so it can't sign in. If you think this is a mistake, open an issue on GitHub.";
 
 /** The banner above the sign-in button for a notice, or null for none (design spec 5 and 8). */
 export function loginMessage(
@@ -97,12 +117,27 @@ export function loginMessage(
       return { tone: "error", text: "Sign-in didn't finish. Try again." };
     case "signed-out":
       return { tone: "info", text: "You're signed out." };
+    case "suspended":
+      return { tone: "error", text: SUSPENDED_MESSAGE };
+    case "deleted":
+      return { tone: "info", text: "Your account and data are deleted." };
+    case "left-waitlist":
+      return { tone: "info", text: "You've left the waitlist and your account is deleted." };
     default:
       return null;
   }
 }
 
-/** Pages anyone may open without signing in. Everything else needs the owner's sign-in. */
+/**
+ * Paths the proxy lets through without a session cookie. /privacy is public; /api/export checks its
+ * own bearer key (app/api/export/route.ts). Everything else needs a sign-in.
+ */
 export function isPublicPath(pathname: string): boolean {
-  return pathname === "/login" || pathname === "/api/auth" || pathname.startsWith("/api/auth/");
+  return (
+    pathname === "/login" ||
+    pathname === "/privacy" ||
+    pathname === "/api/export" ||
+    pathname === "/api/auth" ||
+    pathname.startsWith("/api/auth/")
+  );
 }

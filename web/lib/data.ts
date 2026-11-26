@@ -21,4 +21,4 @@ const progressFor = cache(
  * in. Request-time data: call it inside a <Suspense> boundary. Memoised per request, so the seven
  * or so callers on one page share a single database read.
  */
-export const getProgress = cache(async (): Promise<ProgressMap> => progressFor(await requireUser()));
+export const getProgress = cache(async (): Promise<ProgressMap> => progressFor((await requireUser()).userId));

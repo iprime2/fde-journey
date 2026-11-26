@@ -33,7 +33,7 @@ import { PATH_HEADER } from "@/lib/login";
 import { isReadOnly } from "@/lib/mode";
 import { setDone, setNote } from "@/lib/progress-db";
 import { SafeError } from "@/lib/safe-log";
-import { SignedOutError, getOwnerSession, requireUser } from "@/lib/session";
+import { SignedOutError, getIdentity, requireUser } from "@/lib/session";
 import { OWNER_ID, emptyDb, seedOtherUser, seedOwner, setTestEnv, signedCookieValue } from "./support/db";
 
 setTestEnv();
@@ -48,25 +48,33 @@ beforeEach(async () => {
   useCookie(null);
 });
 
-describe("getOwnerSession", () => {
+describe("getIdentity (owner-only mode, the default)", () => {
   it("always reads the request, even when it can answer early (so Next never prerenders it)", async () => {
     delete process.env.OWNER_GITHUB_ID;
     request.reads = 0;
-    expect(await getOwnerSession()).toBeNull();
+    expect(await getIdentity()).toBeNull();
     expect(request.reads).toBe(1);
     expect(await isReadOnly()).toBe(true);
     expect(request.reads).toBe(2);
   });
 
   it("returns null when signed out", async () => {
-    expect(await getOwnerSession()).toBeNull();
+    expect(await getIdentity()).toBeNull();
     expect(await isReadOnly()).toBe(true);
   });
 
   it("returns the owner for the owner's session", async () => {
     const db = await emptyDb();
     useCookie((await seedOwner(db)).cookie);
-    expect(await getOwnerSession()).toEqual({ userId: "owner", name: "Test User", image: null });
+    expect(await getIdentity()).toEqual({
+      userId: "owner",
+      name: "Test User",
+      image: null,
+      githubLogin: null,
+      status: "active",
+      isSuperAdmin: true,
+      permissions: ["metrics.view", "users.view", "users.manage", "waitlist.manage", "settings.manage", "audit.view", "admins.manage"],
+    });
     expect(await isReadOnly()).toBe(false);
   });
 
@@ -74,7 +82,7 @@ describe("getOwnerSession", () => {
     const db = await emptyDb();
     await seedOwner(db);
     useCookie((await seedOtherUser(db)).cookie);
-    expect(await getOwnerSession()).toBeNull();
+    expect(await getIdentity()).toBeNull();
     expect((await db.select().from(session)).map((s) => s.userId)).toEqual(["owner"]);
   });
 
@@ -82,17 +90,17 @@ describe("getOwnerSession", () => {
     const db = await emptyDb();
     useCookie((await seedOwner(db)).cookie);
     process.env.OWNER_GITHUB_ID = "900000000009";
-    expect(await getOwnerSession()).toBeNull();
+    expect(await getIdentity()).toBeNull();
     expect(await db.select().from(session)).toEqual([]);
     process.env.OWNER_GITHUB_ID = OWNER_ID;
-    expect(await getOwnerSession()).toBeNull();
+    expect(await getIdentity()).toBeNull();
   });
 
   it("keeps sessions when OWNER_GITHUB_ID is missing (a misconfiguration), but lets nobody in", async () => {
     const db = await emptyDb();
     useCookie((await seedOwner(db)).cookie);
     delete process.env.OWNER_GITHUB_ID;
-    expect(await getOwnerSession()).toBeNull();
+    expect(await getIdentity()).toBeNull();
     expect(await db.select().from(session)).toHaveLength(1);
   });
 
@@ -100,7 +108,7 @@ describe("getOwnerSession", () => {
     const db = await emptyDb();
     useCookie((await seedOwner(db)).cookie);
     const [before] = await db.select().from(session);
-    expect(await getOwnerSession()).not.toBeNull();
+    expect(await getIdentity()).not.toBeNull();
     const [after] = await db.select().from(session);
     expect(after.expiresAt.getTime()).toBe(before.expiresAt.getTime());
   });
@@ -109,12 +117,12 @@ describe("getOwnerSession", () => {
     const db = await emptyDb();
     const { token } = await seedOwner(db);
     useCookie(`better-auth.session_token=${signedCookieValue(token, "a-different-secret-that-is-long-enough")}`);
-    expect(await getOwnerSession()).toBeNull();
+    expect(await getIdentity()).toBeNull();
     useCookie(`better-auth.session_token=${signedCookieValue("no-such-token-0000000000000000")}`);
-    expect(await getOwnerSession()).toBeNull();
+    expect(await getIdentity()).toBeNull();
     useCookie(`better-auth.session_token=${signedCookieValue(token)}`);
     await db.update(session).set({ expiresAt: new Date(Date.now() - 1000) }).where(eq(session.token, token));
-    expect(await getOwnerSession()).toBeNull();
+    expect(await getIdentity()).toBeNull();
   });
 });
 
@@ -122,8 +130,8 @@ describe("requireUser", () => {
   it("returns the signed-in owner's user id from the session", async () => {
     const db = await emptyDb();
     useCookie((await seedOwner(db)).cookie);
-    expect(await requireUser()).toBe("owner");
-    expect(await requireUser({ onSignedOut: "throw" })).toBe("owner");
+    expect((await requireUser()).userId).toBe("owner");
+    expect(await requireUser({ onSignedOut: "throw" })).toMatchObject({ userId: "owner", status: "active", isSuperAdmin: true });
   });
 
   it("sends signed-out visitors to /login, back to the page they wanted", async () => {

@@ -1,20 +1,41 @@
-// Better Auth set-up: GitHub sign-in for the owner only. Server-only.
+// Better Auth set-up: GitHub sign-in. Server-only.
 //
-// The owner rule is enforced three times:
+// Who may sign in depends on SIGNUP_MODE (lib/signup-mode.ts).
+//
+// Owner-only (the default), enforced three times:
 // 1. `user.validateUserInfo` (lib/owner.ts) rejects any other GitHub account before a user,
 //    account or session row is written, on sign-up, account linking and every sign-in.
 // 2. `databaseHooks.session.create.before` refuses to create a session for a user without the
 //    owner's GitHub account, whatever path asked for it.
 // 3. lib/session.ts re-checks the account on every request before returning a session.
+//
+// Capped (M4b): any GitHub account.
+// 1. `user.validateUserInfo` (cappedGate) refuses a suspended account at sign-in with
+//    `?error=suspended`, before any session is written.
+// 2. A new user is stored as waitlisted (`databaseHooks.user.create.before`), so a failure later
+//    leaves them waiting, never with a place they didn't get. Once their GitHub account row exists
+//    (`account.create.after`) they take a free place if one is theirs, under the places lock
+//    (lib/places.ts). The owner always gets a place and never counts toward the cap.
+// 3. `session.create.before` refuses suspended users; lib/session.ts re-checks the status on every
+//    request (waitlisted users only reach /waitlist).
+//
+// In both modes the GitHub username is stored at sign-up and refreshed at every sign-in, the owner's
+// settings row is made (every section on, Scaler unlocked), and the sign-in counts as activity.
 import "server-only";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
-import { and, eq, lt } from "drizzle-orm";
+import { and, eq, lt, sql } from "drizzle-orm";
 import { type Db, getDb } from "@/db/client";
-import { account, authSchema, verification } from "@/db/schema";
-import { ownerGate, ownerGithubId } from "./owner";
+import { account, authSchema, user, verification } from "@/db/schema";
+import { loadAccess } from "./access";
+import { touchActivity } from "./activity";
+import { SUSPENDED_ERROR } from "./login";
+import { type IdentityCheck, NOT_OWNER, isOwnerGithubId, ownerGate, ownerGithubId } from "./owner";
+import { activateOwner, placeNewUser } from "./places";
 import { betterAuthLog, describeError } from "./safe-log";
+import { ensureOwnerSettings } from "./settings-db";
+import { type SignupMode, signupMode } from "./signup-mode";
 
 type Env = Record<string, string | undefined>;
 
@@ -55,6 +76,92 @@ export async function isOwnerUser(db: Db, userId: string, ownerId: string | null
   return rows.length > 0;
 }
 
+const GITHUB_LOGIN = /^[A-Za-z0-9-]{1,39}$/;
+
+/** A GitHub username as GitHub sends it, or null if it doesn't look like one. */
+export function cleanGithubLogin(value: unknown): string | null {
+  return typeof value === "string" && GITHUB_LOGIN.test(value) ? value : null;
+}
+
+/** validateUserInfo's answer for a suspended account: Better Auth sends the browser to /login?error=suspended. */
+export const SUSPENDED = { error: SUSPENDED_ERROR, errorDescription: "This account is suspended." } as const;
+
+const isGithubId = (id: unknown) =>
+  (typeof id === "number" && Number.isSafeInteger(id) && id > 0) || (typeof id === "string" && /^[1-9]\d{0,19}$/.test(id));
+
+/** Stores the GitHub username GitHub just sent, if it changed. Never blocks sign-in. */
+async function refreshGithubLogin(db: Db, userId: unknown, login: unknown): Promise<void> {
+  const clean = cleanGithubLogin(login);
+  if (typeof userId !== "string" || !userId || !clean) return;
+  try {
+    await db.execute(sql`update ${user} set "github_login" = ${clean} where ${user.id} = ${userId} and "github_login" is distinct from ${clean}`);
+  } catch (error) {
+    console.error(`Refreshing the GitHub username failed (${describeError(error)})`);
+  }
+}
+
+/**
+ * Capped mode's `validateUserInfo`: any GitHub account may sign up or sign in, except a suspended
+ * one. Runs with GitHub's fresh profile before anything is written. Without OWNER_GITHUB_ID nobody
+ * gets in (there would be no super admin).
+ */
+export async function cappedGate(db: Db, data: IdentityCheck, ownerId: string | null): Promise<typeof NOT_OWNER | typeof SUSPENDED | undefined> {
+  const { source } = data;
+  if (!ownerId) return NOT_OWNER;
+  if (source.method !== "oauth" || source.oauth?.providerId !== "github") return NOT_OWNER;
+  if (!isGithubId(source.oauth.profile?.id)) return NOT_OWNER;
+  if (source.action === "create-user") return undefined;
+  if (source.action !== "sign-in") return NOT_OWNER; // account linking is off; nothing else is expected
+  const userId = data.user?.id;
+  if (typeof userId !== "string") return NOT_OWNER;
+  const access = await loadAccess(db, userId, ownerId);
+  if (!access) return NOT_OWNER;
+  if (access.status === "suspended" && !access.isOwner) return SUSPENDED;
+  return undefined;
+}
+
+/** `session.create.before`: may this user have a session? */
+export async function sessionAllowed(db: Db, userId: string, ownerId: string | null, mode: SignupMode): Promise<boolean> {
+  if (mode === "owner-only") {
+    const owner = await isOwnerUser(db, userId, ownerId);
+    if (owner) await ownerSetUp(db, userId);
+    return owner;
+  }
+  if (!ownerId) return false;
+  const access = await loadAccess(db, userId, ownerId);
+  if (!access) return false;
+  if (access.isOwner) {
+    await activateOwner(db, userId);
+    await ownerSetUp(db, userId);
+    return true;
+  }
+  return access.status !== "suspended";
+}
+
+/** The owner's settings row (all sections, Scaler unlocked). Never blocks sign-in. */
+async function ownerSetUp(db: Db, userId: string): Promise<void> {
+  try {
+    await ensureOwnerSettings(userId, db);
+  } catch (error) {
+    console.error(`Setting up the owner's settings failed (${describeError(error)})`);
+  }
+}
+
+/**
+ * `account.create.after`, for a new GitHub sign-up: the owner gets a place at once; anyone else (in
+ * capped mode) takes a free place if one is theirs, under the places lock. A failure leaves them
+ * on the waitlist (where user.create.before put them) and never fails the sign-in.
+ */
+export async function placeNewAccount(db: Db, created: { userId: string; providerId: string; accountId: string }, ownerId: string | null, mode: SignupMode): Promise<void> {
+  if (created.providerId !== "github") return;
+  try {
+    if (isOwnerGithubId(created.accountId, ownerId)) await activateOwner(db, created.userId);
+    else if (mode === "capped") await placeNewUser(db, created.userId, ownerId);
+  } catch (error) {
+    console.error(`Giving a new account its place failed (${describeError(error)})`);
+  }
+}
+
 /**
  * Deletes expired verification rows (old OAuth states) in one indexed query. Never blocks
  * sign-in: a failure here only means the rows wait for the next attempt.
@@ -73,6 +180,7 @@ export async function deleteExpiredVerifications(db: Db, now = new Date()): Prom
  */
 export function createAuth({ db, env, writeCookies = true }: { db: Db; env: Env; writeCookies?: boolean }) {
   const ownerId = ownerGithubId(env);
+  const mode = signupMode(env);
   const secret = env.BETTER_AUTH_SECRET?.trim();
   if (!secret) throw new Error("BETTER_AUTH_SECRET is not set. See web/.env.example.");
   const clientId = env.GITHUB_CLIENT_ID?.trim();
@@ -84,19 +192,57 @@ export function createAuth({ db, env, writeCookies = true }: { db: Db; env: Env;
     baseURL: env.BETTER_AUTH_URL?.trim() || undefined,
     database: drizzleAdapter(db, { provider: "pg", schema: authSchema }),
     // Without GitHub credentials the app still runs (tests, previews); sign-in then fails cleanly.
-    socialProviders: clientId && clientSecret ? { github: { clientId, clientSecret } } : {},
+    socialProviders:
+      clientId && clientSecret
+        ? { github: { clientId, clientSecret, mapProfileToUser: (profile) => ({ githubLogin: cleanGithubLogin(profile.login) }) } }
+        : {},
     account: {
       accountLinking: { enabled: false },
       encryptOAuthTokens: true,
     },
     session: { expiresIn: SESSION_DAYS * 24 * 60 * 60, updateAge: 24 * 60 * 60 },
     user: {
-      validateUserInfo: (data) => ownerGate(data, ownerId),
+      validateUserInfo: async (data) => {
+        const refused = mode === "capped" ? await cappedGate(db, data, ownerId) : ownerGate(data, ownerId);
+        if (refused) return refused;
+        // An existing user signing in: keep their GitHub username current (it can be renamed).
+        if (data.source.action === "sign-in") await refreshGithubLogin(db, data.user?.id, data.source.oauth?.profile?.login);
+        return undefined;
+      },
+      // M4b columns on "user" (db/schema.ts). Only githubLogin comes from GitHub (mapProfileToUser);
+      // nothing a browser sends can set any of them (the endpoints that take user input are disabled).
+      additionalFields: {
+        githubLogin: { type: "string", required: false },
+        status: { type: "string", required: false, input: false },
+        activatedAt: { type: "date", required: false, input: false },
+        waitlistedAt: { type: "date", required: false, input: false },
+        lastActiveAt: { type: "date", required: false, input: false },
+      },
     },
     databaseHooks: {
+      user: {
+        create: {
+          // Capped: every new account starts on the waitlist, and takes a place only once its
+          // GitHub account is stored (account.create.after). Owner-only: only the owner gets here.
+          before: async (data) => {
+            const githubLogin = cleanGithubLogin((data as { githubLogin?: unknown }).githubLogin);
+            const now = new Date();
+            return mode === "capped"
+              ? { data: { ...data, githubLogin, status: "waitlisted", waitlistedAt: now, activatedAt: null } }
+              : { data: { ...data, githubLogin, status: "active", activatedAt: now, waitlistedAt: null } };
+          },
+        },
+      },
+      account: {
+        create: {
+          after: async (created) => placeNewAccount(db, created, ownerId, mode),
+        },
+      },
       session: {
         create: {
-          before: async (session) => ((await isOwnerUser(db, session.userId, ownerId)) ? undefined : false),
+          before: async (session) => ((await sessionAllowed(db, session.userId, ownerId, mode)) ? undefined : false),
+          // Signing in counts as being active (at most one write an hour).
+          after: async (session) => touchActivity(db, session.userId),
         },
       },
       verification: {

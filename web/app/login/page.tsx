@@ -9,7 +9,7 @@ import { JourneyPreview } from "@/components/JourneyPreview";
 import { SignInButton } from "@/components/SignInButton";
 import { ACCESS_COPY, ACCESS_MODE, loginMessage, parseLoginParams } from "@/lib/login";
 import { describeError, rethrowNextControl } from "@/lib/safe-log";
-import { getOwnerSession } from "@/lib/session";
+import { getIdentity } from "@/lib/session";
 
 export const metadata: Metadata = { title: "Sign in" };
 
@@ -78,10 +78,12 @@ async function SignInForm({
   accessId,
 }: Pick<PageProps<"/login">, "searchParams"> & { accessId: string }) {
   const { next, notice } = parseLoginParams(await searchParams);
-  // Already signed in as the owner: go on to `next` (already checked by safeNextPath) or Home.
-  // Whatever the message: after sign-out or a failed sign-in there is no owner session, and an
-  // owner who is signed in has nothing to do here.
-  if (await signedInOwner()) redirect(next);
+  // Already signed in: go on to `next` (already checked by safeNextPath) or Home; a waitlisted
+  // user to /waitlist. Whatever the message: after sign-out or a failed sign-in there is no
+  // session, and a user who is signed in has nothing to do here.
+  const status = await signedInStatus();
+  if (status === "active") redirect(next);
+  if (status === "waitlisted") redirect("/waitlist");
   const message = loginMessage(notice);
   return (
     <>
@@ -97,15 +99,15 @@ async function SignInForm({
 }
 
 /**
- * True when the visitor is the signed-in owner. If the check itself fails (database unreachable),
- * the sign-in page still shows, as it did before this check existed.
+ * The signed-in visitor's status, or null. If the check itself fails (database unreachable), the
+ * sign-in page still shows, as it did before this check existed.
  */
-async function signedInOwner(): Promise<boolean> {
+async function signedInStatus(): Promise<"active" | "waitlisted" | null> {
   try {
-    return (await getOwnerSession()) !== null;
+    return (await getIdentity())?.status ?? null;
   } catch (error) {
     rethrowNextControl(error);
     console.error(`Sign-in page: session check failed (${describeError(error)})`);
-    return false;
+    return null;
   }
 }

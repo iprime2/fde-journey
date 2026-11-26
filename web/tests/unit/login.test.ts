@@ -102,11 +102,15 @@ describe("parseLoginParams", () => {
 });
 
 describe("isPublicPath", () => {
-  it("allows only the sign-in page and Better Auth's endpoints", () => {
+  it("allows only the sign-in page, the privacy page, the export endpoint (its own key) and Better Auth's endpoints", () => {
     expect(isPublicPath("/login")).toBe(true);
+    expect(isPublicPath("/privacy")).toBe(true);
+    expect(isPublicPath("/api/export")).toBe(true);
     expect(isPublicPath("/api/auth/callback/github")).toBe(true);
     expect(isPublicPath("/api/auth")).toBe(true);
-    for (const p of ["/", "/roadmap", "/login-help", "/loginx", "/api/authx", "/api/export", "/career"]) expect(isPublicPath(p), p).toBe(false);
+    for (const p of ["/", "/roadmap", "/login-help", "/loginx", "/api/authx", "/api/export/x", "/api/exports", "/privacy/x", "/waitlist", "/settings", "/admin", "/career"]) {
+      expect(isPublicPath(p), p).toBe(false);
+    }
   });
 });
 
@@ -121,10 +125,13 @@ describe("access mode copy (design spec 8)", () => {
   });
 
   it("changes the access line and the not-allowed error with the mode, and nothing else", () => {
-    expect(ACCESS_COPY["invite-only"].access).toBe("Invite only for now. Use the GitHub account your invite was sent to.");
-    expect(loginMessage("not-owner", "invite-only")?.text).toBe("This GitHub account doesn't have an invite yet.");
+    expect(ACCESS_COPY.capped.access).toBe(
+      "New here? Continue with GitHub to start your own tracker. Places are limited; if they're full you'll join the waitlist.",
+    );
+    expect(loginMessage("not-owner", "capped")?.text).toBe("Sign-in didn't finish. Try again.");
     expect(ACCESS_COPY.open.access).toBe("New here? Continue with GitHub to start your own tracker.");
-    for (const mode of ["owner-only", "invite-only", "open"] as const) {
+    expect(Object.keys(ACCESS_COPY)).toEqual(["owner-only", "capped", "open"]);
+    for (const mode of ["owner-only", "capped", "open"] as const) {
       expect(loginMessage("failed", mode)).toEqual({ tone: "error", text: "Sign-in didn't finish. Try again." });
       expect(loginMessage("signed-out", mode)).toEqual({ tone: "info", text: "You're signed out." });
       expect(loginMessage(null, mode)).toBeNull();
@@ -133,6 +140,20 @@ describe("access mode copy (design spec 8)", () => {
 
   it("with open sign-up, a stray not-allowed code reads as a failed sign-in", () => {
     expect(loginMessage("not-owner", "open")).toEqual({ tone: "error", text: "Sign-in didn't finish. Try again." });
+  });
+
+  it("M4b notices: suspended (error), deleted and left the waitlist (info), in every mode", () => {
+    expect(parseLoginParams({ error: "suspended" }).notice).toBe("suspended");
+    expect(parseLoginParams({ status: "deleted" }).notice).toBe("deleted");
+    expect(parseLoginParams({ status: "left-waitlist" }).notice).toBe("left-waitlist");
+    expect(parseLoginParams({ status: "toString" }).notice).toBeNull();
+    expect(parseLoginParams({ status: "__proto__" }).notice).toBeNull();
+    expect(loginMessage("suspended")).toEqual({
+      tone: "error",
+      text: "This account is suspended, so it can't sign in. If you think this is a mistake, open an issue on GitHub.",
+    });
+    expect(loginMessage("deleted")).toEqual({ tone: "info", text: "Your account and data are deleted." });
+    expect(loginMessage("left-waitlist")).toEqual({ tone: "info", text: "You've left the waitlist and your account is deleted." });
   });
 
   it("maps the query to the right banner", () => {

@@ -2,7 +2,7 @@
 // token for each run; scripts/e2e-seed.mjs stores the token as the made-up owner's session in a
 // fresh local test database; the fixtures send it as a cookie signed with the secret, exactly as
 // Better Auth would after a real GitHub sign-in. No real credential is involved anywhere.
-import { createHmac, randomBytes } from "node:crypto";
+import { createHash, createHmac, randomBytes } from "node:crypto";
 
 export const E2E_PORT = 3100;
 export const E2E_BASE_URL = `http://localhost:${E2E_PORT}`;
@@ -50,6 +50,38 @@ export function spareSessionToken(name: SpareSession, project: string, attempt: 
   const { secret } = e2eRunSecrets();
   return createHmac("sha256", secret).update(`e2e-spare-session\n${name}\n${project}\n${attempt}`).digest("base64url");
 }
+
+/**
+ * M4b's made-up users (scripts/lib/e2e-data.mjs, E2E_USERS). A test acts as one with
+ * `test.use({ as: "waitlisted" })`. Each has its own session per project and attempt, as spare
+ * sessions do, so a test that ends one (a suspended user's is ended on sight) touches no other.
+ */
+export const E2E_USER_KEYS = ["active", "waitlisted", "suspended", "admin"] as const;
+export type E2eUser = (typeof E2E_USER_KEYS)[number];
+
+export function userSessionToken(user: E2eUser, project: string, attempt: number): string {
+  if (!Number.isInteger(attempt) || attempt < 0 || attempt >= SPARE_ATTEMPTS) {
+    throw new Error(`No session for attempt ${attempt + 1}: raise SPARE_ATTEMPTS in tests/e2e/auth.ts.`);
+  }
+  const { secret } = e2eRunSecrets();
+  return createHmac("sha256", secret).update(`e2e-user-session\n${user}\n${project}\n${attempt}`).digest("base64url");
+}
+
+/** Every user session, as `user:token` pairs, for the seed (E2E_USER_SESSION_TOKENS). */
+export function userSessionTokens(projects: readonly string[]): string[] {
+  return E2E_USER_KEYS.flatMap((user) =>
+    projects.flatMap((project) => Array.from({ length: SPARE_ATTEMPTS }, (_, attempt) => `${user}:${userSessionToken(user, project, attempt)}`)),
+  );
+}
+
+/** The active user's Claude export key for this run (made up; the seed stores only its hash). */
+export function e2eExportKey(): string {
+  const { secret } = e2eRunSecrets();
+  return `fdej_${createHmac("sha256", secret).update("e2e-export-key").digest("base64url")}`;
+}
+
+/** The key's SHA-256, as the app stores it (lib/export-token.ts). */
+export const e2eExportKeyHash = () => createHash("sha256").update(e2eExportKey(), "utf8").digest("hex");
 
 /** Every spare session's token, for the seed (E2E_SPARE_SESSION_TOKENS). */
 export function spareSessionTokens(projects: readonly string[]): string[] {

@@ -9,6 +9,7 @@
 //   if (!result.ok && result.error.code === "signed-out") showSignedOutBanner();
 import { revalidatePath } from "next/cache";
 import { type Db, getDb } from "@/db/client";
+import { touchActivity } from "@/lib/activity";
 import { JOURNAL_ID } from "@/lib/ids";
 import type { ProgressEntry } from "@/lib/progress";
 import { setDone, setLink, setNote } from "@/lib/progress-db";
@@ -20,10 +21,14 @@ import { type Parsed, doneSchema, linkSchema, noteIdSchema, noteSchema, parseFie
 async function save<T>(parse: () => Parsed<T>, write: (userId: string, db: Db, input: T) => Promise<ProgressEntry>): Promise<SaveResult> {
   try {
     // The user comes from the session only, never from the action's arguments.
-    const userId = await requireUser({ onSignedOut: "throw" });
+    // Waitlisted users are refused here too (WaitlistedError is a SignedOutError).
+    const { userId } = await requireUser({ onSignedOut: "throw" });
     const input = parse();
     if (!input.ok) return { ok: false, error: input.error };
-    const record = await write(userId, await getDb(), input.value);
+    const db = await getDb();
+    const record = await write(userId, db, input.value);
+    // Saving counts as being active (at most one write an hour; never fails the save).
+    await touchActivity(db, userId);
     // Every page shows done counts (sidebar, Home tiles), so refresh them all. The current page
     // re-renders in this response; other pages refresh when next visited.
     revalidatePath("/", "layout");

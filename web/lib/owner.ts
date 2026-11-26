@@ -19,6 +19,8 @@ export function isOwnerGithubId(id: unknown, ownerId: string | null): boolean {
 
 /** The subset of Better Auth's `validateUserInfo` input that the owner rule reads. */
 export interface IdentityCheck {
+  /** The user as Better Auth is about to store or sign in (with `id` when they already exist). */
+  user?: { id?: string } & Record<string, unknown>;
   source: {
     method: string;
     action?: string;

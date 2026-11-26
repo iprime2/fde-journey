@@ -2,7 +2,7 @@
 // Sign out still shows, and Next's own control errors pass through untouched.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const session = vi.hoisted(() => ({ getOwnerSession: vi.fn() }));
+const session = vi.hoisted(() => ({ getIdentity: vi.fn() }));
 vi.mock("@/lib/session", () => session);
 // The real Server Action pulls in Better Auth and the database; only its identity matters here.
 vi.mock("@/app/actions/auth", () => ({ signOut: async () => {} }));
@@ -26,13 +26,13 @@ function expectSignOutForm(el: El, look: string) {
 }
 
 beforeEach(() => {
-  session.getOwnerSession.mockReset();
+  session.getIdentity.mockReset();
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
 describe("account area fallback", () => {
   it("shows a plain Sign out when the session check fails, and logs only the error's name", async () => {
-    session.getOwnerSession.mockRejectedValue(new TypeError("connection refused to db.internal:5432"));
+    session.getIdentity.mockRejectedValue(new TypeError("connection refused to db.internal:5432"));
     expectSignOutForm((await SidebarAccount()) as El, "ghost");
     expectSignOutForm((await SheetAccount()) as El, "secondary");
     expect(console.error).toHaveBeenCalledWith("Account menu: session check failed (TypeError)");
@@ -40,7 +40,7 @@ describe("account area fallback", () => {
   });
 
   it("shows a plain Sign out when there is no owner session", async () => {
-    session.getOwnerSession.mockResolvedValue(null);
+    session.getIdentity.mockResolvedValue(null);
     expectSignOutForm((await SidebarAccount()) as El, "ghost");
     expectSignOutForm((await SheetAccount()) as El, "secondary");
     expect(console.error).not.toHaveBeenCalled();
@@ -54,17 +54,21 @@ describe("account area fallback", () => {
       control = error;
     }
     expect(control).toBeInstanceOf(Error);
-    session.getOwnerSession.mockRejectedValue(control);
+    session.getIdentity.mockRejectedValue(control);
     await expect(SidebarAccount()).rejects.toBe(control);
     await expect(SheetAccount()).rejects.toBe(control);
     expect(console.error).not.toHaveBeenCalled();
   });
 
   it("shows the account menu for the owner, with the avatar URL checked on the server", async () => {
-    session.getOwnerSession.mockResolvedValue({
+    session.getIdentity.mockResolvedValue({
       userId: "owner",
       name: "Sam Example",
       image: "https://avatars.githubusercontent.com/u/0?v=4",
+      githubLogin: "sam-example",
+      status: "active",
+      isSuperAdmin: true,
+      permissions: [],
     });
     const el = (await SidebarAccount()) as El;
     expect(el.type).toBe(AccountMenu);
