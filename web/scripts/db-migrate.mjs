@@ -49,8 +49,9 @@ try {
     console.log(`Migrations: ${after - before} applied now, ${after} in total.`);
   }
 } catch (error) {
-  // Names and codes only (look the Postgres code up): a failed query's message quotes its parameters.
-  console.error(`Migration failed (${errorSummary(error)}).`);
+  // The scripts' own messages, or names and codes only (look the Postgres code up): a failed
+  // query's message quotes its parameters.
+  console.error(`Migration failed: ${errorSummary(error)}`);
   process.exitCode = 1;
 } finally {
   await pool.end();

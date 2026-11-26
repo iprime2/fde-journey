@@ -7,6 +7,7 @@
 // its own done_at instead.
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
+import { ScriptError } from "./db.mjs";
 
 const NOTE_MAX = 10_000;
 const EPOCH = new Date(0);
@@ -181,7 +182,7 @@ export async function findOwnerUserId(db, ownerGithubId) {
 }
 
 function checkUserId(userId) {
-  if (typeof userId !== "string" || userId.length === 0) throw new Error("The import needs the owner's user id.");
+  if (typeof userId !== "string" || userId.length === 0) throw new ScriptError("The import needs the owner's user id.");
 }
 
 /** The user's saved `updated_at` for the given ids. */

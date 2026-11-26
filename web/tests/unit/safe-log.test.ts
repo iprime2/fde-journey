@@ -1,5 +1,6 @@
-// lib/safe-log.ts and the scripts' errorSummary: logs carry error names and codes, never a
-// message, parameter, token or email. All values here are made up.
+// lib/safe-log.ts, lib/error-chain.mjs and the scripts' errorSummary: logs carry error names and
+// codes, never a message, parameter, token, email or address. All values here are made up.
+import { inspect } from "node:util";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { redirect } from "next/navigation";
 import { makeUntrackedHangingPromise } from "next/dist/server/dynamic-rendering-utils";
@@ -13,7 +14,7 @@ import {
   safeText,
   withSafeErrors,
 } from "@/lib/safe-log";
-import { errorSummary } from "@/scripts/lib/db.mjs";
+import { ScriptError, errorSummary } from "@/scripts/lib/db.mjs";
 
 const TOKEN = "fakeSessionTokenAb12Cd34Ef56Gh78";
 
@@ -80,6 +81,7 @@ describe("describeError", () => {
     expect(describeError(odd)).toBe("Error");
     expect(describeError(Object.assign(new Error("m"), { code: 23505 }))).toBe("Error 23505");
     expect(describeError("a string")).toBe("string");
+    expect(describeError(undefined)).toBe("unknown");
   });
 });
 
@@ -96,6 +98,37 @@ describe("SafeError and withSafeErrors", () => {
     expect((error as SafeError).cause).toBeUndefined();
     expect(JSON.stringify(error)).not.toContain(TOKEN);
     expect(describeError(error)).toBe("SafeError(APIError FAILED_TO_GET_SESSION < DrizzleQueryError < NeonDbError < TypeError)");
+  });
+
+  it("keeps the innermost error's stack frames and Postgres's schema names, never their text", () => {
+    function failingDeepInside() {
+      return Object.assign(new Error(`duplicate key: (email)=(owner@example.com) ${TOKEN}`), {
+        name: "DatabaseError",
+        code: "23505",
+        table: "session",
+        constraint: "session_token_unique",
+        column: `token ${TOKEN}`,
+        routine: "_bt_check_unique",
+        detail: `Key (token)=(${TOKEN}) already exists.`,
+      });
+    }
+    const error = new SafeError("Session check", new Error(`outer ${TOKEN}`, { cause: failingDeepInside() }));
+    expect(error.stack?.split("\n")[0]).toBe("SafeError: Session check failed (Error < DatabaseError 23505)");
+    expect(error.stack).toMatch(/\n\s+at failingDeepInside /);
+    expect(error.table).toBe("session");
+    expect(error.constraint).toBe("session_token_unique");
+    // Not plain identifiers, so left out.
+    expect(error.column).toBeUndefined();
+    expect(error.routine).toBeUndefined();
+    expect(error.detail).toBe("Error < DatabaseError 23505");
+    const everything = `${error.stack} ${JSON.stringify(error)} ${inspect(error, { depth: 10 })}`;
+    expect(everything).not.toMatch(new RegExp(`${TOKEN}|example\\.com|duplicate|already exists`));
+  });
+
+  it("keeps its own frames when no wrapped error has any", () => {
+    const error = new SafeError("Reading", { name: "Odd", message: TOKEN });
+    expect(error.stack).toMatch(/^SafeError: Reading failed \(Odd\)\n\s+at /);
+    expect(error.stack).not.toContain(TOKEN);
   });
 
   it("passes the result through", async () => {
@@ -145,6 +178,28 @@ describe("safeText", () => {
     expect(out).toBe("INTERNAL_SERVER_ERROR FAILED_TO_CREATE_SESSION for [email] [redacted]");
   });
 
+  it("redacts URL-encoded emails", () => {
+    expect(safeText("callback for owner%40example.com failed")).toBe("callback for [email] failed");
+    expect(safeText("next=%2Flogin%3Fe%3Dfirst.last%2Btag%40example.co.uk")).not.toMatch(/example|first|last/);
+  });
+
+  it("redacts all-capital tokens: only codes made of words joined by _ are kept", () => {
+    expect(safeText("token ABCDEFGHJKLMNPQRSTUVWXYZ23456789 seen")).toBe("token [redacted] seen");
+    expect(safeText("token ABCDEFGHJKLMNPQRSTUVWXYZ_23456789 seen")).toBe("token [redacted] seen");
+    expect(safeText("UNABLE_TO_CREATE_SESSION and STATE_NOT_FOUND")).toBe("UNABLE_TO_CREATE_SESSION and STATE_NOT_FOUND");
+  });
+
+  it("redacts shorter tokens (12 characters or more) but keeps plain words and paths", () => {
+    expect(safeText("id Ab3dE6gH9jK2 and q1w2e3r4t5y6u7 and ZXCVBNMASDFG")).toBe("id [redacted] and [redacted] and [redacted]");
+    expect(safeText("verification failed at /api/auth/callback/github")).toBe("verification failed at /api/auth/callback/github");
+    expect(safeText("short abc123 kept")).toBe("short abc123 kept");
+  });
+
+  it("redacts IPv4 addresses", () => {
+    expect(safeText("rate limit for 203.0.113.7 reached")).toBe("rate limit for [ip] reached");
+    expect(safeText("from 10.0.0.1:443")).toBe("from [ip]:443");
+  });
+
   it("caps the length", () => {
     expect(safeText("word ".repeat(100), 20)).toBe("word word word word …");
   });
@@ -180,9 +235,19 @@ describe("betterAuthLog", () => {
 });
 
 describe("errorSummary (scripts)", () => {
-  it("matches describeError's rules: names and codes, never a message", () => {
-    const text = errorSummary(neonChain(Object.assign(new Error(TOKEN), { code: "42P07" })));
-    expect(text).toBe("APIError < DrizzleQueryError < NeonDbError < Error 42P07");
-    expect(errorSummary("text")).toBe("unknown");
+  it("is describeError (one implementation): names and codes, body.code, cycles", () => {
+    const chain = neonChain(Object.assign(new Error(TOKEN), { code: "42P07" }));
+    expect(errorSummary(chain)).toBe("APIError FAILED_TO_GET_SESSION < DrizzleQueryError < NeonDbError < Error 42P07");
+    expect(errorSummary(chain)).toBe(describeError(chain));
+    const a = new Error(TOKEN);
+    const b = new Error(TOKEN, { cause: a });
+    (a as Error & { cause?: unknown }).cause = b;
+    expect(errorSummary(a)).toBe("Error < Error");
+    expect(errorSummary("text")).toBe(describeError("text"));
+  });
+
+  it("prints the scripts' own messages, and only those", () => {
+    expect(errorSummary(new ScriptError("DATABASE_URL is required on Vercel."))).toBe("DATABASE_URL is required on Vercel.");
+    expect(errorSummary(new Error("DATABASE_URL leaked postgres://u:p@host"))).toBe("Error");
   });
 });

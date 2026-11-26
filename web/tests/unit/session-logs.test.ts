@@ -24,6 +24,7 @@ import { type Db, openDb } from "@/db/client";
 import { type Auth, createAuth } from "@/lib/auth";
 import { SafeError } from "@/lib/safe-log";
 import { getOwnerSession } from "@/lib/session";
+import { captureOutput } from "./support/capture-output";
 import { resetAuth, setTestEnv, signedCookieValue } from "./support/db";
 
 vi.mock("@/app/actions/auth", () => ({ signOut: async () => {} }));
@@ -51,13 +52,7 @@ async function prerenderInterruption(): Promise<Error> {
   );
 }
 
-/** Everything written to the console or straight to stdout and stderr during the test. */
 let output: string[] = [];
-const capture =
-  (stream: string) =>
-  (...args: unknown[]) => {
-    output.push(`${stream}: ${args.map((a) => (typeof a === "string" ? a : inspect(a, { depth: 10 }))).join(" ")}`);
-  };
 
 let db: Db;
 let auth: Auth;
@@ -79,17 +74,8 @@ afterAll(() => {
 });
 
 beforeEach(() => {
-  output = [];
   neonFetch.calls = 0;
-  for (const method of ["error", "warn", "log", "info", "debug"] as const) vi.spyOn(console, method).mockImplementation(capture(method));
-  vi.spyOn(process.stdout, "write").mockImplementation((chunk: string | Uint8Array) => {
-    output.push(`stdout: ${String(chunk)}`);
-    return true;
-  });
-  vi.spyOn(process.stderr, "write").mockImplementation((chunk: string | Uint8Array) => {
-    output.push(`stderr: ${String(chunk)}`);
-    return true;
-  });
+  output = captureOutput();
   request.headers = new Headers({ cookie: COOKIE });
   // getOwnerSession reads through the app's memoised session reader: use the fake Neon one.
   resetAuth();

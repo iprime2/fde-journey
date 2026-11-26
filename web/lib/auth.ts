@@ -115,15 +115,24 @@ export function createAuth({ db, env, writeCookies = true }: { db: Db; env: Env;
     // forged OAuth state, a callback without state) and for /api/auth/error. Better Auth adds
     // `?error=<code>`, so /login shows "Sign-in didn't finish. Try again." instead of Better
     // Auth's own error page. Flows that started normally return to their own /login?next=… address.
-    onAPIError: { errorURL: "/login" },
+    //
+    // `throw: true`: an endpoint that fails with anything but Better Auth's own APIError (a
+    // database error in the GitHub callback, for one) is thrown out of auth.handler instead of
+    // being printed whole by the router underneath (better-call's "# SERVER_ERROR", which quoted
+    // the failed query's parameters: the new session token, user id, IP address and browser).
+    // app/api/auth/[...all]/route.ts logs it safely and answers. Redirects and APIError answers
+    // are unchanged: the router still turns them into responses.
+    onAPIError: { errorURL: "/login", throw: true },
     // Better Auth skips its origin and CSRF checks when NODE_ENV is "test". Keep them on
     // everywhere, so tests exercise the same protection as production.
     advanced: { disableOriginCheck: false },
     telemetry: { enabled: false },
     // Better Auth's default logger prints whole errors: a failed session lookup printed the
     // query's parameters, the session token among them. This one prints error names and codes
-    // only, and nothing for Next's own prerender interruptions (lib/safe-log.ts).
-    logger: { level: "warn", log: betterAuthLog },
+    // only, and nothing for Next's own prerender interruptions (lib/safe-log.ts). No `level`:
+    // the default is already "warn", and setting one makes Better Auth's router also print error
+    // messages through its global default logger, bypassing this one.
+    logger: { log: betterAuthLog },
     // Lets Server Actions that call auth.api (sign-in, sign-out, renewal) set cookies. Must stay last.
     plugins: writeCookies ? [nextCookies()] : [],
   });
