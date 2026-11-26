@@ -138,8 +138,8 @@ Two pull requests, each reviewed (code and UX) before merge:
 
 ## 9. Open questions for the owner
 1. (Decided: open up to 100 users, then the waitlist.)
-2. Section defaults for other users: does the table in section 5 look right?
+2. (Decided: the section 5 table as written. Roadmap, Reading and Certifications on; Scaler, Projects and Career off, each can be turned on in Settings.)
 3. (Decided: Google sign-in later, not in M4.)
 4a. (Decided: admins never see email addresses. The dashboard shows GitHub username and avatar only.)
-4. Is a privacy page with you as the contact OK? The contact would be an address you choose, written into the page by you, not by Claude.
+4. (Decided: the privacy page links to a GitHub issue on the public repo for data questions; no email address is published.)
 5. Name: does it stay "FDE Journey" for everyone?
