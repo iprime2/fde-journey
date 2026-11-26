@@ -26,6 +26,9 @@ export const WAITING_TEXT = "Not saved yet. Saves when you're back online.";
 /** Made-up example note from the design spec. */
 export const EXAMPLE_NOTE = "Finished the quickstart. Next: try hybrid search on the sample set.";
 export const EXAMPLE_LINK = "https://example.com/demo";
+/** The made-up owner from scripts/e2e-seed.mjs (no avatar image, so initials show). */
+export const E2E_OWNER_NAME = "Sam Example";
+export const SIGN_IN_BUTTON = "Continue with GitHub";
 
 /**
  * What a note area (a row's note, or the weekly notes) announces: its live region, which is

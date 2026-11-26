@@ -34,11 +34,12 @@ async function CertsContent({ searchParams }: Pick<PageProps<"/certs">, "searchP
   return (
     <FilterProvider path="/certs" entries={filterEntries(cards)} initial={filterFromRecord(sp)}>
       <Toolbar placeholder={SEARCH_PLACEHOLDERS.certs} />
-      <div className="grid gap-3 md:grid-cols-2">
+      {/* Two columns only from 1280 px: at 768 and 1024 two columns gave cramped 350 px cards (design spec 3.4). */}
+      <div className="grid gap-3 xl:grid-cols-2">
         {cards.map((card) => (
           <SectionCard key={card.key} card={card} readOnly={readOnly} />
         ))}
-        <div className="md:col-span-2 empty:hidden">
+        <div className="xl:col-span-2 empty:hidden">
           <FilterEmpty />
         </div>
       </div>

@@ -51,14 +51,35 @@ export function GroupLabel({ children, hidden }: { children: React.ReactNode; hi
   );
 }
 
-const BUTTON_BASE =
-  "inline-flex min-h-11 items-center justify-center gap-2 rounded-md px-4 type-body-strong motion-safe:transition-[color,background-color,border-color] motion-safe:duration-150 disabled:cursor-not-allowed disabled:opacity-50";
+// Disabled buttons fade to 0.5, except while busy (`aria-busy`): a loading button stays at full
+// opacity with a progress cursor, so it looks busy rather than broken (design spec 4, Button).
+const BUTTON_CORE =
+  "inline-flex items-center justify-center rounded-md px-4 type-body-strong motion-safe:transition-[color,background-color,border-color] motion-safe:duration-150 disabled:not-aria-busy:cursor-not-allowed disabled:not-aria-busy:opacity-50 aria-busy:cursor-progress";
+const BUTTON_BASE = cn(BUTTON_CORE, "min-h-11 gap-2");
+/** Size `lg`, the sign-in button only: 48 px tall, 10 px gap for a 20 px icon. */
+const BUTTON_LG = cn(BUTTON_CORE, "min-h-12 gap-2.5");
+
+const PRIMARY = "bg-accent text-accent-ink hover:bg-accent-hover disabled:bg-accent";
 
 export const buttonStyles = {
-  primary: cn(BUTTON_BASE, "bg-accent text-accent-ink hover:bg-accent-hover disabled:bg-accent"),
+  primary: cn(BUTTON_BASE, PRIMARY),
+  primaryLg: cn(BUTTON_LG, PRIMARY),
   secondary: cn(BUTTON_BASE, "border border-line-strong bg-surface text-ink hover:bg-hover disabled:bg-surface"),
   ghost: cn(BUTTON_BASE, "text-muted hover:bg-hover hover:text-ink disabled:bg-transparent disabled:text-muted"),
 };
+
+/**
+ * An 18 px ring that turns while a button is busy, in place of the button's icon. Shown only with
+ * motion allowed; with reduced motion the icon stays and the label alone says it is busy.
+ */
+export function Spinner() {
+  return (
+    <span
+      aria-hidden="true"
+      className="hidden size-[18px] flex-none rounded-full border-2 border-current border-r-transparent motion-safe:block motion-safe:animate-spinner"
+    />
+  );
+}
 
 /** A link that opens in a new tab, with "↗" and a hidden "(opens in a new tab)". */
 /** Opens https links in a new tab. Anything else (javascript:, http:, relative) renders as plain text. */

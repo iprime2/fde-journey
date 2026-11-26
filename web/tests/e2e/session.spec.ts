@@ -1,16 +1,36 @@
 // Sign-in page messages, signing out, and the first-visit banner.
-import type { Page, TestInfo } from "@playwright/test";
+import type { Locator, Page, TestInfo } from "@playwright/test";
 import { SESSION_COOKIE } from "./auth";
 import { expect, test } from "./fixtures";
-import { FIRST_VISIT_TEXT, SIGNED_OUT_TEXT, forProject, gotoReady, isPhone, pageHeading } from "./helpers";
+import {
+  E2E_OWNER_NAME,
+  FIRST_VISIT_TEXT,
+  SIGN_IN_BUTTON,
+  SIGNED_OUT_TEXT,
+  forProject,
+  gotoReady,
+  isPhone,
+  pageHeading,
+} from "./helpers";
 
+/** Sign out from the More sheet's account row (phone) or the sidebar's account menu (desktop). */
 async function clickSignOut(page: Page, testInfo: TestInfo) {
   if (isPhone(testInfo)) {
     await page.getByRole("button", { name: "More" }).click();
     await page.getByRole("navigation", { name: "Sections" }).getByRole("button", { name: "Sign out" }).click();
   } else {
+    await page.getByRole("button", { name: `Account: ${E2E_OWNER_NAME}` }).click();
     await page.getByRole("button", { name: "Sign out" }).click();
   }
+}
+
+/** Design spec 5: messages sit above the sign-in button, inside the card. */
+async function expectAboveButton(page: Page, message: Locator) {
+  const [box, button] = await Promise.all([
+    message.boundingBox(),
+    page.getByRole("button", { name: SIGN_IN_BUTTON }).boundingBox(),
+  ]);
+  expect(box && button && box.y + box.height <= button.y, "message above the button").toBe(true);
 }
 
 test.describe("first visit", () => {
@@ -46,8 +66,10 @@ test.describe("signing out", () => {
 
     await clickSignOut(page, testInfo);
     await expect(page).toHaveURL("/login?status=signed-out");
-    await expect(page.getByRole("status").filter({ hasText: "You're signed out." })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Sign in with GitHub" })).toBeEnabled();
+    const signedOut = page.getByRole("status").filter({ hasText: "You're signed out." });
+    await expect(signedOut).toBeVisible();
+    await expect(page.getByRole("button", { name: SIGN_IN_BUTTON })).toBeEnabled();
+    await expectAboveButton(page, signedOut);
     expect((await context.cookies()).some((c) => c.name === SESSION_COOKIE), "the browser dropped the cookie").toBe(false);
 
     // Send the same cookie again. The proxy lets it through (a cookie is present), but the session
@@ -55,7 +77,7 @@ test.describe("signing out", () => {
     await context.addCookies([cookie!]);
     await page.goto("/roadmap");
     await expect(page).toHaveURL("/login?next=%2Froadmap");
-    await expect(page.getByRole("button", { name: "Sign in with GitHub" })).toBeEnabled();
+    await expect(page.getByRole("button", { name: SIGN_IN_BUTTON })).toBeEnabled();
 
     // A save from the tab that stayed open, with that cookie, is refused as signed out.
     await context.addCookies([cookie!]);
@@ -98,19 +120,25 @@ test.describe("sign-in page", () => {
 
   test("a GitHub account that isn't the owner's gets the not-allowed message", async ({ page }) => {
     await gotoReady(page, "/login?error=not_owner");
-    await expect(page.getByRole("alert").filter({ hasText: "This GitHub account can't sign in. The app is private to its owner." })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Sign in with GitHub" })).toBeEnabled();
+    const alert = page.getByRole("alert").filter({
+      hasText: "This GitHub account can't sign in. FDE Journey is private to its owner for now.",
+    });
+    await expect(alert).toBeVisible();
+    await expect(page.getByRole("button", { name: SIGN_IN_BUTTON })).toBeEnabled();
+    await expectAboveButton(page, alert);
   });
 
   test("the button keeps where the visitor was going, and explains when sign-in doesn't finish", async ({ page }) => {
     await gotoReady(page, "/roadmap?q=rag");
     await expect(page).toHaveURL("/login?next=%2Froadmap%3Fq%3Drag");
-    await expect(pageHeading(page)).toHaveText("FDE Journey");
+    await expect(pageHeading(page)).toHaveText("Sign in");
     await expect(page.locator('input[name="next"]')).toHaveValue("/roadmap?q=rag");
     // The test server has no GitHub app, so sign-in comes back with an error, keeping `next`.
-    await page.getByRole("button", { name: "Sign in with GitHub" }).click();
+    await page.getByRole("button", { name: SIGN_IN_BUTTON }).click();
     await expect(page).toHaveURL(/\/login\?next=%2Froadmap%3Fq%3Drag&error=/);
-    await expect(page.getByRole("alert").filter({ hasText: "Sign-in didn't finish. Try again." })).toBeVisible();
+    const alert = page.getByRole("alert").filter({ hasText: "Sign-in didn't finish. Try again." });
+    await expect(alert).toBeVisible();
+    await expectAboveButton(page, alert);
   });
 
   test("has no navigation and no M1 leftovers", async ({ page }) => {

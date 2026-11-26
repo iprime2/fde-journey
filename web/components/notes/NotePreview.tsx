@@ -5,7 +5,7 @@ import { ExternalLink } from "../ui";
 export function NotePreview({ note, link }: { note: string; link: string }) {
   if (!note && !link) return null;
   return (
-    <div className="type-small max-w-[75ch] whitespace-pre-wrap text-muted [overflow-wrap:anywhere]">
+    <div className="type-small max-w-[34em] whitespace-pre-wrap text-muted [overflow-wrap:anywhere]">
       {note && <p>{notePreview(note)}</p>}
       {link && <p>{isHttpsUrl(link) ? <ExternalLink href={link}>{link}</ExternalLink> : link}</p>}
     </div>

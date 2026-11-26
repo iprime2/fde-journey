@@ -123,3 +123,23 @@ export function GitHubMark({ size = 20, ...rest }: IconProps) {
     </svg>
   );
 }
+
+export const ChevronUpIcon = (p: IconProps) => (
+  <Line {...p}>
+    <path d="m18 15-6-6-6 6" />
+  </Line>
+);
+
+export const LockIcon = (p: IconProps) => (
+  <Line {...p}>
+    <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
+    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+  </Line>
+);
+
+export const UserIcon = (p: IconProps) => (
+  <Line {...p}>
+    <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+    <circle cx="12" cy="7" r="4" />
+  </Line>
+);

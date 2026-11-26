@@ -11,7 +11,7 @@ test.describe("signed out", () => {
       await page.goto(s.path);
       const next = s.path === "/" ? "" : `?next=${encodeURIComponent(s.path)}`;
       await expect(page).toHaveURL(`/login${next}`);
-      await expect(pageHeading(page)).toHaveText("FDE Journey");
+      await expect(pageHeading(page)).toHaveText("Sign in");
       await expect(page.getByRole("navigation")).toHaveCount(0);
     }
   });

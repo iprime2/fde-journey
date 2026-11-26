@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { isPublicPath, loginHref, parseLoginParams, safeNextPath } from "@/lib/login";
+import {
+  ACCESS_COPY,
+  ACCESS_MODE,
+  isPublicPath,
+  loginHref,
+  loginMessage,
+  parseLoginParams,
+  safeNextPath,
+} from "@/lib/login";
 
 describe("safeNextPath (the ?next= redirect after sign-in)", () => {
   it("keeps paths on this site, with their query and hash", () => {
@@ -99,5 +107,38 @@ describe("isPublicPath", () => {
     expect(isPublicPath("/api/auth/callback/github")).toBe(true);
     expect(isPublicPath("/api/auth")).toBe(true);
     for (const p of ["/", "/roadmap", "/login-help", "/loginx", "/api/authx", "/api/export", "/career"]) expect(isPublicPath(p), p).toBe(false);
+  });
+});
+
+describe("access mode copy (design spec 8)", () => {
+  it("is owner only for now, with the owner-only wording", () => {
+    expect(ACCESS_MODE).toBe("owner-only");
+    expect(ACCESS_COPY[ACCESS_MODE].access).toBe("Private for now: only the owner's GitHub account can sign in.");
+    expect(loginMessage("not-owner")).toEqual({
+      tone: "error",
+      text: "This GitHub account can't sign in. FDE Journey is private to its owner for now.",
+    });
+  });
+
+  it("changes the access line and the not-allowed error with the mode, and nothing else", () => {
+    expect(ACCESS_COPY["invite-only"].access).toBe("Invite only for now. Use the GitHub account your invite was sent to.");
+    expect(loginMessage("not-owner", "invite-only")?.text).toBe("This GitHub account doesn't have an invite yet.");
+    expect(ACCESS_COPY.open.access).toBe("New here? Continue with GitHub to start your own tracker.");
+    for (const mode of ["owner-only", "invite-only", "open"] as const) {
+      expect(loginMessage("failed", mode)).toEqual({ tone: "error", text: "Sign-in didn't finish. Try again." });
+      expect(loginMessage("signed-out", mode)).toEqual({ tone: "info", text: "You're signed out." });
+      expect(loginMessage(null, mode)).toBeNull();
+    }
+  });
+
+  it("with open sign-up, a stray not-allowed code reads as a failed sign-in", () => {
+    expect(loginMessage("not-owner", "open")).toEqual({ tone: "error", text: "Sign-in didn't finish. Try again." });
+  });
+
+  it("maps the query to the right banner", () => {
+    expect(loginMessage(parseLoginParams({ error: "not_owner" }).notice)?.tone).toBe("error");
+    expect(loginMessage(parseLoginParams({ error: "unavailable" }).notice)?.text).toBe("Sign-in didn't finish. Try again.");
+    expect(loginMessage(parseLoginParams({ status: "signed-out" }).notice)?.tone).toBe("info");
+    expect(loginMessage(parseLoginParams({}).notice)).toBeNull();
   });
 });

@@ -219,7 +219,7 @@ export function NoteArea({
         ref={linesArea}
         className={cn(
           UNDER_TEXT,
-          open ? "type-num flex min-h-11 flex-wrap items-center gap-x-2 pb-2" : "type-small max-w-[75ch] [overflow-wrap:anywhere]",
+          open ? "type-num flex min-h-11 flex-wrap items-center gap-x-2 pb-2" : "type-small max-w-[34em] [overflow-wrap:anywhere]",
           !open && (lines.saving || lines.save || lines.field) && "-mt-1 pb-2",
         )}
         onKeyDown={open ? onEscape : undefined}

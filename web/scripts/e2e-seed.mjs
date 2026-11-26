@@ -1,4 +1,5 @@
-// End-to-end tests only: creates a fresh local test database with a made-up owner, the session
+// End-to-end tests only: creates a fresh local test database with a made-up owner ("Sam Example",
+// no avatar image, so the account menu shows the initials "SE"), the session
 // every test shares, and spare sessions for tests that sign out, so Playwright can sign in without
 // GitHub. playwright.config.ts runs it right before `next start`; the browser then sends a cookie
 // signed with the test run's secret.
@@ -21,7 +22,7 @@ const db = await openScriptDb({ kind: "pglite", dataDir: check.dataDir });
 try {
   await db.query(
     `insert into "user" (id, name, email, email_verified, created_at, updated_at)
-     values ('e2e-owner', 'Test Owner', 'owner@example.com', true, now(), now())`,
+     values ('e2e-owner', 'Sam Example', 'owner@example.com', true, now(), now())`,
   );
   await db.query(
     `insert into account (id, account_id, provider_id, user_id, created_at, updated_at)

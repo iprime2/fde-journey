@@ -1,5 +1,5 @@
 import { expect, test } from "./fixtures";
-import { READ_ONLY_TEXT, SECTION_PAGES, expectNoSidewaysScroll, gotoReady, pageHeading } from "./helpers";
+import { READ_ONLY_TEXT, SECTION_PAGES, SIGN_IN_BUTTON, expectNoSidewaysScroll, gotoReady, pageHeading } from "./helpers";
 
 test.describe("signed in as the owner", () => {
   for (const s of SECTION_PAGES) {
@@ -57,6 +57,9 @@ test.describe("other pages", () => {
     expect(response?.status()).toBe(404);
     await expect(pageHeading(page)).toHaveText("This page doesn't exist.");
     await expect(page).toHaveTitle("Page not found · FDE Journey");
+    // The lockup names the app; it is text, not a heading or a link.
+    await expect(page.getByText("FDE Journey", { exact: true })).toBeVisible();
+    await expect(page.getByRole("link", { name: "FDE Journey" })).toHaveCount(0);
     await page.getByRole("link", { name: "Go to Home" }).click();
     await expect(page).toHaveURL("/");
     await expect(pageHeading(page)).toHaveText("FDE Journey");
@@ -68,8 +71,8 @@ test.describe("other pages", () => {
 
     test("sign-in page offers GitHub sign-in and fits the screen", async ({ page }) => {
       await gotoReady(page, "/login");
-      await expect(pageHeading(page)).toHaveText("FDE Journey");
-      await expect(page.getByRole("button", { name: "Sign in with GitHub" })).toBeEnabled();
+      await expect(pageHeading(page)).toHaveText("Sign in");
+      await expect(page.getByRole("button", { name: SIGN_IN_BUTTON })).toBeEnabled();
       await expectNoSidewaysScroll(page);
     });
   });

@@ -40,8 +40,8 @@ export function ItemRow({
         ) : (
           <span className="item-title type-body-strong [overflow-wrap:anywhere]">{row.title}</span>
         )}
-        {row.meta && <span className="type-small block max-w-[75ch] text-muted">{row.meta}</span>}
-        {row.why && <span className="type-small block max-w-[75ch] text-muted">{row.why}</span>}
+        {row.meta && <span className="type-small block max-w-[34em] text-muted">{row.meta}</span>}
+        {row.why && <span className="type-small block max-w-[34em] text-muted">{row.why}</span>}
         <TickError />
       </div>
       <NoteArea
@@ -62,7 +62,7 @@ export function ItemRow({
           }
         >
           {row.resources.start && (
-            <p className="type-small mt-1 mb-2 max-w-[65ch] text-muted">
+            <p className="type-small mt-1 mb-2 max-w-[34em] text-muted">
               <b className="font-semibold text-ink">Start here:</b> {row.resources.start}
             </p>
           )}

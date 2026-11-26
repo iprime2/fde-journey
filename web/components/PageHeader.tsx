@@ -36,7 +36,7 @@ export function PageHeader({
       <h1 tabIndex={-1} className="type-display w-fit">
         {title}
       </h1>
-      {description && <p className="type-small max-w-[65ch] text-muted">{description}</p>}
+      {description && <p className="type-small max-w-[34em] text-muted">{description}</p>}
       {facts && <Facts facts={facts} />}
     </header>
   );
