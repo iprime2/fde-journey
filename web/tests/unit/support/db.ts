@@ -18,9 +18,10 @@ export function setTestEnv() {
   delete process.env.DATABASE_URL;
 }
 
-/** Forgets the app's memoised auth instance so the next call reads the environment again. */
+/** Forgets the app's memoised auth instances so the next call reads the environment again. */
 export function resetAuth() {
   delete (globalThis as { __fdeJourneyAuth?: unknown }).__fdeJourneyAuth;
+  delete (globalThis as { __fdeJourneySessionReader?: unknown }).__fdeJourneySessionReader;
 }
 
 /** The app's database under Vitest (in memory), emptied. */

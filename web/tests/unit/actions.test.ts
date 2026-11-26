@@ -1,12 +1,12 @@
 // Every save action: signed out, wrong user, owner, and invalid inputs.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const request = vi.hoisted(() => ({ headers: new Headers() }));
+const request = vi.hoisted(() => ({ headers: new Headers(), cookiesSet: [] as string[] }));
 const fail = vi.hoisted(() => ({ next: false }));
 // As in a Server Action: cookies can be set. Better Auth imports "next/headers.js" too.
 const nextHeaders = vi.hoisted(() => () => ({
   headers: async () => request.headers,
-  cookies: async () => ({ get: () => undefined, set: () => {} }),
+  cookies: async () => ({ get: () => undefined, set: (name: string) => request.cookiesSet.push(name) }),
 }));
 vi.mock("next/headers", nextHeaders);
 vi.mock("next/headers.js", nextHeaders);
@@ -29,7 +29,8 @@ vi.mock("@/lib/progress-db", async (importOriginal) => {
 import { revalidatePath } from "next/cache";
 import { saveJournal, saveLink, saveNote, toggleDone } from "@/app/actions/progress";
 import type { Db } from "@/db/client";
-import { progress } from "@/db/schema";
+import { progress, session } from "@/db/schema";
+import { getAuth } from "@/lib/auth";
 import { readProgress } from "@/lib/progress-db";
 import { emptyDb, seedOtherUser, seedOwner, setTestEnv } from "./support/db";
 
@@ -39,6 +40,7 @@ let db: Db;
 beforeEach(async () => {
   db = await emptyDb();
   request.headers = new Headers();
+  request.cookiesSet = [];
   vi.mocked(revalidatePath).mockClear();
 });
 
@@ -73,6 +75,18 @@ describe.each(Object.entries(actions))("%s authorisation", (_name, run) => {
     if (!result.ok) expect(result.error.code).toBe("signed-out");
     expect(await db.select().from(progress)).toEqual([]);
     expect(revalidatePath).not.toHaveBeenCalled();
+  });
+
+  // A cookie change in a Server Action makes Next re-render the page, which would then leave for
+  // /login and lose what the owner was typing. A refused save must leave cookies alone.
+  it("refuses the cookie of a session that has ended or expired, without touching cookies", async () => {
+    await signInAsOwner();
+    await db.update(session).set({ expiresAt: new Date(Date.now() - 1000) });
+    expect(await run()).toMatchObject({ ok: false, error: { code: "signed-out" } });
+    await db.delete(session);
+    expect(await run()).toMatchObject({ ok: false, error: { code: "signed-out" } });
+    expect(request.cookiesSet).toEqual([]);
+    expect(await db.select().from(progress)).toEqual([]);
   });
 
   it("saves for the owner and refreshes every page", async () => {
@@ -175,5 +189,14 @@ describe("saveLink", () => {
 
   it("does not take links for the journal", async () => {
     expect(await saveLink("journal", LINK)).toMatchObject({ ok: false, error: { field: "itemId" } });
+  });
+});
+
+describe("why saves read the session without writing cookies", () => {
+  it("Better Auth's cookie-writing instance deletes an ended session's cookie (which would re-render the page)", async () => {
+    await signInAsOwner();
+    await db.delete(session);
+    expect(await (await getAuth()).api.getSession({ headers: request.headers })).toBeNull();
+    expect(request.cookiesSet).toContain("better-auth.session_token");
   });
 });

@@ -62,11 +62,16 @@ test.describe("other pages", () => {
     await expect(pageHeading(page)).toHaveText("FDE Journey");
   });
 
-  test("sign-in page offers GitHub sign-in and fits the screen", async ({ page }) => {
-    await gotoReady(page, "/login");
-    await expect(pageHeading(page)).toHaveText("FDE Journey");
-    await expect(page.getByRole("button", { name: "Sign in with GitHub" })).toBeEnabled();
-    await expectNoSidewaysScroll(page);
+  test.describe("signed out", () => {
+    // A signed-in owner opening /login goes straight on to Home (session.spec.ts).
+    test.use({ signedIn: false });
+
+    test("sign-in page offers GitHub sign-in and fits the screen", async ({ page }) => {
+      await gotoReady(page, "/login");
+      await expect(pageHeading(page)).toHaveText("FDE Journey");
+      await expect(page.getByRole("button", { name: "Sign in with GitHub" })).toBeEnabled();
+      await expectNoSidewaysScroll(page);
+    });
   });
 });
 

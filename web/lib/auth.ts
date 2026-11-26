@@ -66,8 +66,11 @@ export async function deleteExpiredVerifications(db: Db, now = new Date()): Prom
   }
 }
 
-/** Builds the auth instance. Exported for tests, which pass an in-memory database. */
-export function createAuth({ db, env }: { db: Db; env: Env }) {
+/**
+ * Builds the auth instance. Exported for tests, which pass an in-memory database.
+ * `writeCookies: false` gives an instance that never sets cookies through Next (see getSessionReader).
+ */
+export function createAuth({ db, env, writeCookies = true }: { db: Db; env: Env; writeCookies?: boolean }) {
   const ownerId = ownerGithubId(env);
   const secret = env.BETTER_AUTH_SECRET?.trim();
   if (!secret) throw new Error("BETTER_AUTH_SECRET is not set. See web/.env.example.");
@@ -116,24 +119,43 @@ export function createAuth({ db, env }: { db: Db; env: Env }) {
     // everywhere, so tests exercise the same protection as production.
     advanced: { disableOriginCheck: false },
     telemetry: { enabled: false },
-    // Lets Server Actions that call auth.api (sign-in, sign-out) set cookies. Must stay last.
-    plugins: [nextCookies()],
+    // Lets Server Actions that call auth.api (sign-in, sign-out, renewal) set cookies. Must stay last.
+    plugins: writeCookies ? [nextCookies()] : [],
   });
 }
 
 export type Auth = ReturnType<typeof createAuth>;
 
-const store = globalThis as typeof globalThis & { __fdeJourneyAuth?: Promise<Auth> };
+type AuthKey = "__fdeJourneyAuth" | "__fdeJourneySessionReader";
+const store = globalThis as typeof globalThis & { [K in AuthKey]?: Promise<Auth> };
 
-/** The app's auth instance, created on first use (so builds and pages without sign-in skip it). */
-export function getAuth(): Promise<Auth> {
-  if (!store.__fdeJourneyAuth) {
-    store.__fdeJourneyAuth = getDb()
-      .then((db) => createAuth({ db, env: process.env }))
+function memoised(key: AuthKey, writeCookies: boolean): Promise<Auth> {
+  if (!store[key]) {
+    store[key] = getDb()
+      .then((db) => createAuth({ db, env: process.env, writeCookies }))
       .catch((error: unknown) => {
-        store.__fdeJourneyAuth = undefined;
+        store[key] = undefined;
         throw error;
       });
   }
-  return store.__fdeJourneyAuth;
+  return store[key];
+}
+
+/**
+ * The app's auth instance, created on first use (so builds and pages without sign-in skip it).
+ * In a Server Action it sets the cookies Better Auth asks for: the sign-in state, sign-out, renewal.
+ */
+export function getAuth(): Promise<Auth> {
+  return memoised("__fdeJourneyAuth", true);
+}
+
+/**
+ * The same auth set-up, but it never sets cookies: for checking who the visitor is (lib/session.ts).
+ * When a validly signed cookie's session has ended, Better Auth deletes the cookie. In a Server
+ * Action, Next answers any cookie change by re-rendering the page, which then redirects to /login:
+ * a refused save would take the owner away from the page and the note they were typing. A save
+ * must answer "signed-out" instead and leave the page alone; the next page visit goes to /login.
+ */
+export function getSessionReader(): Promise<Auth> {
+  return memoised("__fdeJourneySessionReader", false);
 }

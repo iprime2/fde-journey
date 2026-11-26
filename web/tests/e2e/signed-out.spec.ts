@@ -37,10 +37,4 @@ test.describe("signed out", () => {
   });
 });
 
-test.describe("signed in", () => {
-  test("the sign-in page still opens", async ({ page }) => {
-    await page.goto("/login");
-    await expect(page).toHaveURL("/login");
-    await expect(pageHeading(page)).toHaveText("FDE Journey");
-  });
-});
+// A signed-in owner opening /login goes on to Home or `next`: see session.spec.ts ("signed in").

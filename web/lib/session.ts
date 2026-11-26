@@ -7,7 +7,7 @@ import { eq } from "drizzle-orm";
 import { cache } from "react";
 import { getDb } from "@/db/client";
 import { session } from "@/db/schema";
-import { getAuth, isOwnerUser } from "./auth";
+import { getSessionReader, isOwnerUser } from "./auth";
 import { PATH_HEADER, loginHref } from "./login";
 import { ownerGithubId } from "./owner";
 
@@ -30,10 +30,12 @@ export const getOwnerSession = cache(async (): Promise<OwnerSession | null> => {
   const ownerId = ownerGithubId(process.env);
   if (!ownerId) return null;
   if (!getSessionCookie(requestHeaders)) return null;
-  const auth = await getAuth();
-  // Read-only: pages cannot set cookies, so a refresh here would extend the session in the
-  // database but not in the browser. Renewal happens only in refreshSession() (app/actions/auth.ts),
-  // which updates both together.
+  // Read-only, in the database and in the browser. Pages cannot set cookies, so a refresh here
+  // would extend the session in the database but not in the browser: renewal happens only in
+  // refreshSession() (app/actions/auth.ts), which updates both together. And the reader never
+  // deletes the cookie of an ended session, which in a Server Action would make Next re-render
+  // the page and leave it for /login (see getSessionReader).
+  const auth = await getSessionReader();
   const result = await auth.api.getSession({ headers: requestHeaders, query: { disableRefresh: true } });
   if (!result) return null;
   // Re-check the owner on every request: OWNER_GITHUB_ID may have changed since sign-in. A valid
