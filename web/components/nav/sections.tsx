@@ -5,6 +5,7 @@ import {
   BadgeCheckIcon,
   BookOpenIcon,
   BriefcaseIcon,
+  ChartColumnIcon,
   FolderGitIcon,
   GraduationCapIcon,
   HouseIcon,
@@ -42,13 +43,29 @@ export const SECTIONS: readonly Section[] = [
 export const isCurrentSection = (pathname: string, href: string) =>
   href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
 
+/**
+ * Insights (design spec 10.7): always shown, no count, and not a section, so it never takes a
+ * bottom-bar cell. Right after Home in the sidebar; the first row of the More sheet on phones.
+ */
+export const INSIGHTS_HREF = "/insights";
+export const INSIGHTS_ITEM = { label: "Insights", Icon: ChartColumnIcon } as const;
+
 /** The second group (design spec 3.5): Settings for everyone, Admin for admins only. */
 export const SETTINGS_ITEM = { label: "Settings", Icon: SettingsIcon } as const;
 export const ADMIN_ITEM = { label: "Admin", Icon: ShieldIcon } as const;
-export type ExtraItem = "settings" | "admin";
+/** Links that aren't sections: Insights, Settings and Admin. */
+export type ExtraItem = "insights" | "settings" | "admin";
 
-/** Whether `pathname` belongs to Settings or to any admin page. */
+export const EXTRA_ITEMS: Record<ExtraItem, { label: string; Icon: Section["Icon"] }> = {
+  insights: INSIGHTS_ITEM,
+  settings: SETTINGS_ITEM,
+  admin: ADMIN_ITEM,
+};
+
+const underPath = (pathname: string, base: string) => pathname === base || pathname.startsWith(`${base}/`);
+
+/** Whether `pathname` belongs to Insights, Settings or any admin page. */
 export const isCurrentExtra = (pathname: string, item: ExtraItem) =>
-  item === "settings" ? pathname === "/settings" || pathname.startsWith("/settings/") : isAdminPath(pathname);
+  item === "insights" ? underPath(pathname, INSIGHTS_HREF) : item === "settings" ? underPath(pathname, "/settings") : isAdminPath(pathname);
 
 export const sectionFor = (href: string) => SECTIONS.find((s) => s.href === href);

@@ -5,6 +5,7 @@
 // inside a <Suspense> boundary.
 import "server-only";
 import { eq, sql } from "drizzle-orm";
+import { cache } from "react";
 import { type Db, getDb } from "@/db/client";
 import { adminAudit, user } from "@/db/schema";
 import type { SectionChoices } from "./access-types";
@@ -28,14 +29,18 @@ export interface MySettings extends SectionSettings {
   canDeleteAccount: boolean;
 }
 
-/** The signed-in user's Settings page. Redirects as requireUser() does. */
-export async function getMySettings(): Promise<MySettings> {
+/**
+ * The signed-in user's settings. Redirects as requireUser() does. Read once per request (React
+ * cache): the navigation, the page and getInsights() share one read, so a page's hidden-section
+ * line and its numbers can't disagree.
+ */
+export const getMySettings = cache(async (): Promise<MySettings> => {
   const me = await requireUser();
   return withSafeErrors("Reading settings", async () => {
     const settings = await sectionSettingsFor(await getDb(), me.userId, me.isSuperAdmin);
     return { ...settings, githubLogin: me.githubLogin, canDeleteAccount: !me.isSuperAdmin };
   });
-}
+});
 
 /** Just the sections, for the navigation and Home. */
 export async function getMySections(): Promise<SectionChoices> {

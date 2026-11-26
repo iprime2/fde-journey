@@ -36,6 +36,20 @@
   --brand-faint: #5d7c74;
   --brand-line: #2a4a42;
   --brand-chip: #143a32; /* dark accent-soft, behind the "Example" chip */
+  /* v0.8, Insights charts only (design spec 10.3): one colour per kind, in stack order, and the
+     activity calendar's five steps (a teal ramp, stepped in lightness only). */
+  --kind-roadmap: #0b7a68;
+  --kind-resources: #2f7ddb;
+  --kind-reading: #923d00;
+  --kind-scaler: #61409e;
+  --kind-certs: #867d00;
+  --kind-courses: #d64592;
+  --kind-projects: #455766;
+  --heat-0: #eaefed;
+  --heat-1: #619d8f;
+  --heat-2: #2d8271;
+  --heat-3: #006857;
+  --heat-4: #004d3f;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -62,6 +76,18 @@
     --scrim: rgb(0 0 0 / 0.6);
     --overlay-shadow: 0 8px 24px rgb(0 0 0 / 0.5);
     --raised-shadow: none; /* the card's border is enough on dark */
+    --kind-roadmap: #3fcfb3;
+    --kind-resources: #3f86f0;
+    --kind-reading: #ec742c;
+    --kind-scaler: #c8ccf4;
+    --kind-certs: #e6d14a;
+    --kind-courses: #c0698a;
+    --kind-projects: #969cbd;
+    --heat-0: #27332f;
+    --heat-1: #0a7b68;
+    --heat-2: #14a088;
+    --heat-3: #31c5aa;
+    --heat-4: #90e7d2;
   }
 }
 
@@ -119,6 +145,18 @@
   --color-brand-faint: var(--brand-faint);
   --color-brand-line: var(--brand-line);
   --color-brand-chip: var(--brand-chip);
+  --color-kind-roadmap: var(--kind-roadmap);
+  --color-kind-resources: var(--kind-resources);
+  --color-kind-reading: var(--kind-reading);
+  --color-kind-scaler: var(--kind-scaler);
+  --color-kind-certs: var(--kind-certs);
+  --color-kind-courses: var(--kind-courses);
+  --color-kind-projects: var(--kind-projects);
+  --color-heat-0: var(--heat-0);
+  --color-heat-1: var(--heat-1);
+  --color-heat-2: var(--heat-2);
+  --color-heat-3: var(--heat-3);
+  --color-heat-4: var(--heat-4);
   --shadow-overlay: var(--overlay-shadow);
   --shadow-raised: var(--raised-shadow);
 }

@@ -1,7 +1,7 @@
 // Desktop sidebar, 1024 px and wider (design spec 3.2 and 3.5). Server Component. The visible
 // sections and the Admin link depend on the user, so the links stream in; until then only Home
 // and Roadmap (always visible) show.
-import { Suspense } from "react";
+import { Fragment, Suspense } from "react";
 import { visibleHrefs } from "@/lib/nav";
 import { AccountSkeleton, SidebarAccount } from "../account/Account";
 import { BrandLockup } from "../Brand";
@@ -9,26 +9,34 @@ import { DaysLeft } from "../clock";
 import { NavCount } from "./NavCount";
 import { NavLink } from "./NavLink";
 import { getNavData } from "./navData";
-import { sectionFor } from "./sections";
+import { INSIGHTS_HREF, sectionFor } from "./sections";
 
+/** Home, Insights (always, right after Home; design spec 10.7), then the visible sections. */
 function SectionLinks({ hrefs }: { hrefs: readonly string[] }) {
   return (
     <ul className="grid gap-1">
       {hrefs.map((href) => {
         const countKey = sectionFor(href)?.countKey;
         return (
-          <li key={href}>
-            <NavLink
-              href={href}
-              count={
-                countKey && (
-                  <Suspense fallback={null}>
-                    <NavCount section={countKey} />
-                  </Suspense>
-                )
-              }
-            />
-          </li>
+          <Fragment key={href}>
+            <li>
+              <NavLink
+                href={href}
+                count={
+                  countKey && (
+                    <Suspense fallback={null}>
+                      <NavCount section={countKey} />
+                    </Suspense>
+                  )
+                }
+              />
+            </li>
+            {href === "/" && (
+              <li>
+                <NavLink href={INSIGHTS_HREF} item="insights" />
+              </li>
+            )}
+          </Fragment>
         );
       })}
     </ul>

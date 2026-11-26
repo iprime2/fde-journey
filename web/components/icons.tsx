@@ -187,3 +187,13 @@ export const KeyIcon = (p: IconProps) => (
     <circle cx="7.5" cy="15.5" r="5.5" />
   </Line>
 );
+
+/** Lucide "chart-column" (checked against lucide-static 1.81.0): Insights. */
+export const ChartColumnIcon = (p: IconProps) => (
+  <Line {...p}>
+    <path d="M3 3v16a2 2 0 0 0 2 2h16" />
+    <path d="M18 17V9" />
+    <path d="M13 17V5" />
+    <path d="M8 17v-3" />
+  </Line>
+);

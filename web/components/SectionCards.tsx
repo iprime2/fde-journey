@@ -6,13 +6,14 @@ import { CollapsibleCard } from "./CollapsibleCard";
 import { FilterSection } from "./filter/Filtered";
 import { ItemList } from "./ItemRow";
 import { JournalEditor } from "./JournalEditor";
+import { NameWithCode } from "./ui";
 
 export function SectionCard({ card, readOnly }: { card: CardModel; readOnly: boolean }) {
   return (
     <FilterSection section={card.key} className="grid">
       <section className={CARD_STYLES}>
         <CardHead
-          title={card.title}
+          title={<NameWithCode name={card.title} />}
           sub={card.sub}
           subIsDate={card.subIsDate}
           chip={card.chip}

@@ -4,15 +4,15 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef } from "react";
 import { cn } from "../cn";
-import { ADMIN_ITEM, type ExtraItem, SETTINGS_ITEM, isCurrentExtra, isCurrentSection, sectionFor } from "./sections";
+import { EXTRA_ITEMS, type ExtraItem, isCurrentExtra, isCurrentSection, sectionFor } from "./sections";
 
 /**
- * A desktop sidebar link (design spec 3.2): a section (looked up by `href`), or Settings or Admin
- * (`item`, design spec 3.5; Admin is current on every admin page). `count` is rendered on the server.
+ * A desktop sidebar link (design spec 3.2): a section (looked up by `href`), or Insights, Settings
+ * or Admin (`item`, design spec 3.5 and 10.7; Admin is current on every admin page). `count` is rendered on the server.
  */
 export function NavLink({ href, item, count }: { href: string; item?: ExtraItem; count?: React.ReactNode }) {
   const pathname = usePathname();
-  const entry = item ? (item === "settings" ? SETTINGS_ITEM : ADMIN_ITEM) : sectionFor(href);
+  const entry = item ? EXTRA_ITEMS[item] : sectionFor(href);
   const current = !!entry && (item ? isCurrentExtra(pathname, item) : isCurrentSection(pathname, href));
   const link = useRef<HTMLAnchorElement>(null);
   // On short windows the sidebar's links scroll (1024×600): keep the current one in view. Only the

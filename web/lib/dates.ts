@@ -40,6 +40,25 @@ const toIso = (d: Date) => d.toISOString().slice(0, 10);
 
 export const addDays = (iso: string, days: number) => toIso(new Date(parseIso(iso).getTime() + days * DAY_MS));
 
+// ---- Weeks and months in IST (insights, M5-DESIGN "Rules"). Weeks start on Monday 00:00 IST,
+// which is Sunday 18:30 UTC. The fixed +05:30 offset above is exact because India has no daylight
+// saving; a personal time zone (M5b) would need real time-zone rules instead.
+
+/** The Monday that starts the week holding the IST date `dayIso` ("YYYY-MM-DD"). */
+export function weekStartOf(dayIso: string): string {
+  const weekday = parseIso(dayIso).getUTCDay();
+  return addDays(dayIso, -((weekday + 6) % 7));
+}
+
+/** The IST week of an instant: its Monday, "YYYY-MM-DD". */
+export const istWeekStart = (ms: number) => weekStartOf(istDate(ms));
+
+/** The IST month of an instant, "YYYY-MM". */
+export const istMonth = (ms: number) => istDate(ms).slice(0, 7);
+
+/** The instant (epoch ms) when the IST date `dayIso` begins: 00:00 IST, 18:30 UTC the day before. */
+export const istDayStartMs = (dayIso: string) => parseIso(dayIso).getTime() - IST_OFFSET_MS;
+
 /** Whole days from `fromIso` to `toIso` (negative when `toIso` is earlier). */
 export const daysBetween = (fromIso: string, toIsoDate: string) =>
   Math.round((parseIso(toIsoDate).getTime() - parseIso(fromIso).getTime()) / DAY_MS);

@@ -71,8 +71,14 @@ export type SharedUser = (typeof SHARED_USERS)[number];
  * signs in as "deleter-desktop-0" or "deleter-phone-0" by the project, and as "…-1" on the retry,
  * so neither the two screen sizes nor a retry ever share one.
  */
-export const PER_PROJECT_USERS = ["settings", "deleter", "leaver", "joiner"] as const;
+export const PER_PROJECT_USERS = ["settings", "deleter", "leaver", "joiner", "insights"] as const;
 export type PerProjectUser = (typeof PER_PROJECT_USERS)[number];
+/**
+ * Spare users used only in some projects get sessions only there, which keeps the seed under the
+ * guard's limit of 128 (scripts/lib/e2e-guard.mjs). The Insights users have saved history, so the
+ * @fresh projects never use them.
+ */
+const PER_PROJECT_USER_PROJECTS: Partial<Record<PerProjectUser, readonly string[]>> = { insights: ["desktop", "phone"] };
 export type Screen = "desktop" | "phone";
 export type SpareUser = `${PerProjectUser}-${Screen}-${number}`;
 export type E2eUser = SharedUser | SpareUser;
@@ -94,19 +100,22 @@ export function userSessionToken(user: E2eUser, project: string, attempt: number
 /**
  * Every user session, as `user:token` pairs, for the seed (E2E_USER_SESSION_TOKENS). Shared users
  * get one per project and attempt; a spare user only the ones it is used in (projects of its screen
- * size, its own attempt), which keeps the list well under the seed guard's limit of 128.
+ * size, its own attempt, and for some roles only some projects), which keeps the list under the
+ * seed guard's limit of 128 (126 with the Insights users).
  */
 export function userSessionTokens(projects: readonly string[]): string[] {
   const shared = SHARED_USERS.flatMap((user) =>
     projects.flatMap((project) => Array.from({ length: SPARE_ATTEMPTS }, (_, attempt) => `${user}:${userSessionToken(user, project, attempt)}`)),
   );
   const spare = PER_PROJECT_USERS.flatMap((role) =>
-    projects.flatMap((project) =>
-      Array.from({ length: SPARE_ATTEMPTS }, (_, attempt) => {
-        const user = spareUserFor(role, project, attempt);
-        return `${user}:${userSessionToken(user, project, attempt)}`;
-      }),
-    ),
+    projects
+      .filter((project) => PER_PROJECT_USER_PROJECTS[role]?.includes(project) ?? true)
+      .flatMap((project) =>
+        Array.from({ length: SPARE_ATTEMPTS }, (_, attempt) => {
+          const user = spareUserFor(role, project, attempt);
+          return `${user}:${userSessionToken(user, project, attempt)}`;
+        }),
+      ),
   );
   return [...shared, ...spare];
 }

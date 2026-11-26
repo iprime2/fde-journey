@@ -5,7 +5,7 @@
 // lib/session.ts), never from the request, and validate the input (lib/validation.ts) first.
 // tests/unit/isolation-guard.test.ts fails if a query here, or anywhere else, lacks the filter.
 import "server-only";
-import { type SQL, and, asc, eq, sql } from "drizzle-orm";
+import { type SQL, and, asc, eq, gte, sql } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { type ProgressEventKind, progress, progressEvent } from "@/db/schema";
 import type { ProgressEntry, ProgressRecord } from "./progress";
@@ -57,6 +57,56 @@ export async function readEvents(userId: string, db: Db): Promise<ProgressEvent[
     .where(eq(progressEvent.userId, userId))
     .orderBy(asc(progressEvent.at), asc(progressEvent.id));
   return rows.map((r) => ({ itemId: r.itemId, kind: r.kind, at: r.at.toISOString() }));
+}
+
+export interface InsightRows {
+  /** The user's done items: id and completion time only, never note or link text. */
+  done: { itemId: string; done: true; doneAt: string | null }[];
+  /** The user's saves from `since` on, counted per item and IST day ("YYYY-MM-DD"), in no order. */
+  events: { itemId: string; day: string; count: number }[];
+  /** Items with a note saved (a `note` event) from `notesSince` on, each once, in no order. */
+  notedItems: string[];
+}
+
+/** The IST calendar date of an event: India has no daylight saving, so this is exact all year. */
+const eventIstDay = sql`(${progressEvent.at} at time zone 'Asia/Kolkata')::date`;
+
+const isValidDate = (d: unknown): d is Date => d instanceof Date && !Number.isNaN(d.getTime());
+
+/**
+ * What the Insights page needs (M5-DESIGN "Speed"): three queries, run together, each scoped to the
+ * user, selecting only item ids, done flags, times and counts (never note or link text):
+ * - the user's done items;
+ * - their saves from `since` (the activity window, lib/insights.ts activityWindowStart), counted in
+ *   SQL per item and IST day, so note autosaves (one every 800 ms of typing) never send thousands
+ *   of rows;
+ * - the distinct items with a note saved from `notesSince` (lib/insights.ts monthStart).
+ * Both event queries are range scans on the (user_id, at) index, progress_event_user_at_idx.
+ */
+export async function readInsightRows(userId: string, db: Db, window: { since: Date; notesSince: Date }): Promise<InsightRows> {
+  checkUserId(userId);
+  const { since, notesSince } = window ?? {};
+  if (!isValidDate(since) || !isValidDate(notesSince)) throw new Error("Valid start times are required for the insights queries.");
+  const [doneRows, dayRows, noteRows] = await Promise.all([
+    db
+      .select({ itemId: progress.itemId, doneAt: progress.doneAt })
+      .from(progress)
+      .where(and(eq(progress.userId, userId), eq(progress.done, true))),
+    db
+      .select({ itemId: progressEvent.itemId, day: sql<string>`to_char(${eventIstDay}, 'YYYY-MM-DD')`, count: sql<number>`count(*)::int` })
+      .from(progressEvent)
+      .where(and(eq(progressEvent.userId, userId), gte(progressEvent.at, since)))
+      .groupBy(progressEvent.itemId, eventIstDay),
+    db
+      .selectDistinct({ itemId: progressEvent.itemId })
+      .from(progressEvent)
+      .where(and(eq(progressEvent.userId, userId), eq(progressEvent.kind, "note"), gte(progressEvent.at, notesSince))),
+  ]);
+  return {
+    done: doneRows.map((r) => ({ itemId: r.itemId, done: true as const, doneAt: iso(r.doneAt) })),
+    events: dayRows.map((r) => ({ itemId: r.itemId, day: r.day, count: Number(r.count) })),
+    notedItems: noteRows.map((r) => r.itemId),
+  };
 }
 
 // ---- Saving

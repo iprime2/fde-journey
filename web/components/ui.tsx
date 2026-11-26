@@ -4,17 +4,37 @@ import type { ChipState } from "@/lib/status";
 import { cn } from "./cn";
 import { isHttpsUrl } from "@/lib/notes";
 
-/** "3/7" on screen; "3 of 7 done" for screen readers. */
-export function Count({ done, total, className }: { done: number; total: number; className?: string }) {
+/** "3/7" on screen; "3 of 7 done" for screen readers (`word` replaces "done", e.g. "1 of 7 passed"). */
+export function Count({ done, total, word = "done", className }: { done: number; total: number; word?: string; className?: string }) {
   return (
     <span className={cn("type-num whitespace-nowrap text-muted", className)}>
       <span aria-hidden="true">
         {done}/{total}
       </span>
       <span className="sr-only">
-        {done} of {total} done
+        {done} of {total} {word}
       </span>
     </span>
+  );
+}
+
+/** A trailing exam code in brackets: "(NCA-GENL)", "(AIP-C01)". */
+const TRAILING_CODE = /^(.*\S)(\s+)(\([A-Z0-9][A-Z0-9-]*\))$/;
+
+/**
+ * A name whose trailing "(CODE)" never breaks inside, at its hyphen (design spec 10.2 F): the code
+ * moves to the next line whole. Names without one render as they are. Give the parent
+ * `[overflow-wrap:anywhere]` so other long words still wrap.
+ */
+export function NameWithCode({ name }: { name: string }) {
+  const m = TRAILING_CODE.exec(name);
+  if (!m) return <>{name}</>;
+  return (
+    <>
+      {m[1]}
+      {m[2]}
+      <span className="whitespace-nowrap">{m[3]}</span>
+    </>
   );
 }
 

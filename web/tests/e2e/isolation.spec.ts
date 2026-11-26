@@ -40,4 +40,21 @@ test.describe("another user's progress", () => {
     await expect(fact("Done")).toHaveText(/^0 of \d+$/);
     await expect(fact("Badges earned")).toHaveText(/^0 of \d+$/);
   });
+
+  // M5a: the other users' items were all done this week, so any leak would fill Insights.
+  test("never reaches Insights or Home's Insights line", { tag: "@fresh" }, async ({ page }) => {
+    await gotoReady(page, "/");
+    await expect(page.getByRole("link", { name: "This week: 0 done · no streak yet Insights" })).toBeVisible();
+    await gotoReady(page, "/insights");
+    await expect(page.getByText("0 items done this week, 0 last week")).toBeAttached();
+    await expect(page.getByRole("img", { name: /^Bar chart/ })).toHaveCount(0);
+    await expect(page.getByRole("img", { name: /^Calendar/ })).toHaveCount(0);
+    await expect(page.getByRole("region", { name: "This month" }).locator("dd")).toHaveText(["0", "0"]);
+    // Holds on any date: outside the roadmap's dates the card has no count at all.
+    const phase = page.getByRole("region", { name: "Current phase" });
+    await expect(phase).toBeVisible();
+    await expect(phase.getByText(/^[1-9]\d* of \d+ done$/)).toHaveCount(0);
+    if ((await phase.getByText(/ of \d+ done$/).count()) > 0) await expect(phase.getByText(/^0 of \d+ done$/)).toBeAttached();
+    await expect(page.getByRole("region", { name: "Certifications" }).getByText(/^[1-9]\d* of \d+ (done|passed)$/)).toHaveCount(0);
+  });
 });

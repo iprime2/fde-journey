@@ -105,8 +105,8 @@ test.describe("phone bottom bar", () => {
   });
 
   test("in phone landscape the More sheet stays on screen and every row can be reached", async ({ page }) => {
-    // 844 by 390: the owner's sheet (Certifications, Courses, Projects, Career, Settings, Admin and
-    // the account row) is taller than the space above the compact bar, so it scrolls on its own
+    // 844 by 390: the owner's sheet (Insights, Certifications, Courses, Projects, Career, Settings,
+    // Admin and the account row) is taller than the space above the compact bar, so it scrolls on its own
     // (design spec 3.1, sheet height, v0.7).
     await page.setViewportSize({ width: 844, height: 390 });
     await gotoReady(page, "/");
@@ -114,8 +114,9 @@ test.describe("phone bottom bar", () => {
     const more = bar.getByRole("button", { name: "More" });
     await more.click();
     const sheet = page.locator(`[id="${await more.getAttribute("aria-controls")}"]`);
+    // Insights is the first row (design spec 10.7), then the sections not in the bar.
+    await expect(bar.getByRole("link", { name: "Insights", exact: true })).toBeFocused();
     const certs = bar.getByRole("link", { name: "Certifications", exact: true });
-    await expect(certs).toBeFocused();
 
     const sheetBox = (await sheet.boundingBox())!;
     const barBox = (await bar.locator(":scope > ul").boundingBox())!;
@@ -149,7 +150,7 @@ test.describe("phone bottom bar", () => {
     const bar = page.getByRole("navigation", { name: "Sections" });
     const more = bar.getByRole("button", { name: "More" });
     await more.click();
-    await expect(bar.getByRole("link", { name: "Certifications" })).toBeFocused();
+    await expect(bar.getByRole("link", { name: "Insights" })).toBeFocused();
     await page.keyboard.press("Escape");
     await expect(more).toHaveAttribute("aria-expanded", "false");
     await expect(more).toBeFocused();

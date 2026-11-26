@@ -18,10 +18,16 @@
 // The seed refuses to run unless scripts/lib/e2e-guard.mjs passes (E2E_AUTH=1, not on Vercel, no
 // DATABASE_URL, and a folder named pglite-e2e* directly inside web/.data/).
 import { randomBytes, scryptSync } from "node:crypto";
-import { rmSync } from "node:fs";
+import { rmSync, writeFileSync } from "node:fs";
 import { checkE2eSeedEnv } from "./lib/e2e-guard.mjs";
 import { openScriptDb } from "./lib/db.mjs";
 import {
+  E2E_EVENT_HISTORY_START,
+  E2E_INSIGHTS_DONE,
+  E2E_INSIGHTS_EVENTS_NOW,
+  e2eInsightsSeedFile,
+  e2eIstDate,
+  e2eIstMonday,
   E2E_ACTIVE_DONE,
   E2E_ACTIVE_NOTE,
   E2E_OTHER_DONE,
@@ -45,6 +51,7 @@ if (!check.ok) {
 }
 
 rmSync(check.dataDir, { recursive: true, force: true });
+rmSync(e2eInsightsSeedFile(check.dataDir), { force: true });
 const db = await openScriptDb({ kind: "pglite", dataDir: check.dataDir });
 try {
   await db.query(
@@ -102,6 +109,29 @@ try {
       [E2E_USERS.active.id, itemId, E2E_ACTIVE_NOTE],
     );
   }
+  // M5a: every spare "insights" user gets the same made-up history (E2E_INSIGHTS_DONE). A completion
+  // gets its "done" event only from the first day of save history on, as the app would have written it.
+  const seedNow = Date.now();
+  for (const u of Object.values(E2E_USERS).filter((x) => x.id.startsWith("e2e-insights-"))) {
+    for (const { itemId, weeksAgo } of E2E_INSIGHTS_DONE) {
+      const at = e2eIstMonday(seedNow, weeksAgo);
+      await db.query(`insert into progress (user_id, item_id, done, done_at, updated_at) values ($1, $2, true, $3, $3)`, [u.id, itemId, at]);
+      if (e2eIstDate(at) >= E2E_EVENT_HISTORY_START) {
+        await db.query(`insert into progress_event (user_id, item_id, kind, at) values ($1, $2, 'done', $3)`, [u.id, itemId, at]);
+      }
+    }
+    await db.query(`update progress set note = $3, link = $4 where user_id = $1 and item_id = $2`, [u.id, "l1-1", "Made-up note for the Insights tests.", "https://example.com/insights"]);
+    await db.query(`insert into progress (user_id, item_id, done, updated_at) values ($1, 'l1-5', false, now())`, [u.id]);
+    for (const { itemId, kind } of E2E_INSIGHTS_EVENTS_NOW) {
+      await db.query(`insert into progress_event (user_id, item_id, kind, at) values ($1, $2, $3, now())`, [u.id, itemId, kind]);
+    }
+  }
+
+  writeFileSync(
+    e2eInsightsSeedFile(check.dataDir),
+    JSON.stringify({ monday: e2eIstDate(e2eIstMonday(seedNow, 0)), today: e2eIstDate(new Date(seedNow)) }),
+  );
+
   if (check.exportKeyHash) {
     await db.query(`insert into export_token (user_id, token_hash) values ($1, $2)`, [E2E_USERS.active.id, check.exportKeyHash]);
   }
