@@ -95,6 +95,14 @@ describe("signInWithGitHub", () => {
     expect(await db.select().from(verification)).toHaveLength(1);
   });
 
+  it("returns through /auth/continue (which decides by status), never straight to the page", async () => {
+    await redirectOf(signInWithGitHub(form("/scaler?q=rag")));
+    await redirectOf(signInWithGitHub(form("https://evil.example")));
+    const states = (await db.select().from(verification)).map((v) => JSON.parse(v.value) as { callbackURL?: string; errorURL?: string });
+    expect(states.map((s) => s.callbackURL).sort()).toEqual(["/auth/continue", "/auth/continue?next=%2Fscaler%3Fq%3Drag"]);
+    expect(states.map((s) => s.errorURL).sort()).toEqual(["/login", "/login?next=%2Fscaler%3Fq%3Drag"]);
+  });
+
   it("clears expired sign-in attempts before storing a new one, so they cannot pile up", async () => {
     const now = Date.now();
     const row = (id: string, expiresInMs: number) => ({

@@ -2,8 +2,10 @@
 // Sign-in and sign-out for the front end.
 //
 // Sign-in:  <form action={signInWithGitHub}><input type="hidden" name="next" value={next} />…</form>
-//           Sends the browser to GitHub. Afterwards Better Auth returns it to `next`, or to
-//           /login?next=…&error=… when sign-in fails ("not_owner" for another account).
+//           Sends the browser to GitHub. Afterwards Better Auth returns it to /auth/continue?next=…,
+//           which redirects on the server by the user's status (app/auth/continue/route.ts): to
+//           `next` when active, /waitlist when waitlisted. When sign-in fails Better Auth returns it
+//           to /login?next=…&error=… instead ("not_owner" for another account).
 // Sign-out: <form action={signOut}>…</form>. Ends the session, then opens /login?status=signed-out.
 // Renewal: `await refreshSession()` from a client component, at most once a day. Returns { ok }.
 //
@@ -13,7 +15,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getAuth } from "@/lib/auth";
-import { SIGNED_OUT_STATUS, loginHref, safeNextPath } from "@/lib/login";
+import { SIGNED_OUT_STATUS, continueHref, loginHref, safeNextPath } from "@/lib/login";
 import { describeError, rethrowNextControl } from "@/lib/safe-log";
 import { getIdentity } from "@/lib/session";
 
@@ -24,7 +26,9 @@ export async function signInWithGitHub(formData: FormData): Promise<void> {
   try {
     const auth = await getAuth();
     const result = await auth.api.signInSocial({
-      body: { provider: "github", callbackURL: next, errorCallbackURL: back, disableRedirect: true },
+      // Never `next` itself: the page would render before its status check and a waitlisted user
+      // would glimpse the app. The continue route decides first and answers with a redirect.
+      body: { provider: "github", callbackURL: continueHref(next), errorCallbackURL: back, disableRedirect: true },
       headers: await headers(),
     });
     if (!result?.url) throw new Error("no redirect URL");

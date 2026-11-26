@@ -13,6 +13,7 @@ export const OTHER_ID = "900000000002";
 
 export function setTestEnv() {
   process.env.BETTER_AUTH_SECRET = TEST_SECRET;
+  delete process.env.BETTER_AUTH_SECRETS;
   process.env.BETTER_AUTH_URL = "http://localhost:3000";
   process.env.OWNER_GITHUB_ID = OWNER_ID;
   delete process.env.GITHUB_CLIENT_ID;

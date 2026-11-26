@@ -71,7 +71,7 @@ export type SharedUser = (typeof SHARED_USERS)[number];
  * signs in as "deleter-desktop-0" or "deleter-phone-0" by the project, and as "…-1" on the retry,
  * so neither the two screen sizes nor a retry ever share one.
  */
-export const PER_PROJECT_USERS = ["settings", "deleter", "leaver"] as const;
+export const PER_PROJECT_USERS = ["settings", "deleter", "leaver", "joiner"] as const;
 export type PerProjectUser = (typeof PER_PROJECT_USERS)[number];
 export type Screen = "desktop" | "phone";
 export type SpareUser = `${PerProjectUser}-${Screen}-${number}`;

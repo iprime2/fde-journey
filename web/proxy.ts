@@ -1,16 +1,53 @@
-// Proxy (Next 16's name for middleware). Sends signed-out visitors to /login?next=… before any
-// page renders, so they never see a flash of content. This is only the quick check (is there a
-// session cookie at all?); pages, data reads and Server Actions verify the session and the
-// owner themselves (lib/session.ts), as the Next.js docs recommend.
+// Proxy (Next 16's name for middleware; it runs on the Node.js runtime, the only one Next 16
+// allows here). Decides where a visitor may go before any page renders, so nobody sees a flash of
+// a page they can't use:
+// - signed out (no session cookie): /login?next=…, with no database work;
+// - with a session cookie: the user's status, read in one indexed query (lib/session-gate.ts),
+//   decides (lib/landing.ts). Waitlisted users go to /waitlist, suspended users to
+//   /login?error=suspended, a dead or refused session to /login; active users and the owner pass.
+//   /waitlist itself takes waitlisted users only (active users go Home). For a dead or refused
+//   session only page loads are redirected; the router's own requests from a tab left open pass,
+//   as before this gate, and the page answers "signed out" itself.
+// - Server Actions: a waitlisted or suspended user's are refused (403, no body) everywhere but on
+//   /waitlist, where leaving the waitlist and signing out live. Signed-out callers pass, so the
+//   action answers with its typed "signed-out" result.
+//
+// Cost: one query per gated request, prefetches included. Prefetches are not skipped: Next strips
+// the prefetch headers before the proxy sees them, and a prefetched app shell kept for a waitlisted
+// user (a link on /privacy, say) would show on the next click. Public paths, signed-out requests
+// and static files never query.
+//
+// Pages, data reads and Server Actions still verify the session and the user themselves
+// (lib/session.ts), as the Next.js docs recommend: this is the first check, not the only one.
 import { getSessionCookie } from "better-auth/cookies";
 import { type NextRequest, NextResponse } from "next/server";
+import { WAITLIST_PATH, gateTarget, pagePathname } from "@/lib/landing";
 import { PATH_HEADER, isPublicPath, loginHref } from "@/lib/login";
+import { describeError } from "@/lib/safe-log";
+import { checkSessionCookie } from "@/lib/session-gate";
 
-/** Path and query without Next's internal `_rsc` cache-busting parameter. */
+/** Better Auth's session cookie, by its name over http and over https (production). */
+const SESSION_COOKIES = ["better-auth.session_token", "__Secure-better-auth.session_token"] as const;
+
+/** The page's path and query, without Next's internal `_rsc` cache-busting parameter. */
 function requestedPath(request: NextRequest): string {
   const url = request.nextUrl.clone();
   url.searchParams.delete("_rsc");
-  return `${url.pathname}${url.search}`;
+  return `${pagePathname(url.pathname)}${url.search}`;
+}
+
+/**
+ * A request from Next's client router (a prefetch, a client navigation or a refresh), not a page
+ * load. Next makes those look like page loads to the proxy (it strips its own headers and the
+ * `_rsc` parameter), but the browser's Fetch Metadata still tells them apart: a page load is
+ * `Sec-Fetch-Mode: navigate`, the router's fetch() is not. A page payload path (/x.rsc,
+ * /x.segments/…, where Next leaves it) is the router's too. Without Fetch Metadata (an old browser,
+ * a script) it counts as a page load, the stricter answer.
+ */
+function isRouterRequest(request: NextRequest): boolean {
+  const mode = request.headers.get("sec-fetch-mode");
+  if (mode && mode !== "navigate") return true;
+  return pagePathname(request.nextUrl.pathname) !== request.nextUrl.pathname;
 }
 
 /** A Server Action call: always a POST with Next's `next-action` header. */
@@ -21,17 +58,94 @@ function isServerAction(request: NextRequest): boolean {
 /** Passes the request on with the given headers (Next forwards them instead of the browser's). */
 const forward = (headers: Headers) => NextResponse.next({ request: { headers } });
 
-export function proxy(request: NextRequest) {
+/** A redirect that no cache keeps: the answer depends on who is asking, and can change any time. */
+function redirectTo(target: string, request: NextRequest): NextResponse {
+  const response = NextResponse.redirect(new URL(target, request.url));
+  response.headers.set("cache-control", "no-store");
+  return response;
+}
+
+/**
+ * Expires the session cookie in the browser, under both names. Used when the cookie names no live
+ * session: /login would otherwise still see it, and if Better Auth ever judged it differently the
+ * two could send the browser back and forth.
+ */
+function expireSessionCookies(response: NextResponse): NextResponse {
+  for (const name of SESSION_COOKIES) {
+    response.cookies.set({ name, value: "", maxAge: 0, path: "/", httpOnly: true, sameSite: "lax", secure: name.startsWith("__Secure-") });
+  }
+  return response;
+}
+
+/** No body, never cached: for Server Actions, whose callers read the status only. */
+const bare = (status: number) => new NextResponse(null, { status, headers: { "cache-control": "no-store" } });
+
+/** The page shown when the status check fails: no app frame, no details, a way to try again. */
+const UNAVAILABLE_HTML =
+  '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">' +
+  '<meta name="color-scheme" content="light dark"><title>FDE Journey</title></head>' +
+  "<body><main><p>FDE Journey can&#39;t check your sign-in right now.</p>" +
+  '<p><a href="">Try again</a></p></main></body></html>';
+
+/**
+ * The status check failed (the database didn't answer twice, or the auth secret is missing):
+ * refuse rather than let the page's static frame through to someone who may not be allowed in.
+ * The log has error names and codes only.
+ */
+function unavailable(error: unknown, action: boolean): NextResponse {
+  console.error(`Proxy: session status check failed (${describeError(error)})`);
+  if (action) return bare(503);
+  return new NextResponse(UNAVAILABLE_HTML, {
+    status: 503,
+    headers: { "cache-control": "no-store", "content-type": "text/html; charset=utf-8", "retry-after": "30" },
+  });
+}
+
+export async function proxy(request: NextRequest) {
   // Only this proxy sets the path header: drop any copy the browser sent, on every request.
   const headers = new Headers(request.headers);
   headers.delete(PATH_HEADER);
 
-  if (isPublicPath(request.nextUrl.pathname)) return forward(headers);
-  // Server Actions answer with a typed "signed-out" result instead of a redirect.
-  if (isServerAction(request)) return forward(headers);
+  const pathname = pagePathname(request.nextUrl.pathname);
+  if (isPublicPath(pathname)) return forward(headers);
+  const cookie = getSessionCookie(request);
+
+  if (isServerAction(request)) {
+    // Signed out: the action answers with its typed "signed-out" result. On /waitlist every
+    // action is allowed (leave the waitlist, sign out); the actions check the user themselves.
+    if (!cookie || pathname === WAITLIST_PATH) return forward(headers);
+    try {
+      const { standing } = await checkSessionCookie(cookie);
+      return standing === "waitlisted" || standing === "suspended" ? bare(403) : forward(headers);
+    } catch (error) {
+      return unavailable(error, true);
+    }
+  }
 
   const path = requestedPath(request);
-  if (!getSessionCookie(request)) return NextResponse.redirect(new URL(loginHref(path), request.url));
+  if (!cookie) return redirectTo(loginHref(path), request);
+
+  let target: string | null;
+  let clearCookie = false;
+  try {
+    const check = await checkSessionCookie(cookie);
+    target = gateTarget(check.standing, pathname, path);
+    // A tab left open after its session ended keeps sending the router's own requests (prefetches,
+    // refreshes). Those pass as they always did: the page answers "signed out" itself
+    // (requireUser), and the tab stays where it is until the user acts. Redirecting them sent
+    // Next's router down 307 chains (one ended in a 404, and its fallback is a full-page
+    // navigation that yanked the tab away mid-save), and expiring the cookie from a background
+    // request could delete a newer cookie from a sign-in in another tab. Waitlisted and suspended
+    // users' requests are still redirected: they must never get the app's frame.
+    if (check.standing === "signed-out" && isRouterRequest(request)) target = null;
+    clearCookie = check.standing === "signed-out" && check.clearCookie;
+  } catch (error) {
+    return unavailable(error, false);
+  }
+  if (target) {
+    const response = redirectTo(target, request);
+    return clearCookie ? expireSessionCookies(response) : response;
+  }
 
   // Tell server code where the visitor was going, in case the session turns out to be invalid.
   headers.set(PATH_HEADER, path);
@@ -39,6 +153,8 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Everything except Next's static files and files with an extension (favicon, images, fonts).
-  matcher: ["/((?!_next/static|_next/image|.*\\.[a-zA-Z0-9]+$).*)"],
+  // Everything except Next's static files, its image optimiser, and real static file types (icons,
+  // images, fonts, styles, scripts). Not "anything with a dot": Next's page payloads (/roadmap.rsc,
+  // /roadmap.segments/…) have one, and must be gated like the page.
+  matcher: ["/((?!_next/static|_next/image|.*\\.(?:ico|png|svg|jpe?g|webp|gif|txt|xml|webmanifest|woff2?|css|js|map)$).*)"],
 };

@@ -21,16 +21,19 @@ export const E2E_ATTEMPTS = 3;
 export const E2E_SCREENS = ["desktop", "phone"];
 
 /**
- * Spare users that tests change for good (Settings, deleting the account, leaving the waitlist):
- * one per screen size (the desktop and phone runs of a test happen at the same time) AND per attempt,
- * so a retry never finds its user already changed or deleted. Attempt 0 keeps the base name; a
- * retry's user gets a middle initial, "Sky B. Settings" with login "sky-b-settings", so no name or
- * username contains another (tests find people by name, and searches match parts of names).
+ * Spare users that tests change for good (Settings, deleting the account, leaving the waitlist,
+ * being let in): one per screen size (the desktop and phone runs of a test happen at the same time)
+ * AND per attempt, so a retry never finds its user already changed or deleted. Attempt 0 keeps the
+ * base name; a retry's user gets a middle initial, "Sky B. Settings" with login "sky-b-settings", so
+ * no name or username contains another (tests find people by name, and searches match parts of
+ * names).
  */
 const SPARE_USER_BASES = {
   settings: { status: "active", desktop: ["Sky Settings", "sky-settings"], phone: ["Sol Settings", "sol-settings"] },
   deleter: { status: "active", desktop: ["Dee Deleting", "dee-deleting"], phone: ["Dov Deleting", "dov-deleting"] },
   leaver: { status: "waitlisted", desktop: ["Lee Leaving", "lee-leaving"], phone: ["Lou Leaving", "lou-leaving"] },
+  // Waitlisted, then let in by the owner during the test (tests/e2e/landing.spec.ts).
+  joiner: { status: "waitlisted", desktop: ["Jun Joining", "jun-joining"], phone: ["Jem Joining", "jem-joining"] },
 };
 export const E2E_SPARE_ROLES = Object.keys(SPARE_USER_BASES);
 

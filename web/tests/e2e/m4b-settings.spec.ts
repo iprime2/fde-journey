@@ -150,7 +150,7 @@ test.describe("settings", () => {
     await expect(page.getByRole("heading", { name: "Claude export keys" })).toBeFocused();
   });
 
-  test("Download my data saves a JSON file of the user's own data", async ({ page }) => {
+  test("Download my data saves a JSON file of the user's own data", async ({ page }, testInfo) => {
     await gotoReady(page, "/settings");
     const [download] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: "Download my data" }).click()]);
     expect(download.suggestedFilename()).toMatch(/^fde-journey-data-\d{4}-\d{2}-\d{2}\.json$/);
@@ -158,7 +158,8 @@ test.describe("settings", () => {
     const { readFileSync } = await import("node:fs");
     const data = JSON.parse(readFileSync(path, "utf8")) as { format: string; profile: { githubLogin: string } };
     expect(data.format).toBe("fde-journey-data");
-    expect(["sky-settings", "sol-settings"]).toContain(data.profile.githubLogin);
+    // This run's own spare user ("sky-settings", "sol-settings", or "sky-b-settings" on a retry).
+    expect(data.profile.githubLogin).toBe(e2eSpareUser("settings", screenOf(testInfo.project.name), testInfo.retry).login);
   });
 });
 

@@ -44,7 +44,7 @@ Item ids do not change. A test will fail the build if any existing id is missing
 Browser (phone or laptop)
    |  HTTPS
 Next.js on Vercel
-   |- proxy.ts            sends signed-out visitors to /login
+   |- proxy.ts            before any page: no cookie -> /login; waitlisted -> /waitlist; suspended -> /login (one status query)
    |- Server Components   read content files + progress, render pages
    |- Server Actions      save ticks, notes, links (each one checks the session)
    |- /api/auth/*         Better Auth (GitHub sign-in)
@@ -52,6 +52,8 @@ Next.js on Vercel
    |
 Postgres (Neon)           progress, sign-in tables, later feature tables
 ```
+
+Proxy cost: one indexed status query (session token to user status) per page navigation, prefetch and Server Action for signed-in visitors; if that ever matters, the lever is a short-lived signed status cookie that `/waitlist` refreshes.
 
 Folder layout:
 ```

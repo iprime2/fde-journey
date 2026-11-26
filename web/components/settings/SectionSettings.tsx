@@ -7,7 +7,7 @@
 // Switches save like ticks: they change at once; a failed save puts the switch back and shows
 // "Couldn't save this change." with Try again (focus to the switch first). Offline or signed out,
 // they are disabled. Each change refreshes the navigation (the actions revalidate the layout).
-import { Fragment, useId, useRef, useState } from "react";
+import { Fragment, useEffect, useId, useRef, useState } from "react";
 import { setSectionVisible, unlockScalerSection } from "@/app/actions/settings";
 import { type SectionChoices, SWITCHABLE_SECTIONS, type SwitchableSection } from "@/lib/access-types";
 import { SECTION_LABELS } from "@/lib/nav";
@@ -56,6 +56,14 @@ export function SectionSettings({ initial, scalerUnlocked: initialUnlocked }: { 
   const [sections, setSections] = useState(initial);
   const [scalerUnlocked, setScalerUnlocked] = useState(initialUnlocked);
   const scalerSwitch = useRef<HTMLInputElement>(null);
+  // After unlocking, focus moves to the switch once React has rendered it, not in the next frame:
+  // on a slow device the frame can come first, and the switch isn't there yet.
+  const focusScalerAfterRender = useRef(false);
+  useEffect(() => {
+    if (!scalerUnlocked || !focusScalerAfterRender.current) return;
+    focusScalerAfterRender.current = false;
+    scalerSwitch.current?.focus();
+  }, [scalerUnlocked]);
   const titleId = useId();
 
   return (
@@ -86,9 +94,9 @@ export function SectionSettings({ initial, scalerUnlocked: initialUnlocked }: { 
         <ScalerCodeCard
           onUnlocked={(next) => {
             setSections(next);
+            // The card goes; focus moves to the switch it just turned on (see focusScalerAfterRender).
+            focusScalerAfterRender.current = true;
             setScalerUnlocked(true);
-            // The card goes; focus moves to the switch it just turned on.
-            requestAnimationFrame(() => scalerSwitch.current?.focus());
           }}
         />
       )}
@@ -213,6 +221,12 @@ function ScalerCodeCard({ onUnlocked }: { onUnlocked(next: SectionChoices): void
   const [code, setCode] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // After a refused code, focus returns to the field once React has re-enabled it (it is disabled
+  // while the check runs). In the next frame instead, a slow device could still have it disabled.
+  const [focusField, setFocusField] = useState(0);
+  useEffect(() => {
+    if (focusField > 0) field.current?.focus();
+  }, [focusField]);
 
   async function submit() {
     if (pending) return;
@@ -235,7 +249,7 @@ function ScalerCodeCard({ onUnlocked }: { onUnlocked(next: SectionChoices): void
       return;
     }
     setError(result.error.code === "failed" ? CODE_FAILED : result.error.message);
-    requestAnimationFrame(() => field.current?.focus());
+    setFocusField((n) => n + 1);
   }
 
   return (

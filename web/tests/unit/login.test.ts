@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   ACCESS_COPY,
+  CONTINUE_PATH,
+  continueHref,
   isPublicPath,
   loginHref,
   loginMessage,
@@ -40,6 +42,13 @@ describe("safeNextPath (the ?next= redirect after sign-in)", () => {
     expect(safeNextPath("/login")).toBe("/");
     expect(safeNextPath("/login?next=/roadmap")).toBe("/");
     expect(safeNextPath("/api/auth/sign-out")).toBe("/");
+  });
+
+  it("never nests the post-sign-in route inside itself", () => {
+    expect(safeNextPath("/auth/continue")).toBe("/");
+    expect(safeNextPath("/auth/continue?next=%2Froadmap")).toBe("/");
+    expect(safeNextPath("/auth")).toBe("/");
+    expect(safeNextPath("/authors")).toBe("/authors");
   });
 
   it.each(["/.//evil.example", "/a/..//evil.example", "/%2e//evil.example/roadmap", "/./%2e//evil.example", "/x/.././/evil.example?q=1"])(
@@ -101,6 +110,17 @@ describe("parseLoginParams", () => {
   });
 });
 
+describe("continueHref (the sign-in callbackURL)", () => {
+  it("carries next only when it is a real page, checked like loginHref", () => {
+    expect(continueHref("/scaler?q=rag")).toBe("/auth/continue?next=%2Fscaler%3Fq%3Drag");
+    expect(continueHref("/")).toBe(CONTINUE_PATH);
+    expect(continueHref(null)).toBe(CONTINUE_PATH);
+    for (const bad of ["https://evil.example", "//evil.example", "/\\evil.example", "/login", "/auth/continue?next=/x", "/a/..//evil.example"]) {
+      expect(continueHref(bad), bad).toBe(CONTINUE_PATH);
+    }
+  });
+});
+
 describe("isPublicPath", () => {
   it("allows only the sign-in page, the privacy page, the export endpoint (its own key) and Better Auth's endpoints", () => {
     expect(isPublicPath("/login")).toBe(true);
@@ -108,7 +128,9 @@ describe("isPublicPath", () => {
     expect(isPublicPath("/api/export")).toBe(true);
     expect(isPublicPath("/api/auth/callback/github")).toBe(true);
     expect(isPublicPath("/api/auth")).toBe(true);
-    for (const p of ["/", "/roadmap", "/login-help", "/loginx", "/api/authx", "/api/export/x", "/api/exports", "/privacy/x", "/waitlist", "/settings", "/admin", "/career"]) {
+    // The post-sign-in route checks the session itself, and only ever redirects.
+    expect(isPublicPath("/auth/continue")).toBe(true);
+    for (const p of ["/auth", "/auth/continue/x", "/auth/continuex", "/", "/roadmap", "/login-help", "/loginx", "/api/authx", "/api/export/x", "/api/exports", "/privacy/x", "/waitlist", "/settings", "/admin", "/career"]) {
       expect(isPublicPath(p), p).toBe(false);
     }
   });

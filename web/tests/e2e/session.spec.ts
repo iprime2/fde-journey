@@ -79,16 +79,43 @@ test.describe("signing out", () => {
     await expect(page).toHaveURL("/login?next=%2Froadmap");
     await expect(page.getByRole("button", { name: SIGN_IN_BUTTON })).toBeEnabled();
 
-    // A save from the tab that stayed open, with that cookie, is refused as signed out.
+    // A save from the tab that stayed open, with that cookie, is refused as signed out, and the tab
+    // stays where it is: the signed-out alert shows in place, nothing navigates it away.
     await context.addCookies([cookie!]);
     const row = other.locator(`#item-${item.id}`);
     const tick = row.getByRole("checkbox", { name: `Mark done: ${item.title}` });
     await expect(tick).not.toBeChecked();
-    const saved = other.waitForResponse((r) => r.request().method() === "POST" && !!r.request().headers()["next-action"]);
+    const documents: string[] = [];
+    other.on("request", (r) => {
+      if (r.isNavigationRequest() && r.frame() === other.mainFrame()) documents.push(r.url());
+    });
+    // The save's answer, read by the test runner as it passes (route.fetch), so nothing the page
+    // does afterwards can take the body away before it is checked.
+    let saveAnswer!: (body: string) => void;
+    const answered = new Promise<string>((resolve) => (saveAnswer = resolve));
+    await other.route("**/*", async (route) => {
+      const request = route.request();
+      if (request.method() !== "POST" || !request.headers()["next-action"]) return route.fallback();
+      const response = await route.fetch();
+      const body = await response.text();
+      saveAnswer(body);
+      await route.fulfill({ response, body });
+    });
     await tick.click();
-    expect(await (await saved).text()).toContain('"code":"signed-out"');
+    expect(await answered).toContain('"code":"signed-out"');
     await expect(other.getByRole("alert").filter({ hasText: SIGNED_OUT_TEXT })).toBeVisible();
     await expect(tick).not.toBeChecked();
+    await expect(other).toHaveURL(/\/certs$/);
+    expect(documents, "the tab that stayed open loaded no other page").toEqual([]);
+    // The tab's own background requests (the router's fetches) are answered as before the status
+    // gate: not redirected to /login, which Next's router can turn into a full-page navigation,
+    // and the cookie is not expired by them.
+    const background = await other.evaluate(async () => {
+      const res = await fetch("/roadmap");
+      return { redirected: res.redirected, status: res.status };
+    });
+    expect(background).toEqual({ redirected: false, status: 200 });
+    expect((await context.cookies()).some((c) => c.name === SESSION_COOKIE), "a background request kept the cookie").toBe(true);
     expect(otherErrors).toEqual([]);
     await other.close();
   });
