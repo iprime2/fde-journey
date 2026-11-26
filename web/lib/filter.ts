@@ -1,5 +1,6 @@
 // Search and status filter for the section pages. Pure functions; the page state lives in the
-// URL as ?q= and ?status= (see components/filter/FilterProvider.tsx).
+// URL as ?q= and ?status= (see components/filter/FilterProvider.tsx). A page can add one more
+// filter of its own, a tag (Courses & badges: "With a badge", a phase), kept as ?tag=.
 
 export type StatusFilter = "all" | "open" | "done" | "noted";
 
@@ -13,6 +14,14 @@ export const STATUS_OPTIONS: ReadonlyArray<{ value: StatusFilter; label: string 
 export interface FilterState {
   q: string;
   status: StatusFilter;
+  /** The page's own filter (a tag its rows carry). Absent or "" means no tag filter. */
+  tag?: string;
+}
+
+/** One choice in a page's tag filter; value "" is "everything". */
+export interface TagOption {
+  value: string;
+  label: string;
 }
 
 export const EMPTY_FILTER: FilterState = { q: "", status: "all" };
@@ -33,27 +42,39 @@ export interface FilterEntry {
   parent?: string;
   /** Weekly notes: shown only under "All items" and "With notes". */
   journal?: boolean;
+  /** What the page's tag filter matches ("badge", "phase-4"). */
+  tags?: readonly string[];
 }
 
 export function parseStatus(raw: string | null | undefined): StatusFilter {
   return STATUS_OPTIONS.some((o) => o.value === raw) ? (raw as StatusFilter) : "all";
 }
 
+/** A tag from the URL, if the page offers it; anything else is no tag filter. */
+export function parseTag(raw: string | null | undefined, tags: readonly string[]): string {
+  return raw && tags.includes(raw) ? raw : "";
+}
+
 const first = (v: string | string[] | null | undefined) => (Array.isArray(v) ? v[0] : v);
 
-/** From a page's `searchParams` object. */
-export function filterFromRecord(sp: Record<string, string | string[] | undefined>): FilterState {
-  return { q: first(sp.q) ?? "", status: parseStatus(first(sp.status)) };
+/** Only set when there is a tag, so pages without a tag filter keep `{ q, status }`. */
+function withTag(s: FilterState, tag: string): FilterState {
+  return tag ? { ...s, tag } : s;
+}
+
+/** From a page's `searchParams` object. `tags`: the tag values the page offers (none by default). */
+export function filterFromRecord(sp: Record<string, string | string[] | undefined>, tags: readonly string[] = []): FilterState {
+  return withTag({ q: first(sp.q) ?? "", status: parseStatus(first(sp.status)) }, parseTag(first(sp.tag), tags));
 }
 
 /** From `URLSearchParams` (or Next.js's read-only version). */
-export function filterFromParams(params: { get(name: string): string | null }): FilterState {
-  return { q: params.get("q") ?? "", status: parseStatus(params.get("status")) };
+export function filterFromParams(params: { get(name: string): string | null }, tags: readonly string[] = []): FilterState {
+  return withTag({ q: params.get("q") ?? "", status: parseStatus(params.get("status")) }, parseTag(params.get("tag"), tags));
 }
 
-export const filterKey = (s: FilterState) => JSON.stringify([s.q, s.status]);
+export const filterKey = (s: FilterState) => JSON.stringify(s.tag ? [s.q, s.status, s.tag] : [s.q, s.status]);
 
-export const isFilterActive = (s: FilterState) => s.q.trim() !== "" || s.status !== "all";
+export const isFilterActive = (s: FilterState) => s.q.trim() !== "" || s.status !== "all" || !!s.tag;
 
 /** The query string for `s`, keeping any other parameters in `currentSearch`. "" when empty. */
 export function filterSearch(s: FilterState, currentSearch: string): string {
@@ -62,6 +83,8 @@ export function filterSearch(s: FilterState, currentSearch: string): string {
   else params.delete("q");
   if (s.status !== "all") params.set("status", s.status);
   else params.delete("status");
+  if (s.tag) params.set("tag", s.tag);
+  else params.delete("tag");
   const out = params.toString();
   return out ? `?${out}` : "";
 }
@@ -69,6 +92,7 @@ export function filterSearch(s: FilterState, currentSearch: string): string {
 export function matchesEntry(e: FilterEntry, s: FilterState): boolean {
   const q = s.q.trim().toLowerCase();
   if (q && !e.text.includes(q)) return false;
+  if (s.tag && !e.tags?.includes(s.tag)) return false;
   if (e.journal) return s.status === "all" || s.status === "noted";
   switch (s.status) {
     case "open":

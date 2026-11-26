@@ -94,3 +94,28 @@ export interface TrackerContent {
   papers: Paper[];
   books: Book[];
 }
+
+/** Who runs a course (web/docs/COURSES.md). */
+export type CourseProvider = "OpenAI" | "OpenAI Academy" | "Anthropic";
+
+export type CourseLevel = "Beginner" | "Intermediate" | "Advanced";
+
+/**
+ * A vendor course on the Courses & badges page. Its id is `cr{n}` from its position in the list
+ * (lib/ids.ts, courseId): append only, never reorder or delete.
+ */
+export interface Course {
+  provider: CourseProvider;
+  title: string;
+  url: string;
+  /** As the provider states it ("2–4 h", "67 lessons · 9 h"). Empty when the provider gives none. */
+  length: string;
+  /** Only where the provider gives one. */
+  level?: CourseLevel;
+  /** The provider awards a badge for completing it. */
+  badge: boolean;
+  /** Roadmap phase where it fits (Phase.n, 1 to 8). */
+  phase: number;
+  /** One of the mentor's top picks for the FDE role: why, in the plan's words. */
+  topPick?: string;
+}

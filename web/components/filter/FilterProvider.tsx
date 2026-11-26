@@ -48,17 +48,21 @@ interface FilterContextValue {
   searchId: string;
   setQuery(q: string): void;
   setStatus(status: StatusFilter): void;
+  /** The page's tag filter ("" for none). */
+  setTag(tag: string): void;
   clear(): void;
 }
 
 const FilterContext = createContext<FilterContextValue | null>(null);
 
 const URL_WRITE_DELAY_MS = 300;
+const NO_TAGS: readonly string[] = [];
 
 export function FilterProvider({
   path,
   entries,
   initial,
+  tags = NO_TAGS,
   children,
 }: {
   /** This page's route, e.g. "/roadmap". */
@@ -66,13 +70,15 @@ export function FilterProvider({
   entries: FilterEntry[];
   /** The filter from this page's own searchParams (server render). */
   initial: FilterState;
+  /** The tag values this page's tag filter offers (Toolbar `tagFilter`); none by default. */
+  tags?: readonly string[];
   children: React.ReactNode;
 }) {
   // The URL only describes this page while it is the page showing. Next.js can also render a
   // page in the background before navigating to it, while the URL still belongs to another page.
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const fromUrl = pathname === path ? filterFromParams(searchParams) : null;
+  const fromUrl = pathname === path ? filterFromParams(searchParams, tags) : null;
 
   const [state, setState] = useState(fromUrl ?? initial);
   const [sync, setSync] = useState<UrlSync>({ seen: filterKey(fromUrl ?? initial), pending: [] });
@@ -140,6 +146,11 @@ export function FilterProvider({
       setState(next);
       writeUrl(next);
     },
+    setTag(tag) {
+      const next: FilterState = { q: state.q, status: state.status, ...(tags.includes(tag) ? { tag } : {}) };
+      setState(next);
+      writeUrl(next);
+    },
     clear() {
       setState(EMPTY_FILTER);
       writeUrl(EMPTY_FILTER);
@@ -161,6 +172,7 @@ const NO_FILTER: FilterContextValue = {
   searchId: "",
   setQuery: () => {},
   setStatus: () => {},
+  setTag: () => {},
   clear: () => {},
 };
 

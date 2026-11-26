@@ -5,14 +5,14 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { trackerContent } from "@/content/tracker-data";
-import { JOURNAL_ID, listItems } from "@/lib/ids";
+import { JOURNAL_ID, listTrackerItems } from "@/lib/ids";
 import { linkProblem } from "@/lib/notes";
 import { openScriptDb } from "../../scripts/lib/db.mjs";
 import { applyImport, collectRecords, findOwnerUserId, normalizeRecord, planImport, readExisting, summaryLines } from "../../scripts/lib/import-core.mjs";
 
 const FIXTURES = path.join(process.cwd(), "tests", "fixtures", "import");
 const RECORDS = path.join(FIXTURES, "records");
-const knownIds = new Set([...listItems(trackerContent).map((i) => i.id), JOURNAL_ID]);
+const knownIds = new Set([...listTrackerItems(trackerContent).map((i) => i.id), JOURNAL_ID]);
 
 type ScriptDb = Awaited<ReturnType<typeof openScriptDb>>;
 let db: ScriptDb;

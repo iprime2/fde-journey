@@ -7,10 +7,22 @@ import { useFilter } from "./FilterProvider";
 
 const ANNOUNCE_DELAY_MS = 400;
 
-/** Search field and status filter (design spec 4, Toolbar). */
-export function Toolbar({ placeholder }: { placeholder: string }) {
+/**
+ * Search field and status filter (design spec 4, Toolbar), plus an optional third select for a
+ * page's own tag filter (Courses & badges). Each select takes its natural width; when the row
+ * runs out of room the tag filter wraps under the search.
+ */
+export function Toolbar({
+  placeholder,
+  tagFilter,
+}: {
+  placeholder: string;
+  /** Visually hidden label and the choices; the first choice (value "") shows everything. */
+  tagFilter?: { label: string; options: readonly TagOption[] };
+}) {
   const f = useFilter();
   const statusId = useId();
+  const tagId = useId();
   const shown = f.visibility.items.size;
 
   // "{n} items shown", 400 ms after the last change; silent on first load.

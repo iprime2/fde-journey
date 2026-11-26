@@ -1,7 +1,9 @@
 // Item ids for saved progress. They must stay identical to the tracker's ids, because the
 // owner's existing progress is stored under them. Ids come from list positions: lists are
 // append-only, never reordered. See .claude/skills/journey-app-dev/SKILL.md.
-import type { TrackerContent } from "@/content/types";
+// No runtime imports here: scripts/import-progress.mjs loads this file with Node's TypeScript
+// support, which can't resolve the "@/" alias. Callers pass the content in.
+import type { Course, TrackerContent } from "@/content/types";
 
 /** Phase number is 1-based (Phase.n); task index is 0-based. */
 export const phaseTaskId = (phaseNumber: number, taskIndex: number) => `l${phaseNumber}-${taskIndex + 1}`;
@@ -15,10 +17,12 @@ export const scalerClassId = (moduleNumber: number, classIndex: number) => `s${m
 export const resourceId = (taskId: string, index: number) => `r${taskId.slice(1)}-${index + 1}`;
 export const paperId = (index: number) => `pp${index + 1}`;
 export const bookId = (index: number) => `bk${index + 1}`;
+/** Courses & badges (content/courses.ts). Not in the tracker: these ids exist only in the app. */
+export const courseId = (index: number) => `cr${index + 1}`;
 /** Free-text weekly notes. */
 export const JOURNAL_ID = "journal";
 
-export type ItemGroup = "roadmap" | "cert" | "project" | "career" | "scaler" | "resource" | "paper" | "book";
+export type ItemGroup = "roadmap" | "cert" | "project" | "career" | "scaler" | "resource" | "paper" | "book" | "course";
 
 export interface ItemRef {
   id: string;
@@ -26,8 +30,8 @@ export interface ItemRef {
   group: ItemGroup;
 }
 
-/** Every trackable item, in the same order the tracker registers them. */
-export function listItems(c: TrackerContent): ItemRef[] {
+/** Every item the old tracker had, in the same order it registers them. */
+export function listTrackerItems(c: TrackerContent): ItemRef[] {
   const out: ItemRef[] = [];
   c.phases.forEach((p) => p.tasks.forEach((t, j) => out.push({ id: phaseTaskId(p.n, j), title: t[0], group: "roadmap" })));
   c.certs.forEach((cert, i) => cert.tasks.forEach((t, j) => out.push({ id: certTaskId(i, j), title: t, group: "cert" })));
@@ -41,6 +45,16 @@ export function listItems(c: TrackerContent): ItemRef[] {
   c.books.forEach((x, i) => out.push({ id: bookId(i), title: x.title, group: "book" }));
   return out;
 }
+
+/** The Courses & badges items (app only). */
+export const listCourseItems = (courses: readonly Course[]): ItemRef[] =>
+  courses.map((x, i) => ({ id: courseId(i), title: x.title, group: "course" }));
+
+/** Every trackable item: the tracker's, then the courses. */
+export const listItems = (c: TrackerContent, courses: readonly Course[]): ItemRef[] => [
+  ...listTrackerItems(c),
+  ...listCourseItems(courses),
+];
 
 /** Certifications in display order, keeping each one's array index for its ids. */
 export function certsInDisplayOrder(c: TrackerContent) {
