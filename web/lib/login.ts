@@ -23,7 +23,11 @@ export function safeNextPath(value: unknown): string {
   if (url.origin !== ORIGIN) return "/";
   const path = url.pathname;
   if (path === "/login" || path.startsWith("/login/") || path === "/api" || path.startsWith("/api/")) return "/";
-  return `${path}${url.search}${url.hash}`;
+  const out = `${path}${url.search}${url.hash}`;
+  // Parsing removes dot segments, so "/.//host" or "/a/..//host" comes back as "//host", which a
+  // browser reads as another site. Check the result again, not only the input.
+  if (out.startsWith("//") || out.includes("\\")) return "/";
+  return out;
 }
 
 /** The sign-in page, remembering where to go afterwards. */

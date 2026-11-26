@@ -34,6 +34,14 @@ describe("safeNextPath (the ?next= redirect after sign-in)", () => {
     expect(safeNextPath("/api/auth/sign-out")).toBe("/");
   });
 
+  it.each(["/.//evil.example", "/a/..//evil.example", "/%2e//evil.example/roadmap", "/./%2e//evil.example", "/x/.././/evil.example?q=1"])(
+    "refuses %s, which becomes //host once dot segments are removed",
+    (value) => {
+      expect(safeNextPath(value)).toBe("/");
+      expect(loginHref(value)).toBe("/login");
+    },
+  );
+
   it("keeps encoded slashes as a path, which stays on this site", () => {
     expect(safeNextPath("/%2F%2Fevil.example")).toBe("/%2F%2Fevil.example");
   });
