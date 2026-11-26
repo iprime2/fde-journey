@@ -34,6 +34,11 @@ export interface FieldSaver {
   onChange(value: string): void;
   /** Save now if there are changes (blur, closing the editor). */
   flush(): void;
+  /**
+   * Don't save after the typing pause: focus moved to this field's Try again, which saves when
+   * pressed. A save started now would remove Try again just as focus arrives on it.
+   */
+  hold(): void;
   retry(): void;
 }
 
@@ -91,21 +96,31 @@ export function useFieldSaver({
   useEffect(() => {
     latest.current = { value, saved, mode };
   });
+  /** The save after the typing pause, while it is pending (undefined otherwise). */
   const typingTimer = useRef<number | undefined>(undefined);
   const savedTimer = useRef<number | undefined>(undefined);
   const busy = useRef(false);
   /** A save asked for while one was running (null: none); true if it should show a broken rule. */
   const queued = useRef<boolean | null>(null);
-  useEffect(
-    () => () => {
-      window.clearTimeout(typingTimer.current);
-      window.clearTimeout(savedTimer.current);
-    },
-    [],
-  );
+  /** The connection came back while a save was on its way: if that save fails, try once more. */
+  const reconnected = useRef(false);
+
+  function cancelTypingTimer() {
+    window.clearTimeout(typingTimer.current);
+    typingTimer.current = undefined;
+  }
+
+  // Leaving the page: Next.js keeps it mounted but hidden (React Activity), which runs this
+  // cleanup, often with no blur first (Back with a key or a swipe). A change still waiting for the
+  // typing pause saves now instead of being dropped. ("Saved" clears on its own timer, which keeps
+  // running, so it can't stick when the page shows again.)
+  const saveBeforeHiding = useEffectEvent(() => {
+    if (typingTimer.current !== undefined) void persist(false);
+  });
+  useEffect(() => () => saveBeforeHiding(), []);
 
   async function persist(showProblem: boolean): Promise<void> {
-    window.clearTimeout(typingTimer.current);
+    cancelTypingTimer();
     const { value: current, saved: confirmed } = latest.current;
     const issue = check?.(current) ?? null;
     const step = nextSaveStep({
@@ -123,25 +138,32 @@ export function useFieldSaver({
     }
     if (step !== "save") {
       if (step === "problem") setError((shown) => (showProblem || shown !== null ? issue : shown));
-      if (step === "unchanged") setError(null);
+      if (step === "unchanged") {
+        // Back to the saved text: nothing on this field is failed any more.
+        setError(null);
+        page.clearFailure(failureKey);
+      }
       setStored((s) => statusAfterStep(step, s));
-      page.clearFailure(failureKey);
       return;
     }
 
     busy.current = true;
     window.clearTimeout(savedTimer.current);
     setStored("saving");
-    page.clearFailure(failureKey);
+    // The page's save-failed banner stays until a save succeeds: clearing it here would make it
+    // (a role="alert") go and come back, and be announced again, at every failed attempt.
     const result = await safeCall(() => save(current));
     busy.current = false;
     const again = queued.current ?? false;
     queued.current = null;
+    const backOnline = reconnected.current;
+    reconnected.current = false;
 
     if (result.ok) {
       latest.current = { ...latest.current, saved: current };
       setSaved(current);
       setError(null);
+      page.clearFailure(failureKey);
       if (afterSaveSucceeded(current, latest.current.value) === "again") return persist(again);
       setStored("saved");
       savedTimer.current = window.setTimeout(() => setStored((s) => (s === "saved" ? "idle" : s)), SAVED_VISIBLE_MS);
@@ -150,6 +172,7 @@ export function useFieldSaver({
     const outcome = afterSaveFailed(result.error.code, {
       online: navigator.onLine,
       changed: latest.current.value !== current,
+      reconnected: backOnline,
     });
     switch (outcome) {
       case "again":
@@ -171,9 +194,16 @@ export function useFieldSaver({
     }
   }
 
-  // Back online: an unsaved or failed change saves by itself, once (Try again after that).
+  // Back online: an unsaved or failed change saves by itself, once (Try again after that). If a
+  // save is still on its way, it is the one: it shows as saving, and if it fails with the drop it
+  // is tried once more.
   const saveOnReconnect = useEffectEvent(() => {
-    if (latest.current.value !== latest.current.saved) void persist(false);
+    if (latest.current.value === latest.current.saved) return;
+    if (busy.current) {
+      reconnected.current = true;
+      setStored("saving");
+    }
+    void persist(false);
   });
   const previousMode = useRef(mode);
   useEffect(() => {
@@ -206,6 +236,7 @@ export function useFieldSaver({
       typingTimer.current = window.setTimeout(() => void persist(false), AUTOSAVE_DELAY_MS);
     },
     flush: () => void persist(true),
+    hold: cancelTypingTimer,
     retry: () => void persist(true),
   };
 }

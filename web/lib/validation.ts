@@ -3,11 +3,10 @@
 import { z } from "zod";
 import { trackerContent } from "@/content/tracker-data";
 import { JOURNAL_ID, listItems } from "./ids";
-import { LINK_ERROR, LINK_MAX, linkProblem } from "./notes";
+import { LINK_ERROR, LINK_MAX, NOTE_MAX, NOTE_TOO_LONG, linkProblem } from "./notes";
 import type { SaveError, SaveField } from "./save-result";
 
-export const NOTE_MAX = 10_000;
-export { LINK_MAX };
+export { LINK_MAX, NOTE_MAX };
 
 /** Ids that can be ticked: every item in the content. */
 export const ITEM_IDS: ReadonlySet<string> = new Set(listItems(trackerContent).map((i) => i.id));
@@ -27,7 +26,7 @@ export const doneSchema = z.boolean({ error: CANT_SAVE });
 /** Up to 10,000 characters. NUL characters are removed (Postgres text cannot store them). */
 export const noteSchema = z
   .string({ error: "This note can't be saved." })
-  .max(NOTE_MAX, { error: "Notes can be up to 10,000 characters." })
+  .max(NOTE_MAX, { error: NOTE_TOO_LONG })
   .transform((s) => s.replaceAll("\u0000", ""));
 
 /** Empty, or an https:// address of up to 2,000 characters. Surrounding spaces are trimmed. */

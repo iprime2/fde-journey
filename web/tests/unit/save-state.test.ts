@@ -125,14 +125,24 @@ describe("when a text field saves", () => {
   });
 
   it("after a failure, tells a rule, a sign-out, a dropped connection and a plain failure apart", () => {
-    expect(afterSaveFailed("invalid", { online: true, changed: false })).toBe("invalid");
-    expect(afterSaveFailed("invalid", { online: true, changed: true })).toBe("again");
-    expect(afterSaveFailed("signed-out", { online: true, changed: false })).toBe("signed-out");
-    expect(afterSaveFailed("signed-out", { online: false, changed: false })).toBe("signed-out");
+    const plain = { online: true, changed: false, reconnected: false };
+    expect(afterSaveFailed("invalid", plain)).toBe("invalid");
+    expect(afterSaveFailed("invalid", { ...plain, changed: true })).toBe("again");
+    expect(afterSaveFailed("signed-out", plain)).toBe("signed-out");
+    expect(afterSaveFailed("signed-out", { ...plain, online: false })).toBe("signed-out");
     // A save in flight when the connection drops counts as not saved yet.
-    expect(afterSaveFailed("failed", { online: false, changed: false })).toBe("waiting");
-    expect(afterSaveFailed("failed", { online: true, changed: false })).toBe("error");
-    expect(afterSaveFailed("failed", { online: true, changed: true })).toBe("error");
+    expect(afterSaveFailed("failed", { ...plain, online: false })).toBe("waiting");
+    expect(afterSaveFailed("failed", plain)).toBe("error");
+    expect(afterSaveFailed("failed", { ...plain, changed: true })).toBe("error");
+  });
+
+  it("saves by itself once when the connection came back while a save was on its way", () => {
+    const back = { online: true, changed: false, reconnected: true };
+    expect(afterSaveFailed("failed", back)).toBe("again");
+    // Still offline: keep waiting; a rule or a sign-out wins over the retry.
+    expect(afterSaveFailed("failed", { ...back, online: false })).toBe("waiting");
+    expect(afterSaveFailed("invalid", back)).toBe("invalid");
+    expect(afterSaveFailed("signed-out", back)).toBe("signed-out");
   });
 
   it("shows unsaved text as waiting offline and as not saved when signed out", () => {
@@ -147,6 +157,17 @@ describe("when a text field saves", () => {
     expect(shownStatus("idle", { mode: "read-only", dirty: false, problem: false })).toBe("idle");
     expect(shownStatus("saving", { mode: "write", ...dirty })).toBe("saving");
     expect(shownStatus("waiting", { mode: "write", ...dirty })).toBe("waiting");
+  });
+
+  it("stops waiting or failing as soon as the text is back to what was saved", () => {
+    const clean = { dirty: false, problem: false };
+    // Offline, typed, then put back: no "Not saved yet…" for the next 800 ms.
+    expect(shownStatus("waiting", { mode: "offline", ...clean })).toBe("idle");
+    expect(shownStatus("waiting", { mode: "write", ...clean })).toBe("idle");
+    expect(shownStatus("error", { mode: "write", ...clean })).toBe("idle");
+    // A save still running says so, and "Saved" stays.
+    expect(shownStatus("saving", { mode: "write", ...clean })).toBe("saving");
+    expect(shownStatus("saved", { mode: "offline", ...clean })).toBe("saved");
   });
 });
 

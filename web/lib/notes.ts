@@ -13,6 +13,13 @@ export const isHttpsUrl = (value: string) => /^https:\/\/\S+$/i.test(value.trim(
 
 export const LINK_ERROR = "Links must start with https://";
 
+/** Notes (and the weekly notes) hold up to 10,000 characters. The server applies the same rule. */
+export const NOTE_MAX = 10_000;
+export const NOTE_TOO_LONG = "Notes can be up to 10,000 characters.";
+
+/** The server's note rule, or null when the note is fine. */
+export const noteProblem = (value: string): string | null => (value.length > NOTE_MAX ? NOTE_TOO_LONG : null);
+
 export const LINK_MAX = 2_000;
 
 /**

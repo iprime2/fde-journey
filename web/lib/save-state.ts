@@ -87,22 +87,31 @@ export function afterSaveSucceeded(sent: string, latest: string): "again" | "sav
  *   so the newer text gets its own answer);
  * - "signed-out": the page shows the signed-out banner;
  * - "waiting": the connection dropped; it counts as not saved yet and saves when back online;
+ * - "again": the connection came back while this save was on its way (and it failed with the
+ *   drop): this is the one save by itself that coming back online promises;
  * - "error": "Not saved." with Try again.
  */
-export function afterSaveFailed(code: SaveError["code"], s: { online: boolean; changed: boolean }): "invalid" | "again" | "signed-out" | "waiting" | "error" {
+export function afterSaveFailed(
+  code: SaveError["code"],
+  s: { online: boolean; changed: boolean; reconnected: boolean },
+): "invalid" | "again" | "signed-out" | "waiting" | "error" {
   if (code === "invalid") return s.changed ? "again" : "invalid";
   if (code === "signed-out") return "signed-out";
-  return s.online ? "error" : "waiting";
+  if (!s.online) return "waiting";
+  return s.reconnected ? "again" : "error";
 }
 
 /**
  * The status a field shows. Offline, any unsaved text waits for the connection (a save still on
  * its way counts as not saved yet), unless it breaks the field's rule and couldn't save anyway.
- * Signed out, unsaved text is "Not saved." for good.
+ * Signed out, unsaved text is "Not saved." for good. With nothing unsaved, nothing waits or fails.
  */
 export function shownStatus(stored: SaveStatus, s: { mode: FieldMode; dirty: boolean; problem: boolean }): SaveStatus {
   if (s.mode === "offline" && s.dirty && !s.problem) return "waiting";
   if (s.mode === "read-only" && s.dirty) return "error";
+  // Back to the saved text: nothing is waiting or failed any more, even before the next save
+  // attempt (up to 800 ms later) settles the stored status.
+  if (!s.dirty && (stored === "waiting" || stored === "error")) return "idle";
   return stored;
 }
 
