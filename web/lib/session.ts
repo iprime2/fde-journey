@@ -1,4 +1,8 @@
-// The signed-in owner, for pages and Server Actions. Server-only.
+// Who is signed in, for pages and Server Actions. Server-only.
+//
+// requireUser() is the one way in for data: pages and Server Actions take the user's id from it,
+// never from the request body, URL or a cookie value, and pass it to lib/progress-db.ts. In M4a
+// it builds on getOwnerSession (owner-only, revoking other accounts); M4b relaxes the gate.
 import "server-only";
 import { getSessionCookie } from "better-auth/cookies";
 import { headers } from "next/headers";
@@ -48,9 +52,27 @@ export const getOwnerSession = cache(async (): Promise<OwnerSession | null> => {
   return { userId: result.user.id, name: result.user.name, image: result.user.image ?? null };
 });
 
-/** The owner's session, or a redirect to /login (back to this page afterwards). */
-export async function requireOwner(): Promise<OwnerSession> {
+/** Thrown by requireUser({ onSignedOut: "throw" }): no signed-in user. Server Actions turn it into a "signed-out" result. */
+export class SignedOutError extends Error {
+  constructor() {
+    super("No signed-in user.");
+    this.name = "SignedOutError";
+  }
+}
+
+/**
+ * The signed-in user's id, from the server-side session only.
+ *
+ * - Pages (default, `onSignedOut: "redirect"`): otherwise redirects to /login, back to this page.
+ * - Server Actions (`onSignedOut: "throw"`): otherwise throws SignedOutError. A redirect from an
+ *   action would take the user away from the page and the note they were typing; the action
+ *   answers "signed-out" instead (app/actions/progress.ts).
+ *
+ * M4a: only the owner has a user (getOwnerSession). M4b lets other active users in here.
+ */
+export async function requireUser({ onSignedOut = "redirect" }: { onSignedOut?: "redirect" | "throw" } = {}): Promise<string> {
   const owner = await getOwnerSession();
-  if (owner) return owner;
+  if (owner) return owner.userId;
+  if (onSignedOut === "throw") throw new SignedOutError();
   redirect(loginHref((await headers()).get(PATH_HEADER)));
 }

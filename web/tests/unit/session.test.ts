@@ -30,7 +30,7 @@ import { getProgress } from "@/lib/data";
 import { PATH_HEADER } from "@/lib/login";
 import { isReadOnly } from "@/lib/mode";
 import { setDone, setNote } from "@/lib/progress-db";
-import { getOwnerSession, requireOwner } from "@/lib/session";
+import { SignedOutError, getOwnerSession, requireUser } from "@/lib/session";
 import { OWNER_ID, emptyDb, seedOtherUser, seedOwner, setTestEnv, signedCookieValue } from "./support/db";
 
 setTestEnv();
@@ -115,15 +115,34 @@ describe("getOwnerSession", () => {
   });
 });
 
-describe("requireOwner", () => {
+describe("requireUser", () => {
+  it("returns the signed-in owner's user id from the session", async () => {
+    const db = await emptyDb();
+    useCookie((await seedOwner(db)).cookie);
+    expect(await requireUser()).toBe("owner");
+    expect(await requireUser({ onSignedOut: "throw" })).toBe("owner");
+  });
+
   it("sends signed-out visitors to /login, back to the page they wanted", async () => {
     useCookie(null, "/scaler?q=rag");
-    await expect(requireOwner()).rejects.toThrow("REDIRECT /login?next=%2Fscaler%3Fq%3Drag");
+    await expect(requireUser()).rejects.toThrow("REDIRECT /login?next=%2Fscaler%3Fq%3Drag");
   });
 
   it("ignores an unsafe path header", async () => {
     useCookie(null, "//evil.example");
-    await expect(requireOwner()).rejects.toThrow("REDIRECT /login");
+    await expect(requireUser()).rejects.toThrow("REDIRECT /login");
+  });
+
+  it("throws SignedOutError instead of redirecting when asked (Server Actions)", async () => {
+    await expect(requireUser({ onSignedOut: "throw" })).rejects.toBeInstanceOf(SignedOutError);
+  });
+
+  it("refuses another account in M4a (owner-only), revoking its session", async () => {
+    const db = await emptyDb();
+    await seedOwner(db);
+    useCookie((await seedOtherUser(db)).cookie);
+    await expect(requireUser({ onSignedOut: "throw" })).rejects.toBeInstanceOf(SignedOutError);
+    expect((await db.select().from(session)).map((s) => s.userId)).toEqual(["owner"]);
   });
 });
 
@@ -131,8 +150,8 @@ describe("getProgress", () => {
   it("returns the owner's saved records", async () => {
     const db = await emptyDb();
     useCookie((await seedOwner(db)).cookie);
-    await setDone(db, "l1-1", true, new Date("2026-11-30T10:00:00Z"));
-    await setNote(db, "journal", "Made-up weekly note.", new Date("2026-11-30T11:00:00Z"));
+    await setDone("owner", db, "l1-1", true, new Date("2026-11-30T10:00:00Z"));
+    await setNote("owner", db, "journal", "Made-up weekly note.", new Date("2026-11-30T11:00:00Z"));
     const progress = await getProgress();
     expect(progress.size).toBe(2);
     expect(progress.get("l1-1")).toEqual({
@@ -147,7 +166,8 @@ describe("getProgress", () => {
 
   it("redirects signed-out visitors and other accounts instead of returning data", async () => {
     const db = await emptyDb();
-    await setDone(db, "l1-1", true);
+    await seedOwner(db);
+    await setDone("owner", db, "l1-1", true);
     await expect(getProgress()).rejects.toThrow(/^REDIRECT \/login/);
     useCookie((await seedOtherUser(db)).cookie);
     await expect(getProgress()).rejects.toThrow(/^REDIRECT \/login/);

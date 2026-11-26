@@ -1,5 +1,10 @@
 // Core of `npm run db:import`: read exported tracker records, check them, and plan and apply the
 // upserts. Never logs or returns note text or links: callers only get counts.
+//
+// The records are the owner's: every query here is scoped to the owner's user id, found through
+// the GitHub account whose id is OWNER_GITHUB_ID (findOwnerUserId). The import writes no
+// progress_event rows: those record saves made in the app from M4 on, and imported history keeps
+// its own done_at instead.
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 
@@ -147,34 +152,53 @@ export function planImport(entries, existing, knownIds, linkProblem, now = new D
 }
 
 const INSERT = `
-insert into progress (item_id, done, note, link, done_at, updated_at)
-values ($1, $2, $3, $4, $5, $6)`;
+insert into progress (user_id, item_id, done, note, link, done_at, updated_at)
+values ($1, $2, $3, $4, $5, $6, $7)`;
 
 const UPSERT = `${INSERT}
-on conflict (item_id) do update set
+on conflict (user_id, item_id) do update set
   done = excluded.done, note = excluded.note, link = excluded.link,
   done_at = excluded.done_at, updated_at = excluded.updated_at
-where progress.updated_at < excluded.updated_at
+where progress.user_id = $1 and progress.updated_at < excluded.updated_at
 returning (xmax = 0) as inserted`;
 
 // Future-dated records: add the row only if it still does not exist.
 const INSERT_IF_MISSING = `${INSERT}
-on conflict (item_id) do nothing
+on conflict (user_id, item_id) do nothing
 returning true as inserted`;
 
-/** Saved `updated_at` for the given ids. */
-export async function readExisting(db, ids) {
+const GITHUB_ID = /^[1-9]\d{0,19}$/;
+
+/**
+ * The owner's user id: the user whose GitHub account id is `ownerGithubId` (OWNER_GITHUB_ID).
+ * Null when the setting is missing or malformed, or no such user exists (never signed in).
+ */
+export async function findOwnerUserId(db, ownerGithubId) {
+  const id = typeof ownerGithubId === "string" ? ownerGithubId.trim() : "";
+  if (!GITHUB_ID.test(id)) return null;
+  const rows = await db.query("select user_id from account where provider_id = 'github' and account_id = $1 limit 1", [id]);
+  return rows[0]?.user_id ?? null;
+}
+
+function checkUserId(userId) {
+  if (typeof userId !== "string" || userId.length === 0) throw new Error("The import needs the owner's user id.");
+}
+
+/** The user's saved `updated_at` for the given ids. */
+export async function readExisting(db, userId, ids) {
+  checkUserId(userId);
   if (ids.length === 0) return new Map();
-  const rows = await db.query("select item_id, updated_at from progress where item_id = any($1::text[])", [ids]);
+  const rows = await db.query("select item_id, updated_at from progress where user_id = $1 and item_id = any($2::text[])", [userId, ids]);
   return new Map(rows.map((r) => [r.item_id, new Date(r.updated_at)]));
 }
 
-/** Writes the planned rows. Returns how many were inserted, updated, or skipped as not newer. */
-export async function applyImport(db, writes) {
+/** Writes the planned rows for the user. Returns how many were inserted, updated, or skipped as not newer. */
+export async function applyImport(db, userId, writes) {
+  checkUserId(userId);
   const result = { inserted: 0, updated: 0, skipped: 0 };
   for (const w of writes) {
     const sql = w.insertOnly ? INSERT_IF_MISSING : UPSERT;
-    const rows = await db.query(sql, [w.itemId, w.done, w.note, w.link, w.doneAt?.toISOString() ?? null, w.updatedAt.toISOString()]);
+    const rows = await db.query(sql, [userId, w.itemId, w.done, w.note, w.link, w.doneAt?.toISOString() ?? null, w.updatedAt.toISOString()]);
     if (rows.length === 0) result.skipped += 1;
     else if (rows[0].inserted) result.inserted += 1;
     else result.updated += 1;

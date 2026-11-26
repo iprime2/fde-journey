@@ -44,14 +44,15 @@ Other people can sign in and track their own AI-engineer or FDE journey. Each pe
 | `progress_event` | id, user_id, item_id, kind (`done`, `undone`, `note`, `link`), at. Indexed on `(user_id, at)`. Every save writes one row, inside the same request. It holds no note text, only that a note changed. This is what M5's weekly charts read. |
 | `export_token` | For the Claude export: one per user, stored only as a hash, can be revoked. |
 
-**Migration on the live database**, in one transaction:
-1. Add `user_id` as nullable.
-2. Fill it with the owner's user id, found through the GitHub account whose id is `OWNER_GITHUB_ID`.
-3. Check that no row is left empty.
-4. Make the column not null and swap the primary key.
-5. Set every existing user to `status = active` (today only the owner exists). The owner's admin rights come from `OWNER_GITHUB_ID`, not from a row.
+**Migration on the live database** (M4a, built as migration `0002_progress_per_user`; steps in `docs/M4a-ROLLOUT.md`), in one transaction:
+1. Create `progress_event`.
+2. Add `user_id` as nullable.
+3. If `progress` has rows, give them all to the only user. A SQL migration can't read `OWNER_GITHUB_ID`, so the SQL relies on sign-in being owner-only: with rows and not exactly one user, it stops and changes nothing.
+4. Make the column not null, swap the primary key to `(user_id, item_id)`, and add the foreign keys and the event index.
 
-The migration refuses to run if the owner's user can't be found. It is checked first on a Neon branch (a copy of production), with row counts compared before and after.
+The owner check happens before the migration, outside the SQL: `npm run db:migrate` (`scripts/lib/migrate-check.mjs`) refuses, changing nothing, unless `OWNER_GITHUB_ID` is set and the only user has the GitHub account with that id. When the statements are applied by hand with the Neon tools, the rollout's "Before" queries (row and user counts, and the owner's account) are the same check and are required right before applying. Rehearsed first on a Neon branch (a copy of production), with row counts and a data fingerprint compared before and after.
+
+`user.status` (step 5 of the first draft: every existing user set to `active`) arrives with M4b's sign-up and waitlist, not in M4a.
 
 ## 4. Keeping users apart (the most important part)
 - **One way in.** Every page, Server Action and API route gets the user id only from the server-side session (`requireUser()`), never from the request body, URL or a cookie value.
