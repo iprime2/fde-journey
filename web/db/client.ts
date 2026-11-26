@@ -11,8 +11,14 @@ import "server-only";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
-import * as schema from "./schema";
+import { authSchema } from "./schema";
 
+/**
+ * The tables Drizzle's relational API (`db.query.*`) can reach: Better Auth's only. The per-user
+ * tables (`progress`, `progress_event`) are left out on purpose, so they can't be read with
+ * `db.query.progress.findMany()` and no user filter. Query them through lib/progress-db.ts.
+ */
+const schema = authSchema;
 export type Schema = typeof schema;
 /** The query API shared by the Neon and PGlite drivers. */
 export type Db = PgDatabase<PgQueryResultHKT, Schema>;
