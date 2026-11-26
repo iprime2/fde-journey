@@ -1,6 +1,7 @@
 // Migration 0003 (M4b: sign-up, waitlist, admin, settings, export keys) on a database that already
 // holds data, as production does, and `npm run db:migrate`'s owner check before it. Each test
 // migrates a fresh in-memory PGlite to 0002, adds made-up rows, then applies the rest.
+import { createHash } from "node:crypto";
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -159,5 +160,37 @@ describe("npm run db:migrate's check before 0003", () => {
     await client.query(`delete from "user" where id = 'a'`);
     await migrateAll();
     expect(await check({})).toEqual({ ok: true, checked: false });
+  });
+});
+
+describe("docs/M4b-ROLLOUT.md matches the migration file", () => {
+  const file = readFileSync(path.join(MIGRATIONS, `${SETTINGS_CHECK_MIGRATION}.sql`), "utf8");
+  const doc = readFileSync(path.join(process.cwd(), "docs", "M4b-ROLLOUT.md"), "utf8");
+  const optionB = /## Option B[^]*?```sql\n([^]*?)```/.exec(doc)?.[1] ?? "";
+
+  it("records the file's SHA-256 and its journal time, as db:migrate would", () => {
+    const hash = createHash("sha256").update(file).digest("hex");
+    const when = journal.entries.find((e) => e.tag === SETTINGS_CHECK_MIGRATION)?.when;
+    expect(optionB).toContain(`VALUES ('${hash}', ${when});`);
+    expect(doc).toContain(`DELETE FROM drizzle.__drizzle_migrations WHERE created_at = ${when};`);
+  });
+
+  it("lists the file's statements, in order and word for word", () => {
+    const fromFile = file
+      .split("--> statement-breakpoint")
+      .map((part) =>
+        part
+          .split("\n")
+          .filter((line) => !line.startsWith("--"))
+          .join("\n")
+          .trim(),
+      )
+      .filter(Boolean);
+    const fromDoc = optionB
+      .split(/^-- \d+.*$/m)
+      .map((part) => part.trim())
+      .filter(Boolean);
+    expect(fromDoc.slice(0, -1)).toEqual(fromFile);
+    expect(fromDoc.at(-1)).toMatch(/^INSERT INTO "drizzle"\."__drizzle_migrations"/);
   });
 });
