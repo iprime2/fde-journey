@@ -87,7 +87,7 @@ Later tables arrive with their features (for example `applications`, `log_entrie
 | M1 | App skeleton and read-only parity: dashboard plus the six sections (roadmap, reading, Scaler, certifications, projects, career), rendered from `web/content/` | Runs locally, matches the tracker's content, id test passes, CI is green |
 | M2 | Database, sign-in and saving: ticks, notes, links, weekly notes, resource ticks; import script for the existing records | End-to-end tests pass against the local database |
 | M3 | Go live: hosting, database and sign-in set up; export endpoint for Claude; cut-over | The owner uses the new app for a week with no gaps; then the artifact is frozen and `CLAUDE.md` is updated |
-| D1 | Design refresh (runs alongside M3): logo, modern sign-in page, account menu with the GitHub avatar, then a whole-app visual pass | Screens reviewed at 320, 390, 768, 1024, 1440 and 1920 px wide, phone landscape included, light and dark, with no sideways scroll |
+| D1 | Design refresh (runs alongside M3): logo, modern sign-in page, account menu with the GitHub avatar, then a whole-app visual pass. Phase 1 (logo, sign-in page, account menu, responsive fixes) built and reviewed 2026-11-26; phase 2 is the whole-app visual pass | Screens reviewed at 320, 390, 768, 1024, 1440 and 1920 px wide, phone landscape included, light and dark, with no sideways scroll |
 | M4 | Multi-user (section 12) | Two test users can never see or change each other's data (tests prove it); the owner's data is kept; sign-up is invite-only |
 | M5 | Insights dashboard (section 13) | Weekly progress charts and stats per user, built on recorded events |
 | M6+ | New sections, one at a time (job applications first) | Each has its own short design note first |
