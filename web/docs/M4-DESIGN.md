@@ -142,4 +142,26 @@ Two pull requests, each reviewed (code and UX) before merge:
 3. (Decided: Google sign-in later, not in M4.)
 4a. (Decided: admins never see email addresses. The dashboard shows GitHub username and avatar only.)
 4. (Decided: the privacy page links to a GitHub issue on the public repo for data questions; no email address is published.)
-5. Name: does it stay "FDE Journey" for everyone?
+5. (Decided: the name stays "FDE Journey".)
+
+## 10. Decisions after the M4b screen design (owner, 2026-11-26)
+1. **Dates:** every user sees the owner's phase dates, readiness review, "Behind" chips and class times for now. Personal dates come with M5 (time zones and targets).
+2. **The Scaler section is for Scaler learners only, unlocked by an access code.**
+   - The owner (or an admin with `settings.manage`) sets the code on the admin Sign-up tab. It is stored only as a hash, can be rotated, and a rotation doesn't lock out users who already unlocked.
+   - A user enters the code once, in Settings, in a "Scaler course" card. A correct code unlocks the Scaler section for that user (`user_settings.scaler_unlocked_at`), and it is then switched on.
+   - Without it, the Scaler section can't be switched on and never appears.
+   - Wrong attempts are rate-limited per user (for example 5 per hour) and logged in the audit log as counts only, never the code.
+   - The owner always has Scaler.
+3. **Sessions keep the IP address and browser name**, as the sign-in library stores them by default. The privacy page says so, and that they are deleted when the session ends or the account is deleted.
+4. **The designer's defaults (spec v0.5 open questions) are accepted:**
+   - Removing someone from the waitlist deletes their account.
+   - Only the super admin can suspend admins or grant `admins.manage`.
+   - Suspended users don't count toward the cap. Reactivate and "Let in" never exceed it.
+   - "Active" means signed in or saved anything. "This week" starts Monday, IST, until M5.
+   - The audit log shows "a deleted account" after a deletion.
+   - The cap can be set up to 1,000.
+   - Settings has a Claude export key card under "Your data".
+5. **Before launch:**
+   - Store the GitHub username, refreshed at each sign-in.
+   - Add a GitHub issue template for data questions.
+   - Check how long Neon keeps restore history and Vercel keeps logs, and state both on the privacy page.
