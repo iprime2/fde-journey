@@ -130,9 +130,33 @@ export interface Bar {
 }
 
 /**
+ * Each slot's height: its proportional share `p` scaled by one factor, but never below its floor.
+ * The factor is 1 unless raising small slots to their floors would push the bar past `usable`;
+ * then the proportional slots shrink together so the whole bar is exactly `usable`.
+ */
+export function fitSlots(proportional: readonly number[], floors: readonly number[], usable: number): number[] {
+  const slots = (k: number) => proportional.map((p, i) => Math.max(p * k, floors[i]));
+  const sum = (xs: readonly number[]) => xs.reduce((a, b) => a + b, 0);
+  if (sum(slots(1)) <= usable) return slots(1);
+  // Slots at their floor stay there; the rest share what's left. Each round can only add slots to
+  // the floored set, so this ends within one round per slot.
+  let k = 1;
+  for (let round = 0; round <= proportional.length; round++) {
+    const floored = proportional.map((p, i) => p * k <= floors[i]);
+    const fixed = sum(floors.filter((_, i) => floored[i]));
+    const free = sum(proportional.filter((_, i) => !floored[i]));
+    const next = free > 0 ? Math.max(0, (usable - fixed) / free) : 0;
+    if (Math.abs(next - k) < 1e-9) break;
+    k = next;
+  }
+  return slots(k);
+}
+
+/**
  * The bars for a plot `plotHeight` px tall. Segments stack from the baseline up in kind order, each
  * proportional to its count over the usable height (plot minus TOTALS_ROOM), with a SEGMENT_GAP above
- * every segment but the top one and at least MIN_SEGMENT px drawn.
+ * every segment but the top one and at least MIN_SEGMENT px drawn. A bar never rises past the usable
+ * height, so its total always stays inside the plot (fitSlots).
  */
 export function barLayout(weekly: readonly WeekCompletions[], kinds: readonly KindInfo[], plotHeight: number, thisWeek: string): Bar[] {
   const max = scaleMax(weekly);
@@ -140,11 +164,17 @@ export function barLayout(weekly: readonly WeekCompletions[], kinds: readonly Ki
   return weekly.map((w) => {
     const counts = chartCounts(w.byKind);
     const parts = kinds.filter((k) => counts[k.key] > 0);
+    const gaps = parts.map((_, i) => (i < parts.length - 1 ? SEGMENT_GAP : 0));
+    const slotHeights = fitSlots(
+      parts.map((k) => (counts[k.key] / max) * usable),
+      gaps.map((gap) => MIN_SEGMENT + gap),
+      usable,
+    );
     const segments: Segment[] = [];
     let stacked = 0;
     parts.forEach((k, i) => {
-      const gap = i < parts.length - 1 ? SEGMENT_GAP : 0;
-      const slot = Math.max((counts[k.key] / max) * usable, MIN_SEGMENT + gap);
+      const gap = gaps[i];
+      const slot = slotHeights[i];
       const height = slot - gap;
       segments.push({ kind: k.key, count: counts[k.key], y: round2(plotHeight - stacked - slot + gap), height: round2(height) });
       stacked += slot;

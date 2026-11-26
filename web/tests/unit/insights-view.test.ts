@@ -18,6 +18,7 @@ import {
   certLine,
   chartCounts,
   chartKinds,
+  fitSlots,
   glanceTiles,
   hasWeeklyCompletions,
   heatCells,
@@ -148,6 +149,35 @@ describe("the weekly bar chart (spec 10.4)", () => {
     expect(busy.segments.find((s) => s.kind === "courses")?.height).toBe(MIN_SEGMENT);
   });
 
+  it("never lets a bar outgrow the plot when small segments are raised to their minimum", () => {
+    // 40 items in one week: 34 roadmap tasks and one each of six other kinds, at phone height. Raising
+    // the six to 3 px (plus their gaps) used to make the bar about 146 px, past the 138 px usable.
+    const H = PLOT_HEIGHTS.phone;
+    const usable = H - TOTALS_ROOM;
+    const w = weeks({ 11: { roadmap: 34, resources: 1, reading: 1, scaler: 1, certs: 1, courses: 1, projects: 1 } });
+    const bar = barLayout(w, ALL_KINDS, H, THIS_WEEK)[11];
+    expect(bar.total).toBe(40);
+    expect(bar.segments).toHaveLength(7);
+    expect(bar.height).toBeLessThanOrEqual(usable);
+    expect(bar.height).toBeCloseTo(usable, 1);
+    for (const seg of bar.segments) {
+      expect(seg.height).toBeGreaterThanOrEqual(MIN_SEGMENT - 0.01);
+      expect(seg.y).toBeGreaterThanOrEqual(H - usable - 0.01);
+    }
+    // The big segment gave up the room; the small ones keep their minimum.
+    expect(bar.segments[0].height).toBeLessThan((34 / 40) * usable);
+    for (const seg of bar.segments.slice(1)) expect(seg.height).toBeLessThan(MIN_SEGMENT + 0.5);
+  });
+
+  it("fits slots: unchanged when they fit, scaled when the floors push past", () => {
+    expect(fitSlots([10, 20], [5, 5], 100)).toEqual([10, 20]);
+    expect(fitSlots([2, 90], [5, 5], 100)).toEqual([5, 90]);
+    const fitted = fitSlots([1, 1, 98], [5, 5, 5], 100);
+    expect(fitted[0]).toBe(5);
+    expect(fitted[1]).toBe(5);
+    expect(fitted[2]).toBeCloseTo(90, 6);
+  });
+
   it("labels each Monday's day, and the month where it changes", () => {
     const labels = weekLabels(MONDAYS);
     expect(MONDAYS[0]).toBe("2026-09-07");
@@ -179,7 +209,7 @@ describe("the weekly bar chart (spec 10.4)", () => {
   it("gives table rows newest first, with the kinds that week in stack order", () => {
     const rows = weeklyRows(weeks({ 11: { resources: 3, roadmap: 2 }, 10: {} }), ALL_KINDS, THIS_WEEK);
     expect(rows).toHaveLength(12);
-    expect(rows[0]).toEqual({ weekStart: THIS_WEEK, label: "23 Nov", current: true, total: 5, byKind: "Roadmap tasks 2 · Learning resources 3" });
+    expect(rows[0]).toEqual({ weekStart: THIS_WEEK, label: "23 Nov", current: true, total: 5, byKind: ["Roadmap tasks 2", "Learning resources 3"] });
     expect(rows[1]).toMatchObject({ label: "16 Nov", current: false, total: 0, byKind: null });
     expect(rows.at(-1)?.weekStart).toBe(MONDAYS[0]);
   });
@@ -230,7 +260,7 @@ describe("the activity calendar (spec 10.4)", () => {
   it("gives one table row per week, newest first", () => {
     const rows = activityRows(withCounts({ "2026-11-23": 3, "2026-11-25": 1, "2026-11-28": 5 }), START, TODAY);
     expect(rows).toHaveLength(26);
-    expect(rows[0]).toEqual({ weekStart: "2026-11-23", label: "23 Nov", current: true, activeDays: 2, savesByDay: "Mon 3 · Wed 1" });
+    expect(rows[0]).toEqual({ weekStart: "2026-11-23", label: "23 Nov", current: true, activeDays: 2, savesByDay: ["Mon 3", "Wed 1"] });
     expect(rows[1]).toMatchObject({ weekStart: "2026-11-16", current: false, activeDays: 0, savesByDay: null });
     expect(rows.at(-1)?.weekStart).toBe(START);
   });

@@ -18,13 +18,14 @@
 // The seed refuses to run unless scripts/lib/e2e-guard.mjs passes (E2E_AUTH=1, not on Vercel, no
 // DATABASE_URL, and a folder named pglite-e2e* directly inside web/.data/).
 import { randomBytes, scryptSync } from "node:crypto";
-import { rmSync } from "node:fs";
+import { rmSync, writeFileSync } from "node:fs";
 import { checkE2eSeedEnv } from "./lib/e2e-guard.mjs";
 import { openScriptDb } from "./lib/db.mjs";
 import {
   E2E_EVENT_HISTORY_START,
   E2E_INSIGHTS_DONE,
   E2E_INSIGHTS_EVENTS_NOW,
+  e2eInsightsSeedFile,
   e2eIstDate,
   e2eIstMonday,
   E2E_ACTIVE_DONE,
@@ -50,6 +51,7 @@ if (!check.ok) {
 }
 
 rmSync(check.dataDir, { recursive: true, force: true });
+rmSync(e2eInsightsSeedFile(check.dataDir), { force: true });
 const db = await openScriptDb({ kind: "pglite", dataDir: check.dataDir });
 try {
   await db.query(
@@ -124,6 +126,11 @@ try {
       await db.query(`insert into progress_event (user_id, item_id, kind, at) values ($1, $2, $3, now())`, [u.id, itemId, kind]);
     }
   }
+
+  writeFileSync(
+    e2eInsightsSeedFile(check.dataDir),
+    JSON.stringify({ monday: e2eIstDate(e2eIstMonday(seedNow, 0)), today: e2eIstDate(new Date(seedNow)) }),
+  );
 
   if (check.exportKeyHash) {
     await db.query(`insert into export_token (user_id, token_hash) values ($1, $2)`, [E2E_USERS.active.id, check.exportKeyHash]);

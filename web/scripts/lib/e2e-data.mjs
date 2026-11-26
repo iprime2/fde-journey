@@ -134,8 +134,43 @@ export const E2E_INSIGHTS_DONE = [
   { itemId: "c1-2", weeksAgo: 6 },
   { itemId: "r1-1-3", weeksAgo: 7 },
 ];
-/** The numbers the Insights page shows for that history (shown kinds only). */
-export const E2E_INSIGHTS_EXPECTED = { thisWeek: 3, lastWeek: 3, currentStreak: 3, longestStreak: 4, total: 13 };
+/** Ids in that history whose section the Insights users don't show (Projects is off for new users). */
+export const E2E_INSIGHTS_HIDDEN = ["p1-1"];
+/** The Reading items in that history (the test that switches Reading off). */
+export const E2E_INSIGHTS_READING = ["pp1", "bk1"];
+
+/**
+ * What the Insights page shows for that history when the run is `shiftWeeks` weeks after the
+ * seed's week (0 normally; 1 when the seed ran just before Monday 00:00 IST and the tests after),
+ * leaving out `hidden` ids: this week, last week, streaks and the 12-week total.
+ */
+export function e2eInsightsExpected(shiftWeeks, hidden = E2E_INSIGHTS_HIDDEN) {
+  const weeks = E2E_INSIGHTS_DONE.filter((d) => !hidden.includes(d.itemId)).map((d) => d.weeksAgo + shiftWeeks);
+  const has = new Set(weeks);
+  let current = 0;
+  for (let w = has.has(0) ? 0 : 1; has.has(w); w++) current++;
+  let longest = 0;
+  let run = 0;
+  for (let w = Math.max(...weeks); w >= 0; w--) {
+    run = has.has(w) ? run + 1 : 0;
+    longest = Math.max(longest, run);
+  }
+  return {
+    thisWeek: weeks.filter((w) => w === 0).length,
+    lastWeek: weeks.filter((w) => w === 1).length,
+    currentStreak: current,
+    longestStreak: longest,
+    total: weeks.filter((w) => w < 12).length,
+  };
+}
+
+/**
+ * The file where the seed records its own clock for the Insights history, next to the test database
+ * folder (`{PGLITE_DIR}-insights.json`, inside web/.data/, which git ignores): the seed's IST Monday
+ * and IST date. Tests compare it with their own week, so a seed just before Monday 00:00 IST and a
+ * run just after still expect the right numbers.
+ */
+export const e2eInsightsSeedFile = (dataDir) => `${dataDir}-insights.json`;
 /**
  * Saves made "now", at seed time: a note saved twice (autosave) and a link on l1-1, and l1-5 ticked
  * then unticked (it counts as activity, never as done).

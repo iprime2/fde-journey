@@ -2,8 +2,18 @@
 // user's history (charts and tables agree, hidden kinds are left out, a tick elsewhere shows after a
 // reload), the navigation entries and Home's link, and no sideways scrolling. All data is made up
 // (scripts/lib/e2e-data.mjs).
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import type { Locator, Page } from "@playwright/test";
-import { E2E_EVENT_HISTORY_START, E2E_INSIGHTS_EXPECTED, e2eIstDate, e2eIstMonday } from "../../scripts/lib/e2e-data.mjs";
+import {
+  E2E_EVENT_HISTORY_START,
+  E2E_INSIGHTS_HIDDEN,
+  E2E_INSIGHTS_READING,
+  e2eInsightsExpected,
+  e2eInsightsSeedFile,
+  e2eIstDate,
+  e2eIstMonday,
+} from "../../scripts/lib/e2e-data.mjs";
 import { expect, test } from "./fixtures";
 import { expectNoSidewaysScroll, gotoReady, isPhone, pageHeading } from "./helpers";
 
@@ -29,6 +39,22 @@ async function openTable(section: Locator): Promise<Locator> {
   return section.getByRole("table");
 }
 
+/**
+ * The seed's own clock (scripts/e2e-seed.mjs writes it next to the main server's test database), and
+ * the expected numbers for this run: the seed places the history relative to its IST week, so a run
+ * that starts in the next week (seed just before Monday 00:00 IST) expects it one week older.
+ */
+function seedClock(): { monday: string; today: string; shift: number } {
+  const root = path.dirname(test.info().config.configFile ?? path.join(process.cwd(), "playwright.config.ts"));
+  const seed = JSON.parse(readFileSync(e2eInsightsSeedFile(path.join(root, ".data", "pglite-e2e")), "utf8")) as { monday: string; today: string };
+  const runMonday = e2eIstDate(e2eIstMonday(Date.now(), 0));
+  const shift = Math.round((Date.parse(runMonday) - Date.parse(seed.monday)) / (7 * 86_400_000));
+  return { ...seed, shift };
+}
+
+const items = (n: number) => `${n} ${n === 1 ? "item" : "items"}`;
+const streakText = (n: number) => (n > 0 ? `${n}-week streak` : "no streak yet");
+
 /** The number on a tile: its visible value. */
 const tileValue = (tile: Locator) => tile.locator(".type-num-lg > span").first();
 
@@ -45,7 +71,7 @@ test.describe("a fresh user", () => {
     await expect(tiles).toHaveCount(3);
     await expect(glance(page).getByText("0 items done this week, 0 last week")).toBeAttached();
     await expect(tiles.nth(0)).toContainText("done this week · 0 last week");
-    await expect(tiles.nth(1)).toContainText("weeks in your current streak");
+    await expect(tiles.nth(1)).toContainText(/weeks? in your current streak/);
     await expect(tiles.nth(1)).toContainText("Mark something done this week to start one.");
     for (let i = 0; i < 3; i++) await expect(tileValue(tiles.nth(i))).toHaveText("0");
     // The owner has every section on: no hidden-sections line.
@@ -59,7 +85,7 @@ test.describe("a fresh user", () => {
     await expect(page.getByText("Show as table")).toHaveCount(0);
 
     await expect(card(page, "This month")).toContainText("Notes you save and learning resources you finish this month will show here.");
-    await expect(card(page, "Certifications").getByText("0 of 7 done").first()).toBeAttached();
+    await expect(card(page, "Certifications").getByText("0 of 7 passed")).toBeAttached();
     await expect(card(page, "Current phase")).toBeVisible();
     await expectNoSidewaysScroll(page);
   });
@@ -118,18 +144,19 @@ test.describe("a user with history", () => {
   test.describe.configure({ mode: "serial" });
 
   test("tiles, charts and tables show the same numbers, and only this user's", async ({ page }) => {
-    const E = E2E_INSIGHTS_EXPECTED;
+    const seed = seedClock();
+    const E = e2eInsightsExpected(seed.shift);
     // Home's line uses the same numbers as the tiles.
     await gotoReady(page, "/");
-    await expect(page.getByRole("link", { name: `This week: ${E.thisWeek} done · ${E.currentStreak}-week streak Insights` })).toBeVisible();
+    await expect(page.getByRole("link", { name: `This week: ${E.thisWeek} done · ${streakText(E.currentStreak)} Insights` })).toBeVisible();
 
     await gotoReady(page, "/insights");
     const tiles = glance(page).getByRole("listitem");
-    await expect(glance(page).getByText(`${E.thisWeek} items done this week, ${E.lastWeek} last week`)).toBeAttached();
+    await expect(glance(page).getByText(`${items(E.thisWeek)} done this week, ${E.lastWeek} last week`)).toBeAttached();
     await expect(tileValue(tiles.nth(0))).toHaveText(String(E.thisWeek));
     await expect(tiles.nth(0)).toContainText(`done this week · ${E.lastWeek} last week`);
     await expect(tileValue(tiles.nth(1))).toHaveText(String(E.currentStreak));
-    await expect(tiles.nth(1)).toContainText("weeks in your current streak");
+    await expect(tiles.nth(1)).toContainText(/weeks? in your current streak/);
     await expect(tileValue(tiles.nth(2))).toHaveText(String(E.longestStreak));
     // A new user's sections: Projects and Career off, Scaler locked (never listed).
     await expect(page.getByText("Hidden sections aren't counted here: Projects and Career.")).toBeVisible();
@@ -149,11 +176,17 @@ test.describe("a user with history", () => {
       "Certification prep",
       "Courses",
     ]);
-    await expect(weekly.getByText(`Over the last 12 weeks you marked ${E.total} items done. This week so far: ${E.thisWeek}; last week: ${E.lastWeek}.`, { exact: false })).toBeAttached();
+    await expect(weekly.getByText(`Over the last 12 weeks you marked ${items(E.total)} done. This week so far: ${E.thisWeek}; last week: ${E.lastWeek}.`, { exact: false })).toBeAttached();
     const weekRows = await tableRows(await openTable(weekly));
     expect(weekRows.map((r) => Number(r[1]))).toEqual([...totals].reverse());
     expect(weekRows[0][0]).toMatch(/^\d{1,2} \w{3}\s+this week$/);
-    expect(weekRows[0][2]).toBe("Roadmap tasks 1 · Learning resources 1 · Courses 1");
+    // The seed's week, wherever it now sits: its three shown items, in stack order. Entries wrap
+    // whole, so no line of the cell starts with the separator.
+    expect(weekRows[seed.shift][2].replace(/\s+/g, " ")).toBe("Roadmap tasks 1 · Learning resources 1 · Courses 1");
+    // Every separator is tied to the entry before it by a no-break space, so it can't start a line.
+    const cells = await weekly.getByRole("table").locator("td").evaluateAll((tds) => tds.map((td) => td.textContent ?? ""));
+    expect(cells.some((t) => t.includes("·"))).toBe(true);
+    expect(cells.filter((t) => / ·/.test(t))).toEqual([]);
     expect(weekRows.map((r) => r[2]).join(" ")).not.toMatch(/Projects|Career/);
     await weekly.getByText("Hide table").click();
     await expect(weekly.getByRole("table")).toBeHidden();
@@ -166,18 +199,19 @@ test.describe("a user with history", () => {
     const squares = calendar(page).locator("rect[data-date]");
     const counts = (await squares.evaluateAll((els) => els.map((e) => Number(e.getAttribute("data-count"))))) as number[];
     expect(counts.filter((c) => c > 0)).toHaveLength(activeDays);
-    // Today has the seed's five saves (a note twice, a link, a tick and an untick) at least.
-    const today = e2eIstDate(new Date());
-    expect(Number(await calendar(page).locator(`rect[data-date="${today}"]`).getAttribute("data-count"))).toBeGreaterThanOrEqual(5);
+    // The seed's day has its five saves (a note twice, a link, a tick and an untick) at least.
+    expect(Number(await calendar(page).locator(`rect[data-date="${seed.today}"]`).getAttribute("data-count"))).toBeGreaterThanOrEqual(5);
     const dayRows = await tableRows(await openTable(activity));
     expect(dayRows).toHaveLength(26);
     expect(dayRows.reduce((sum, r) => sum + Number(r[1]), 0)).toBe(activeDays);
-    // The window reaches back before the save history began: the estimate line says so.
+    // While the window reaches back to the first day of save history, the estimate line says so.
     const windowStart = e2eIstDate(e2eIstMonday(Date.now(), 25));
-    await expect(activity.getByText(/^Days before 26 Nov 2026 are estimated/)).toHaveCount(windowStart < E2E_EVENT_HISTORY_START ? 1 : 0);
+    await expect(activity.getByText(/^Days up to 26 Nov 2026 are estimated/)).toHaveCount(windowStart <= E2E_EVENT_HISTORY_START ? 1 : 0);
 
-    // This month: one item with notes saved twice counts once.
-    await expect(card(page, "This month").getByText("item with a note saved", { exact: true }).locator("xpath=following-sibling::dd")).toHaveText("1");
+    // This month: one item with notes saved twice counts once (none once the seed's month is over).
+    const sameMonth = seed.today.slice(0, 7) === e2eIstDate(new Date()).slice(0, 7);
+    const notes = card(page, "This month").getByText(/^items? with a note saved$/).locator("xpath=following-sibling::dd");
+    await expect(notes).toHaveText(sameMonth ? "1" : "0");
     // Certifications: the first in rank order has 2 of its 3 prep steps done.
     const certRows = card(page, "Certifications").getByRole("listitem");
     await expect(certRows).toHaveCount(7);
@@ -185,7 +219,7 @@ test.describe("a user with history", () => {
   });
 
   test("a tick on another page changes This week after a reload", async ({ page }) => {
-    const E = E2E_INSIGHTS_EXPECTED;
+    const E = e2eInsightsExpected(seedClock().shift);
     await gotoReady(page, "/roadmap");
     const tick = page.locator("#item-l1-6").getByRole("checkbox");
     await expect(tick).not.toBeChecked();
@@ -196,11 +230,12 @@ test.describe("a user with history", () => {
     await page.reload();
     await page.waitForLoadState("networkidle");
     await expect(tileValue(glance(page).getByRole("listitem").first())).toHaveText(String(E.thisWeek + 1));
-    await expect(glance(page).getByText(`${E.thisWeek + 1} items done this week, ${E.lastWeek} last week`)).toBeAttached();
+    await expect(glance(page).getByText(`${items(E.thisWeek + 1)} done this week, ${E.lastWeek} last week`)).toBeAttached();
   });
 
   test("a section switched off leaves the charts and totals", async ({ page }) => {
-    const E = E2E_INSIGHTS_EXPECTED;
+    const shift = seedClock().shift;
+    const noReading = e2eInsightsExpected(shift, [...E2E_INSIGHTS_HIDDEN, ...E2E_INSIGHTS_READING]);
     await gotoReady(page, "/settings");
     const reading = page.getByRole("switch", { name: "Reading" });
     await expect(reading).toBeChecked();
@@ -210,8 +245,8 @@ test.describe("a user with history", () => {
 
     await gotoReady(page, "/insights");
     await expect(page.getByText("Hidden sections aren't counted here: Reading, Projects and Career.")).toBeVisible();
-    // Last week's paper no longer counts.
-    await expect(glance(page).getByText(new RegExp(`items? done this week, ${E.lastWeek - 1} last week$`))).toBeAttached();
+    // The paper and the book no longer count (this week also has the previous test's tick).
+    await expect(glance(page).getByText(`${items(noReading.thisWeek + 1)} done this week, ${noReading.lastWeek} last week`)).toBeAttached();
     const weekly = card(page, "Done per week");
     await expect(weekly.getByRole("list", { name: "Colour key" }).getByRole("listitem")).toHaveText(["Roadmap tasks", "Learning resources", "Certification prep", "Courses"]);
     const rows = await tableRows(await openTable(weekly));

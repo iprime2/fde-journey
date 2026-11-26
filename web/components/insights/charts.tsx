@@ -250,14 +250,16 @@ function WeekOf({ label, current }: { label: string; current: boolean }) {
 
 /**
  * "Roadmap tasks 2 · Learning resources 3": each entry an inline span carrying its own trailing
- * " ·", so a wrapped line never starts with the separator (design spec 10.5).
+ * " ·" (joined by a no-break space), so a wrapped line never starts with the separator (spec 10.5).
  */
 function Entries({ items }: { items: readonly string[] }) {
   return items.map((item, i) => (
     <Fragment key={item}>
       <span>
-        {item}
-        {i < items.length - 1 && " ·"}
+        {/* No-break spaces tie the count to its label and the "·" to the entry: a line may break
+            only between entries, after the separator. */}
+        {item.replace(/ (\d+)$/, "\u00a0$1")}
+        {i < items.length - 1 && "\u00a0·"}
       </span>
       {i < items.length - 1 && " "}
     </Fragment>
