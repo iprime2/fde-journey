@@ -21,7 +21,8 @@ export const E2E_SCREENS = ["desktop", "phone"];
  * Spare users that tests change for good (Settings, deleting the account, leaving the waitlist):
  * one per screen size (the desktop and phone runs of a test happen at the same time) AND per attempt,
  * so a retry never finds its user already changed or deleted. Attempt 0 keeps the base name; a
- * retry's user is "Sky Settings 2", login "sky-settings-2", and so on.
+ * retry's user gets a middle initial, "Sky B. Settings" with login "sky-b-settings", so no name or
+ * username contains another (tests find people by name, and searches match parts of names).
  */
 const SPARE_USER_BASES = {
   settings: { status: "active", desktop: ["Sky Settings", "sky-settings"], phone: ["Sol Settings", "sol-settings"] },
@@ -49,12 +50,14 @@ function generate(bases, prefix) {
     for (const screen of E2E_SCREENS) {
       for (let attempt = 0; attempt < E2E_ATTEMPTS; attempt++) {
         const [name, login] = base[screen];
-        const suffix = attempt === 0 ? "" : ` ${attempt + 1}`;
+        const [first, ...rest] = name.split(" ");
+        const [loginFirst, ...loginRest] = login.split("-");
+        const initial = String.fromCharCode(65 + attempt); // attempt 1: "B", attempt 2: "C"
         out[`${role}-${screen}-${attempt}`] = {
           id: `e2e-${prefix}${role}-${screen[0]}-${attempt}`,
-          name: `${name}${suffix}`,
+          name: attempt === 0 ? name : `${first} ${initial}. ${rest.join(" ")}`,
           githubId: String(nextGithubId++),
-          login: `${login}${attempt === 0 ? "" : `-${attempt + 1}`}`,
+          login: attempt === 0 ? login : `${loginFirst}-${initial.toLowerCase()}-${loginRest.join("-")}`,
           status: base.status,
           permissions: [],
         };
