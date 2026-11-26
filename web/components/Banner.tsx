@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { BannerTone } from "@/lib/banners";
+import type { BannerAction, BannerTone } from "@/lib/banners";
 import { cn } from "./cn";
 
 const TONE_STYLES: Record<BannerTone, string> = {
@@ -17,7 +17,7 @@ export function Banner({
   tone: BannerTone;
   children: React.ReactNode;
   /** Optional action after the message, as an underlined text link. */
-  action?: { label: string; href: string };
+  action?: BannerAction;
 }) {
   return (
     <div
@@ -28,9 +28,18 @@ export function Banner({
       {action && (
         <>
           {" "}
-          <Link href={action.href} className="font-semibold underline underline-offset-2">
-            {action.label}
-          </Link>
+          {action.external ? (
+            <a href={action.href} target="_blank" rel="noopener noreferrer" className="font-semibold underline underline-offset-2">
+              {action.label}
+              <span aria-hidden="true"> ↗</span>
+              <span className="sr-only"> (opens in a new tab)</span>
+            </a>
+          ) : (
+            <Link href={action.href} className="font-semibold underline underline-offset-2">
+              {action.label}
+            </Link>
+          )}
+          {action.after}
         </>
       )}
     </div>

@@ -85,9 +85,6 @@ export const buttonStyles = {
   dangerSecondarySm: cn(BUTTON_SM, DANGER_SECONDARY),
 };
 
-/** An underlined text button in the colour of its line ("Try again"), 44 px tall (design spec 4). */
-export const INLINE_BUTTON = "inline-flex min-h-11 items-center font-sans underline underline-offset-2 cursor-pointer";
-
 /**
  * An 18 px ring that turns while a button is busy, in place of the button's icon. Shown only with
  * motion allowed; with reduced motion the icon stays and the label alone says it is busy.

@@ -7,7 +7,16 @@ export interface BannerSpec {
   tone: BannerTone;
   text: string;
   /** Optional action, shown as an underlined text link after the message. */
-  action?: { label: string; href: string };
+  action?: BannerAction;
+}
+
+export interface BannerAction {
+  label: string;
+  href: string;
+  /** Text right after the link, for example the sentence's full stop. */
+  after?: string;
+  /** Opens in a new tab with "↗" (an https link off the site). */
+  external?: boolean;
 }
 
 const RANK: Record<BannerTone, number> = { error: 0, warning: 1, info: 2 };

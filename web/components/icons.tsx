@@ -143,3 +143,39 @@ export const UserIcon = (p: IconProps) => (
     <circle cx="12" cy="7" r="4" />
   </Line>
 );
+
+export const SettingsIcon = (p: IconProps) => (
+  <Line {...p}>
+    <path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915" />
+    <circle cx="12" cy="12" r="3" />
+  </Line>
+);
+
+export const ShieldIcon = (p: IconProps) => (
+  <Line {...p}>
+    <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" />
+  </Line>
+);
+
+export const DownloadIcon = (p: IconProps) => (
+  <Line {...p}>
+    <path d="M12 15V3" />
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+    <path d="m7 10 5 5 5-5" />
+  </Line>
+);
+
+export const CopyIcon = (p: IconProps) => (
+  <Line {...p}>
+    <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
+    <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+  </Line>
+);
+
+export const KeyIcon = (p: IconProps) => (
+  <Line {...p}>
+    <path d="m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4" />
+    <path d="m21 2-9.6 9.6" />
+    <circle cx="7.5" cy="15.5" r="5.5" />
+  </Line>
+);
