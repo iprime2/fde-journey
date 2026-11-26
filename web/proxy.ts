@@ -13,18 +13,29 @@ function requestedPath(request: NextRequest): string {
   return `${url.pathname}${url.search}`;
 }
 
+/** A Server Action call: always a POST with Next's `next-action` header. */
+function isServerAction(request: NextRequest): boolean {
+  return request.method === "POST" && request.headers.has("next-action");
+}
+
+/** Passes the request on with the given headers (Next forwards them instead of the browser's). */
+const forward = (headers: Headers) => NextResponse.next({ request: { headers } });
+
 export function proxy(request: NextRequest) {
-  if (isPublicPath(request.nextUrl.pathname)) return NextResponse.next();
+  // Only this proxy sets the path header: drop any copy the browser sent, on every request.
+  const headers = new Headers(request.headers);
+  headers.delete(PATH_HEADER);
+
+  if (isPublicPath(request.nextUrl.pathname)) return forward(headers);
   // Server Actions answer with a typed "signed-out" result instead of a redirect.
-  if (request.headers.has("next-action")) return NextResponse.next();
+  if (isServerAction(request)) return forward(headers);
 
   const path = requestedPath(request);
   if (!getSessionCookie(request)) return NextResponse.redirect(new URL(loginHref(path), request.url));
 
   // Tell server code where the visitor was going, in case the session turns out to be invalid.
-  const forwarded = new Headers(request.headers);
-  forwarded.set(PATH_HEADER, path);
-  return NextResponse.next({ request: { headers: forwarded } });
+  headers.set(PATH_HEADER, path);
+  return forward(headers);
 }
 
 export const config = {

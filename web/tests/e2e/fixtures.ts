@@ -1,9 +1,10 @@
 import { expect, test as base } from "@playwright/test";
-import { SESSION_COOKIE, signedSessionCookie } from "./auth";
+import { type E2eSession, SESSION_COOKIE, signedSessionCookie, spareSessionToken } from "./auth";
 
 /**
  * Every e2e test runs signed in as the (made-up) owner unless it opts out with
- * `test.use({ signedIn: false })`.
+ * `test.use({ signedIn: false })`. They share one session; a test that ends its session (signs
+ * out) uses a spare one of its own: `test.use({ session: "sign-out" })` (see tests/e2e/auth.ts).
  *
  * Every e2e test fails if the page throws or logs a console error, so hydration
  * mismatches and runtime errors cannot pass silently.
@@ -13,21 +14,24 @@ import { SESSION_COOKIE, signedSessionCookie } from "./auth";
  */
 export const test = base.extend<{
   signedIn: boolean;
+  session: E2eSession;
   allowedConsoleErrors: RegExp[];
   ownerSession: void;
   failOnPageErrors: void;
 }>({
   signedIn: [true, { option: true }],
+  session: ["shared", { option: true }],
   /**
    * Console errors a test causes on purpose, for example the browser's "Failed to load resource"
    * when the test cuts a save request. Opt in per test with `test.use({ allowedConsoleErrors: [...] })`.
    */
   allowedConsoleErrors: [[], { option: true }],
   ownerSession: [
-    async ({ context, signedIn, baseURL }, use) => {
+    async ({ context, signedIn, session, baseURL }, use, testInfo) => {
       if (signedIn) {
+        const token = session === "shared" ? undefined : spareSessionToken(session, testInfo.project.name, testInfo.retry);
         await context.addCookies([
-          { name: SESSION_COOKIE, value: signedSessionCookie(), url: baseURL ?? "", httpOnly: true, sameSite: "Lax" },
+          { name: SESSION_COOKIE, value: signedSessionCookie(token), url: baseURL ?? "", httpOnly: true, sameSite: "Lax" },
         ]);
       }
       await use();

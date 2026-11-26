@@ -56,6 +56,33 @@ describe("parseLoginParams", () => {
     expect(parseLoginParams({ status: "signed-out" })).toEqual({ next: "/", notice: "signed-out" });
     expect(parseLoginParams({ next: ["//evil.example", "/x"] })).toEqual({ next: "/", notice: null });
   });
+
+  // Codes Better Auth 1.7 adds as ?error= (oauth2/state, oauth2/errors, api/routes/callback and
+  // error), GitHub's own (access_denied when the visitor cancels) and ours (unavailable).
+  it.each([
+    "state_mismatch",
+    "state_not_found",
+    "state_invalid",
+    "internal_server_error",
+    "invalid_callback_request",
+    "no_code",
+    "oauth_provider_not_found",
+    "unable_to_get_user_info",
+    "email_not_found",
+    "access_denied",
+    "UNKNOWN",
+    "unavailable",
+  ])("shows 'didn't finish' for %s", (code) => {
+    expect(parseLoginParams({ next: "/roadmap", error: code, error_description: "Made-up description" })).toEqual({
+      next: "/roadmap",
+      notice: "failed",
+    });
+  });
+
+  it("an error wins over the signed-out status, and not_owner keeps its own message", () => {
+    expect(parseLoginParams({ error: "state_mismatch", status: "signed-out" }).notice).toBe("failed");
+    expect(parseLoginParams({ error: ["not_owner", "state_mismatch"] }).notice).toBe("not-owner");
+  });
 });
 
 describe("isPublicPath", () => {

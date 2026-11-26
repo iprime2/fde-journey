@@ -22,7 +22,7 @@ vi.mock("next/navigation", () => ({
 import { GET, POST } from "@/app/api/auth/[...all]/route";
 import { refreshSession, signInWithGitHub, signOut } from "@/app/actions/auth";
 import type { Db } from "@/db/client";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { session, verification } from "@/db/schema";
 import { emptyDb, resetAuth, seedOtherUser, seedOwner, setTestEnv } from "./support/db";
 
@@ -92,6 +92,28 @@ describe("signInWithGitHub", () => {
     expect(url.origin + url.pathname).toBe("https://github.com/login/oauth/authorize");
     expect(url.searchParams.get("redirect_uri")).toBe(`${BASE}/api/auth/callback/github`);
     expect(await db.select().from(verification)).toHaveLength(1);
+  });
+
+  it("clears expired sign-in attempts before storing a new one, so they cannot pile up", async () => {
+    const now = Date.now();
+    const row = (id: string, expiresInMs: number) => ({
+      id,
+      identifier: `made-up-${id}`,
+      value: "{}",
+      expiresAt: new Date(now + expiresInMs),
+      createdAt: new Date(now),
+      updatedAt: new Date(now),
+    });
+    await db.insert(verification).values([row("old-1", -60_000), row("old-2", -1), row("live", 5 * 60_000)]);
+    for (let i = 0; i < 3; i += 1) await redirectOf(signInWithGitHub(form("/scaler")));
+    const left = await db.select().from(verification);
+    expect(left.map((v) => v.id)).toContain("live");
+    expect(left.some((v) => v.id.startsWith("old-"))).toBe(false);
+    // The three new attempts are still valid (10 minutes), so they stay.
+    expect(left).toHaveLength(4);
+    // The delete is one query on an indexed column.
+    const indexes = await db.execute<{ indexdef: string }>(sql`select indexdef from pg_indexes where tablename = 'verification'`);
+    expect(indexes.rows.map((r) => r.indexdef).some((d) => /\(expires_at\)/.test(d))).toBe(true);
   });
 
   it("explains instead of crashing when GitHub is not configured, keeping a safe next", async () => {

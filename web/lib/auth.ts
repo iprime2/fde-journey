@@ -10,9 +10,9 @@ import "server-only";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
-import { and, eq } from "drizzle-orm";
+import { and, eq, lt } from "drizzle-orm";
 import { type Db, getDb } from "@/db/client";
-import { account, authSchema } from "@/db/schema";
+import { account, authSchema, verification } from "@/db/schema";
 import { ownerGate, ownerGithubId } from "./owner";
 
 type Env = Record<string, string | undefined>;
@@ -54,6 +54,18 @@ export async function isOwnerUser(db: Db, userId: string, ownerId: string | null
   return rows.length > 0;
 }
 
+/**
+ * Deletes expired verification rows (old OAuth states) in one indexed query. Never blocks
+ * sign-in: a failure here only means the rows wait for the next attempt.
+ */
+export async function deleteExpiredVerifications(db: Db, now = new Date()): Promise<void> {
+  try {
+    await db.delete(verification).where(lt(verification.expiresAt, now));
+  } catch (error) {
+    console.error(`Clearing expired sign-in attempts failed (${error instanceof Error ? error.name : "unknown"})`);
+  }
+}
+
 /** Builds the auth instance. Exported for tests, which pass an in-memory database. */
 export function createAuth({ db, env }: { db: Db; env: Env }) {
   const ownerId = ownerGithubId(env);
@@ -83,8 +95,23 @@ export function createAuth({ db, env }: { db: Db; env: Env }) {
           before: async (session) => ((await isOwnerUser(db, session.userId, ownerId)) ? undefined : false),
         },
       },
+      verification: {
+        create: {
+          // Each sign-in start stores its OAuth state for 10 minutes. Better Auth only clears
+          // expired rows when a callback arrives, so starts that never come back (or a script
+          // calling the sign-in action) would pile up. Clear them before every new one.
+          before: async () => {
+            await deleteExpiredVerifications(db);
+          },
+        },
+      },
     },
     disabledPaths: DISABLED_PATHS,
+    // Where sign-in errors go when the flow's own error address is unknown (an expired or
+    // forged OAuth state, a callback without state) and for /api/auth/error. Better Auth adds
+    // `?error=<code>`, so /login shows "Sign-in didn't finish. Try again." instead of Better
+    // Auth's own error page. Flows that started normally return to their own /login?next=… address.
+    onAPIError: { errorURL: "/login" },
     // Better Auth skips its origin and CSRF checks when NODE_ENV is "test". Keep them on
     // everywhere, so tests exercise the same protection as production.
     advanced: { disableOriginCheck: false },

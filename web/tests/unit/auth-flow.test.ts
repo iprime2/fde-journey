@@ -143,6 +143,54 @@ describe("GitHub sign-in", () => {
   });
 });
 
+describe("sign-in errors land on /login, never on Better Auth's error page", () => {
+  const locationOf = (res: Response) => {
+    expect(res.status).toBe(302);
+    return res.headers.get("location");
+  };
+
+  it("an unknown or forged state", async () => {
+    const res = await auth.handler(new Request(`${BASE}/api/auth/callback/github?code=fake-code&state=made-up-state`));
+    expect(locationOf(res)).toBe("/login?error=state_mismatch");
+  });
+
+  it("a callback without a state", async () => {
+    const res = await auth.handler(new Request(`${BASE}/api/auth/callback/github?code=fake-code`));
+    expect(locationOf(res)).toBe("/login?error=state_not_found");
+  });
+
+  it("an expired state returns to the flow's own sign-in address, keeping next", async () => {
+    fakeGitHub(Number(OWNER_ID), "owner-login");
+    const start = await auth.handler(
+      new Request(`${BASE}/api/auth/sign-in/social`, {
+        method: "POST",
+        headers: { "content-type": "application/json", origin: BASE },
+        body: JSON.stringify({ provider: "github", callbackURL: "/roadmap", errorCallbackURL: "/login?next=%2Froadmap" }),
+      }),
+    );
+    const state = new URL(((await start.json()) as { url: string }).url).searchParams.get("state");
+    // The state is valid for 10 minutes; come back after 11.
+    vi.useFakeTimers({ toFake: ["Date"], now: Date.now() + 11 * 60 * 1000 });
+    try {
+      const res = await auth.handler(
+        new Request(`${BASE}/api/auth/callback/github?code=fake-code&state=${state}`, { headers: { cookie: cookieHeader(start) } }),
+      );
+      const location = new URL(locationOf(res) ?? "", BASE);
+      expect(location.pathname).toBe("/login");
+      expect(location.searchParams.get("next")).toBe("/roadmap");
+      expect(location.searchParams.get("error")).toBe("state_mismatch");
+    } finally {
+      vi.useRealTimers();
+    }
+    expect((await rowCounts(db)).sessions).toBe(0);
+  });
+
+  it("Better Auth's error page forwards to /login with the code", async () => {
+    const res = await auth.handler(new Request(`${BASE}/api/auth/error?error=access_denied`));
+    expect(locationOf(res)).toBe("/login?error=access_denied");
+  });
+});
+
 describe("unused endpoints", () => {
   it.each(["/update-user", "/link-social", "/sign-up/email", "/sign-in/email", "/delete-user", "/get-access-token"])("%s answers 404", async (path) => {
     const res = await auth.handler(

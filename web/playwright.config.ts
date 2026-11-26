@@ -1,5 +1,5 @@
-import { defineConfig, devices } from "@playwright/test";
-import { E2E_BASE_URL, E2E_OWNER_GITHUB_ID, E2E_PORT, e2eRunSecrets } from "./tests/e2e/auth";
+import { type PlaywrightTestConfig, defineConfig, devices } from "@playwright/test";
+import { E2E_BASE_URL, E2E_OWNER_GITHUB_ID, E2E_PORT, e2eRunSecrets, spareSessionTokens } from "./tests/e2e/auth";
 
 // End-to-end tests run against a production build: `npm run build` first.
 // The server uses a fresh local test database (web/.data/pglite-e2e) seeded with a made-up owner,
@@ -8,6 +8,19 @@ const { secret, token } = e2eRunSecrets();
 
 const DESKTOP = { ...devices["Desktop Chrome"], viewport: { width: 1280, height: 900 } };
 const PHONE = { ...devices["Desktop Chrome"], viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true };
+
+// Every test shares one test database. Tests tagged @fresh need it untouched (nothing ticked or
+// noted yet), so they run first, on both screen sizes; every other test starts after them. Tests
+// that save use item ids that no other test touches, and different ids on desktop and phone,
+// because the two projects run the same test at the same time (see tests/e2e/helpers.ts).
+const projects: NonNullable<PlaywrightTestConfig["projects"]> = [
+  { name: "desktop-fresh", use: DESKTOP, grep: /@fresh/ },
+  { name: "phone-fresh", use: PHONE, grep: /@fresh/ },
+  { name: "desktop", use: DESKTOP, grepInvert: /@fresh/, dependencies: ["desktop-fresh", "phone-fresh"] },
+  { name: "phone", use: PHONE, grepInvert: /@fresh/, dependencies: ["desktop-fresh", "phone-fresh"] },
+];
+// Tests that sign out end a spare session of their own, one per project and attempt (auth.ts).
+const spareTokens = spareSessionTokens(projects.map((p) => p.name ?? ""));
 
 export default defineConfig({
   testDir: "tests/e2e",
@@ -19,16 +32,7 @@ export default defineConfig({
     baseURL: E2E_BASE_URL,
     trace: "off",
   },
-  // Every test shares one test database. Tests tagged @fresh need it untouched (nothing ticked or
-  // noted yet), so they run first, on both screen sizes; every other test starts after them. Tests
-  // that save use item ids that no other test touches, and different ids on desktop and phone,
-  // because the two projects run the same test at the same time (see tests/e2e/helpers.ts).
-  projects: [
-    { name: "desktop-fresh", use: DESKTOP, grep: /@fresh/ },
-    { name: "phone-fresh", use: PHONE, grep: /@fresh/ },
-    { name: "desktop", use: DESKTOP, grepInvert: /@fresh/, dependencies: ["desktop-fresh", "phone-fresh"] },
-    { name: "phone", use: PHONE, grepInvert: /@fresh/, dependencies: ["desktop-fresh", "phone-fresh"] },
-  ],
+  projects,
   webServer: {
     command: `node scripts/e2e-seed.mjs && npx next start -p ${E2E_PORT}`,
     port: E2E_PORT,
@@ -39,6 +43,7 @@ export default defineConfig({
     env: {
       E2E_AUTH: "1",
       E2E_SESSION_TOKEN: token,
+      E2E_SPARE_SESSION_TOKENS: spareTokens.join(","),
       PGLITE_DIR: ".data/pglite-e2e",
       BETTER_AUTH_SECRET: secret,
       BETTER_AUTH_URL: E2E_BASE_URL,

@@ -94,6 +94,85 @@ describe("import", () => {
     expect(plan.writes[0].done).toBe(true);
   });
 
+  describe("a timestamp in the future (a device clock that ran ahead)", () => {
+    const FUTURE = "2030-01-01T00:00:00.000Z";
+    const IMPORT_TIME = new Date("2026-11-26T10:00:00.000Z");
+    const hoursLater = (h: number) => new Date(IMPORT_TIME.getTime() + h * 60 * 60 * 1000);
+    const entries = [{ id: "l1-3", value: { done: true, note: "Made-up note dated in the future.", doneAt: FUTURE, updatedAt: FUTURE } }];
+
+    async function importAt(now: Date, input = entries) {
+      const plan = planImport(input, await readExisting(db, ["l1-3"]), knownIds, linkProblem, now);
+      return { plan, applied: await applyImport(db, plan.writes) };
+    }
+    const savedRow = async () => (await db.query("select note, done_at, updated_at from progress where item_id = 'l1-3'"))[0];
+
+    it("is stored as the import time", async () => {
+      const first = await importAt(IMPORT_TIME);
+      expect(first.plan.counts.futureDated).toBe(1);
+      expect(first.applied).toEqual({ inserted: 1, updated: 0, skipped: 0 });
+      const row = await savedRow();
+      expect(new Date(row.updated_at).toISOString()).toBe(IMPORT_TIME.toISOString());
+      expect(new Date(row.done_at).toISOString()).toBe(IMPORT_TIME.toISOString());
+    });
+
+    it("changes nothing on a second run, even though the import time has moved on", async () => {
+      await importAt(IMPORT_TIME);
+      const before = await savedRow();
+      const second = await importAt(hoursLater(1));
+      expect(second.plan.writes).toEqual([]);
+      expect(second.plan.counts.unchanged).toBe(1);
+      expect(second.applied).toEqual({ inserted: 0, updated: 0, skipped: 0 });
+      expect(await savedRow()).toEqual(before);
+    });
+
+    it("never overwrites a later edit in the app on a re-run", async () => {
+      await importAt(IMPORT_TIME);
+      await db.query("update progress set note = 'Changed in the app.', updated_at = $1 where item_id = 'l1-3'", [hoursLater(1).toISOString()]);
+      await importAt(hoursLater(2));
+      expect((await savedRow()).note).toBe("Changed in the app.");
+    });
+
+    it("never replaces a saved row, even an older one, since its real time is unknown", async () => {
+      await db.query("insert into progress (item_id, note, updated_at) values ('l1-3', 'Saved earlier.', '2026-11-01T00:00:00Z')");
+      const run = await importAt(IMPORT_TIME);
+      expect(run.plan.counts.unchanged).toBe(1);
+      expect((await savedRow()).note).toBe("Saved earlier.");
+      // Also when the row appears between planning and writing.
+      await db.query("delete from progress");
+      const plan = planImport(entries, new Map(), knownIds, linkProblem, IMPORT_TIME);
+      await db.query("insert into progress (item_id, note, updated_at) values ('l1-3', 'Saved meanwhile.', '2026-11-01T00:00:00Z')");
+      expect(await applyImport(db, plan.writes)).toEqual({ inserted: 0, updated: 0, skipped: 1 });
+      expect((await savedRow()).note).toBe("Saved meanwhile.");
+    });
+
+    it("applies to the doneAt fallback too, and picks the later of future-dated duplicates", () => {
+      expect(normalizeRecord({ done: true, doneAt: FUTURE }, linkProblem, IMPORT_TIME)).toMatchObject({
+        futureDated: true,
+        record: { doneAt: IMPORT_TIME, updatedAt: IMPORT_TIME },
+      });
+      expect(normalizeRecord({ done: true, updatedAt: "2026-11-25T00:00:00Z" }, linkProblem, IMPORT_TIME)).toMatchObject({ futureDated: false });
+      const plan = planImport(
+        [
+          { id: "l1-3", value: { done: false, updatedAt: "2030-01-01T00:00:00Z" } },
+          { id: "l1-3", value: { done: true, updatedAt: "2031-01-01T00:00:00Z" } },
+        ],
+        new Map(),
+        knownIds,
+        linkProblem,
+        IMPORT_TIME,
+      );
+      expect(plan.writes).toHaveLength(1);
+      expect(plan.writes[0]).toMatchObject({ done: true, updatedAt: IMPORT_TIME, insertOnly: true });
+    });
+
+    it("is counted in the summary, without personal text", async () => {
+      const { plan, applied } = await importAt(IMPORT_TIME);
+      const text = summaryLines({ files: 1, unreadable: 0, counts: plan.counts, applied, dryRun: false }).join("\n");
+      expect(text).toContain("Records dated in the future: 1.");
+      expect(text).not.toMatch(/Made-up/);
+    });
+  });
+
   it("checks each field", () => {
     expect(normalizeRecord({ done: true, note: "a".repeat(10_001) }, linkProblem).ok).toBe(false);
     expect(normalizeRecord({ done: true, updatedAt: "not a date" }, linkProblem).ok).toBe(false);

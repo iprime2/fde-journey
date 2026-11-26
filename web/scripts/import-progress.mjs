@@ -8,7 +8,8 @@
 //
 // - Ids are checked against the app's content (lib/ids.ts). Unknown ids are counted, not imported.
 // - A record only replaces a saved row when it is newer, so running it twice changes nothing and
-//   changes made in the app are never overwritten.
+//   changes made in the app are never overwritten. A timestamp in the future is stored as the
+//   import time, and such a record only fills an empty row, never replaces a saved one.
 // - Prints counts only, never note text or links. Keep exported files outside this repository.
 // - Uses DATABASE_URL (Neon, migrated first) or else the local PGlite folder. Stop `npm run dev`
 //   first when importing into the local folder: two processes must not open it at once.

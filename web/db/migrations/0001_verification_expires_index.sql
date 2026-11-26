@@ -1,0 +1,1 @@
+CREATE INDEX "verification_expiresAt_idx" ON "verification" USING btree ("expires_at");

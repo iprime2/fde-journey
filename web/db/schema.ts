@@ -104,7 +104,11 @@ export const verification = pgTable(
       .defaultNow()
       .$onUpdate(() => new Date()),
   },
-  (t) => [index("verification_identifier_idx").on(t.identifier)],
+  (t) => [
+    index("verification_identifier_idx").on(t.identifier),
+    // Expired rows (old sign-in attempts) are deleted with one indexed query before each new one.
+    index("verification_expiresAt_idx").on(t.expiresAt),
+  ],
 );
 
 /** The tables Better Auth's Drizzle adapter needs, keyed by its model names. */
