@@ -57,9 +57,19 @@ test.describe("signing out", () => {
     );
     // A second tab stays open on a page with tick boxes, to try a save once signed out.
     const other = await context.newPage();
+    const DBG: string[] = [];
+    const t0 = Date.now();
+    const at = () => `${String(Date.now() - t0).padStart(6)}ms`;
+    other.on("framenavigated", (f) => { if (f === other.mainFrame()) DBG.push(`${at()} NAV ${f.url()}`); });
+    other.on("request", (r) => { if (!r.url().includes("/_next/static")) DBG.push(`${at()} REQ ${r.method()} ${r.url()} ${r.headers()["next-action"] ? "[action]" : ""}${r.headers()["next-router-prefetch"] ? "[prefetch]" : ""}${r.headers()["rsc"] ? "[rsc]" : ""} ${r.resourceType()} cookie=${(r.headers()["cookie"] ?? "").includes("session_token") ? "yes" : "no"}`); });
+    other.on("response", (r) => { if (!r.url().includes("/_next/static")) DBG.push(`${at()} RES ${r.status()} ${r.url()} loc=${r.headers()["location"] ?? ""} setcookie=${r.headers()["set-cookie"] ? "yes" : ""}`); });
+    other.on("requestfailed", (r) => DBG.push(`${at()} FAILED ${r.url()} ${r.failure()?.errorText}`));
+    other.on("console", (m) => DBG.push(`${at()} CONSOLE ${m.type()} ${m.text().slice(0, 160)}`));
     const otherErrors: string[] = [];
     other.on("pageerror", (e) => otherErrors.push(e.message));
     await gotoReady(other, "/certs");
+    const FREEZE = process.env.DEBUG_FREEZE === "1" ? await context.newCDPSession(other) : null;
+    if (FREEZE) await FREEZE.send("Page.setWebLifecycleState", { state: "frozen" });
     await gotoReady(page, "/roadmap");
     const cookie = (await context.cookies()).find((c) => c.name === SESSION_COOKIE);
     expect(cookie, "signed in with a spare session").toBeDefined();
@@ -81,12 +91,16 @@ test.describe("signing out", () => {
 
     // A save from the tab that stayed open, with that cookie, is refused as signed out.
     await context.addCookies([cookie!]);
+    if (FREEZE) { await FREEZE.send("Page.setWebLifecycleState", { state: "active" }); DBG.push(`${at()} --- thawed`); }
     const row = other.locator(`#item-${item.id}`);
     const tick = row.getByRole("checkbox", { name: `Mark done: ${item.title}` });
     await expect(tick).not.toBeChecked();
     const saved = other.waitForResponse((r) => r.request().method() === "POST" && !!r.request().headers()["next-action"]);
     await tick.click();
-    expect(await (await saved).text()).toContain('"code":"signed-out"');
+    DBG.push(`${at()} --- clicked`);
+    let dbgBody = "";
+    try { dbgBody = await (await saved).text(); } catch (e) { await other.waitForTimeout(1500); console.log(`DEBUG-DUMP ${testInfo.project.name}\n${DBG.join("\n")}\nurl=${other.url()}`); throw e; }
+    expect(dbgBody).toContain('"code":"signed-out"');
     await expect(other.getByRole("alert").filter({ hasText: SIGNED_OUT_TEXT })).toBeVisible();
     await expect(tick).not.toBeChecked();
     expect(otherErrors).toEqual([]);

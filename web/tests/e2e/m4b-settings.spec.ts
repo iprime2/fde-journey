@@ -85,8 +85,21 @@ test.describe("settings", () => {
     await expectNoSidewaysScroll(page);
   });
 
-  test("the Scaler access code: a wrong code, then the right one", async ({ page }) => {
+  test("the Scaler access code: a wrong code, then the right one", async ({ page }, testInfo) => {
+    const DBG: string[] = [];
+    const t0 = Date.now();
+    const at = () => `${String(Date.now() - t0).padStart(6)}ms`;
+    page.on("framenavigated", (f) => { if (f === page.mainFrame()) DBG.push(`${at()} NAV ${f.url()}`); });
+    page.on("request", (r) => { if (!r.url().includes("/_next/static") && !r.url().includes("avatars")) DBG.push(`${at()} REQ ${r.method()} ${r.url()} ${r.headers()["next-action"] ? "[action " + r.headers()["next-action"].slice(0, 8) + "]" : ""}${r.headers()["next-router-prefetch"] ? "[prefetch]" : ""}${r.headers()["rsc"] ? "[rsc]" : ""}`); });
+    page.on("response", (r) => { if (!r.url().includes("/_next/static") && !r.url().includes("avatars")) DBG.push(`${at()} RES ${r.status()} ${r.url()} ${r.request().headers()["next-action"] ? "[action " + r.request().headers()["next-action"].slice(0, 8) + "]" : ""} setcookie=${r.headers()["set-cookie"] ? "yes" : ""}`); });
+    await page.exposeBinding("__dbgFocus", (_s, what: string) => DBG.push(`${at()} FOCUS ${what}`));
+    await page.addInitScript(() => {
+      document.addEventListener("focusout", (e) => (window as unknown as { __dbgFocus: (s: string) => void }).__dbgFocus(`out ${(e.target as HTMLElement).getAttribute("role") ?? (e.target as HTMLElement).tagName} -> ${(e.relatedTarget as HTMLElement | null)?.tagName ?? "null"}`), true);
+      document.addEventListener("focusin", (e) => (window as unknown as { __dbgFocus: (s: string) => void }).__dbgFocus(`in ${(e.target as HTMLElement).getAttribute("role") ?? (e.target as HTMLElement).tagName}`), true);
+    });
+    try {
     await gotoReady(page, "/settings");
+    DBG.push(`${at()} --- loaded`);
     const scaler = page.getByRole("switch", { name: "Scaler course" });
     // Locked by code: no switch, "Locked" and what to do instead.
     await expect(scaler).toHaveCount(0);
@@ -95,12 +108,14 @@ test.describe("settings", () => {
     await expect(page.getByRole("heading", { name: "Unlock Scaler course" })).toBeVisible();
     const code = page.getByRole("textbox", { name: "Access code" });
     await code.fill("NOT-THE-CODE");
+    DBG.push(`${at()} --- unlock wrong`);
     await page.getByRole("button", { name: "Unlock" }).click();
     await expect(page.getByText("That code isn't right. 4 tries left this hour.")).toBeVisible();
     await expect(code).toHaveAttribute("aria-invalid", "true");
     await expect(code).toBeFocused();
 
     await code.fill(E2E_SCALER_CODE.toLowerCase());
+    DBG.push(`${at()} --- unlock right`);
     await page.getByRole("button", { name: "Unlock" }).click();
     await expect(page.getByRole("status").filter({ hasText: "Scaler course is unlocked and on." })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Unlock Scaler course" })).toHaveCount(0);
@@ -111,6 +126,7 @@ test.describe("settings", () => {
     await expect(navLinks(page, "/scaler")).not.toHaveCount(0);
     await gotoReady(page, "/scaler");
     await expect(pageHeading(page)).toHaveText("Scaler course");
+    } catch (e) { console.log(`DEBUG-DUMP-SETTINGS ${testInfo.project.name}\n${DBG.join("\n")}`); throw e; }
   });
 
   test("a Claude export key is shown once, then listed, then revoked", async ({ page, context }) => {
