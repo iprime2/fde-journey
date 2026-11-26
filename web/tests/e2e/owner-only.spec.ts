@@ -17,6 +17,15 @@ test.describe("owner-only mode: the owner", () => {
     await gotoReady(page, "/settings");
     await expect(pageHeading(page)).toHaveText("Settings");
   });
+
+  test("lands on the page they wanted after sign-in, with no extra hop", async ({ page }) => {
+    const landed = await page.request.get("/auth/continue?next=%2Froadmap", { maxRedirects: 0 });
+    expect(landed.status()).toBe(303);
+    expect(new URL(landed.headers().location ?? "", "http://localhost").pathname).toBe("/roadmap");
+    const res = await page.request.get("/roadmap", { maxRedirects: 0 });
+    expect(res.status()).toBe(200);
+    expect(await res.text()).toContain('aria-label="Sections"');
+  });
 });
 
 test.describe("owner-only mode: anyone else", () => {
@@ -33,6 +42,26 @@ test.describe("owner-only mode: anyone else", () => {
     expect(await after.json()).toBeNull();
     await page.goto("/settings");
     await expect(page).toHaveURL("/login?next=%2Fsettings");
+  });
+});
+
+test.describe("owner-only mode: a waitlisted account (left from capped mode)", () => {
+  test.use({ as: "waitlisted" });
+
+  test("is sent to the sign-in page before any page renders, and after sign-in", async ({ page }) => {
+    // Never /waitlist: in owner-only mode nobody but the owner has a usable session.
+    for (const path of ["/", "/roadmap", "/waitlist"]) {
+      const res = await page.request.get(path, { maxRedirects: 0 });
+      expect(res.status(), path).toBe(307);
+      expect(new URL(res.headers().location ?? "", "http://localhost").pathname, path).toBe("/login");
+      expect(await res.text(), path).not.toContain('aria-label="Sections"');
+    }
+    const landed = await page.request.get("/auth/continue?next=%2Froadmap", { maxRedirects: 0 });
+    expect(landed.status()).toBe(303);
+    const target = new URL(landed.headers().location ?? "", "http://localhost");
+    expect(`${target.pathname}${target.search}`).toBe("/login?next=%2Froadmap");
+    // …and the session is revoked there, as on any page.
+    expect(await (await page.request.get("/api/auth/get-session")).json()).toBeNull();
   });
 });
 
