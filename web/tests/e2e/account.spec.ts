@@ -218,6 +218,9 @@ test.describe("phone More sheet", () => {
     await nav.getByRole("button", { name: "More" }).click();
     const signOut = nav.getByRole("button", { name: "Sign out" });
     await expect(signOut).toBeVisible();
+    // The owner's sheet is taller than the space above the bar, so it scrolls on its own
+    // (design spec 3.1, sheet height, v0.7): the account row is reached by scrolling the sheet.
+    await signOut.scrollIntoViewIfNeeded();
     const sheetBottom = (await signOut.boundingBox())!;
     expect(sheetBottom.y + sheetBottom.height).toBeLessThanOrEqual((await bar.boundingBox())!.y);
     const [scrollWidth, innerWidth] = await page.evaluate(() => [document.documentElement.scrollWidth, window.innerWidth]);

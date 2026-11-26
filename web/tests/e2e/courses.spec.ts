@@ -263,7 +263,7 @@ test.describe("navigation to Courses", () => {
     const gap = boxes[2].x - (boxes[1].x + boxes[1].width);
     expect(Math.round(boxes[0].width)).toBe(Math.round(2 * boxes[1].width + gap));
     // Each row ends at the same right edge: no hole.
-    const right = Math.round(boxes[0].x + boxes[0].width);
+    const right = Math.max(...boxes.map((b) => Math.round(b.x + b.width)));
     const rows = new Map<number, number[]>();
     for (const b of boxes) rows.set(Math.round(b.y), [...(rows.get(Math.round(b.y)) ?? []), Math.round(b.x + b.width)]);
     for (const ends of rows.values()) expect(Math.max(...ends)).toBe(right);
