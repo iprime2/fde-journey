@@ -116,6 +116,9 @@ export interface Course {
   badge: boolean;
   /** Roadmap phase where it fits (Phase.n, 1 to 8). */
   phase: number;
-  /** One of the mentor's top picks for the FDE role: why, in the plan's words. */
+  /**
+   * One of the mentor's top picks for the FDE role: why, as one lower-case clause without the
+   * full stop ("it pairs with the AWS certifications"). The plan's list (COURSES.md) uses the same words.
+   */
   topPick?: string;
 }

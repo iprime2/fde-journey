@@ -9,8 +9,9 @@ const ANNOUNCE_DELAY_MS = 400;
 
 /**
  * Search field and status filter (design spec 4, Toolbar), plus an optional third select for a
- * page's own tag filter (Courses & badges). Each select takes its natural width; when the row
- * runs out of room the tag filter wraps under the search.
+ * page's own tag filter (Courses & badges). The status filter takes its natural width. The tag
+ * filter takes a full row of its own below 768 px, and from 768 px sits in the one row at its
+ * natural width.
  */
 export function Toolbar({
   placeholder,
@@ -72,7 +73,7 @@ export function Toolbar({
         </select>
       </div>
       {tagFilter && (
-        <div className="w-auto max-w-full flex-none">
+        <div className="min-w-0 basis-full md:flex-none md:basis-auto">
           <label htmlFor={tagId} className="sr-only">
             {tagFilter.label}
           </label>
@@ -80,7 +81,7 @@ export function Toolbar({
             id={tagId}
             value={f.state.tag ?? ""}
             onChange={(e) => f.setTag(e.target.value)}
-            className="type-input h-11 max-w-full rounded-md border border-line-strong bg-surface px-3 text-ink"
+            className="type-input h-11 w-full max-w-full rounded-md border border-line-strong bg-surface px-3 text-ink md:w-auto"
           >
             {tagFilter.options.map((o) => (
               <option key={o.value} value={o.value}>

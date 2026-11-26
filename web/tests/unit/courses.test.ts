@@ -3,7 +3,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { COURSES, COURSE_GROUPS, COURSE_PHASE_NAMES, COURSES_DISCLAIMER } from "@/content/courses";
+import { COURSES, COURSE_GROUPS, COURSE_PHASE_NAMES, COURSE_PHASE_SHORT_NAMES, COURSE_SOURCES, COURSES_DISCLAIMER } from "@/content/courses";
 import { COURSES_DESCRIPTION, SEARCH_PLACEHOLDERS } from "@/content/page-copy";
 import { trackerContent as c } from "@/content/tracker-data";
 import type { Course } from "@/content/types";
@@ -23,7 +23,7 @@ import type { ProgressMap, ProgressRecord } from "@/lib/progress";
 import { ITEM_IDS, NOTE_IDS, noteIdSchema, parseField, tickableIdSchema } from "@/lib/validation";
 import {
   BADGE_CHIP,
-  TOP_PICK_CHIP,
+  TOP_PICK_LEAD,
   courseFacts,
   courseMeta,
   courseTagOptions,
@@ -33,7 +33,10 @@ import {
   knownHours,
   phaseLabel,
   rowSearchText,
+  statedLength,
 } from "@/lib/views";
+
+const PHASES = { full: COURSE_PHASE_NAMES, short: COURSE_PHASE_SHORT_NAMES };
 
 const rec = (patch: Partial<ProgressRecord>): ProgressRecord => ({ done: false, note: "", link: "", doneAt: null, updatedAt: null, ...patch });
 const done = (...ids: string[]): ProgressMap => new Map(ids.map((id) => [id, rec({ done: true })]));
@@ -95,6 +98,34 @@ describe("course content", () => {
     expect(new Set(picks)).toEqual(new Set(["cr4", "cr27", "cr5", "cr26", "cr25"]));
   });
 
+  it("gives each top pick the reason in the plan's list, word for word", () => {
+    // "- cr5 and cr26: evals, the tests …." under "Mentor's top picks".
+    const md = readFileSync(path.join(process.cwd(), "docs", "COURSES.md"), "utf8");
+    const reasons = new Map<string, string>();
+    for (const m of md.matchAll(/^- (cr\d+(?: and cr\d+)*): (.+)\.$/gm)) {
+      for (const id of m[1].split(" and ")) reasons.set(id, m[2]);
+    }
+    expect(reasons.size).toBe(5);
+    COURSES.forEach((course, i) => {
+      if (course.topPick) expect(course.topPick, courseId(i)).toBe(reasons.get(courseId(i)));
+    });
+  });
+
+  it("has a short name for every phase with a course, at most 24 characters as a chip", () => {
+    for (const course of COURSES) {
+      const label = phaseLabel(COURSE_PHASE_SHORT_NAMES, course.phase);
+      expect(COURSE_PHASE_SHORT_NAMES[course.phase], course.title).toBeDefined();
+      // The narrowest text column (320 px) fits about 24 characters of chip text.
+      expect(label.length, label).toBeLessThanOrEqual(24);
+      // A short name starts the plan's full name, so search on the full name still finds it.
+      expect(COURSE_PHASE_NAMES[course.phase].startsWith(COURSE_PHASE_SHORT_NAMES[course.phase]), label).toBe(true);
+    }
+  });
+
+  it("labels the sources with the card titles", () => {
+    expect(COURSE_SOURCES.map((s) => s.label)).toEqual(COURSE_GROUPS.map((g) => g.title));
+  });
+
   it("has https links only", () => {
     for (const course of COURSES) expect(course.url.startsWith("https://"), course.title).toBe(true);
   });
@@ -140,12 +171,12 @@ describe("course ids", () => {
 });
 
 describe("Courses page model", () => {
-  const cards = coursesView(COURSES, COURSE_GROUPS, COURSE_PHASE_NAMES, empty);
+  const cards = coursesView(COURSES, COURSE_GROUPS, PHASES, empty);
   const rows = cards.flatMap((card) => card.rows);
   const rowOf = (id: string) => rows.find((r) => r.id === id)!;
 
   it("groups the courses by provider, keeping each course's id", () => {
-    expect(cards.map((card) => card.title)).toEqual(["OpenAI developer tracks", "OpenAI Academy · Build with AI", "Anthropic Claude Academy"]);
+    expect(cards.map((card) => card.title)).toEqual(["OpenAI developer tracks", "OpenAI Academy", "Anthropic Claude Academy"]);
     expect(cards.map((card) => card.rows.length)).toEqual([3, 8, 16]);
     expect(cards[1].rows[0].id).toBe("cr4");
     expect(cards[2].rows.at(-1)?.id).toBe("cr27");
@@ -159,29 +190,41 @@ describe("Courses page model", () => {
     expect(courseMeta({ ...COURSES[0], length: "", level: undefined })).toBe("");
   });
 
-  it("adds the chips: top pick, badge, then the phase with the roadmap's title", () => {
-    expect(rowOf("cr4").chips).toEqual([TOP_PICK_CHIP, BADGE_CHIP, { label: "Phase 8 · Portfolio and career", variant: "neutral" }]);
+  it("adds the chips: Badge as an outlined tag, then the phase with its short name", () => {
+    expect(BADGE_CHIP).toEqual({ label: "Badge", variant: "tag" });
+    expect(rowOf("cr4").chips).toEqual([BADGE_CHIP, { label: "Phase 8 · Portfolio", variant: "neutral" }]);
+    expect(rowOf("cr25").chips?.map((x) => x.label)).toEqual(["Badge", "Phase 6 · AWS"]);
     expect(rowOf("cr5").chips?.at(-1)?.label).toBe("Phase 7 · Evaluation");
     expect(rowOf("cr1").chips).toEqual([{ label: "Phase 1 · Foundations", variant: "neutral" }]);
-    expect(rowOf("cr21").chips?.map((x) => x.label)).toEqual(["Phase 4 · Agents and harnesses"]);
+    expect(rowOf("cr21").chips?.map((x) => x.label)).toEqual(["Phase 4 · Agents"]);
+    // No chip says "Top pick", and no chip uses a status style that means done or current.
+    for (const r of rows) for (const chip of r.chips ?? []) expect(["tag", "neutral"]).toContain(chip.variant);
+    expect(rows.flatMap((r) => r.chips ?? []).some((chip) => chip.label === "Top pick")).toBe(false);
     expect(phaseLabel(COURSE_PHASE_NAMES, 3)).toBe("Phase 3");
   });
 
-  it("says why a top pick matters, links the title and offers a note", () => {
-    expect(rowOf("cr25").why).toBe("For the FDE role: lines up with the AWS certifications.");
+  it("starts a top pick's why line with the bold lead-in, links the title and offers a note", () => {
+    expect(TOP_PICK_LEAD).toBe("Top pick for the FDE role:");
+    expect(rowOf("cr25")).toMatchObject({ whyLead: TOP_PICK_LEAD, why: "it pairs with the AWS certifications." });
+    expect(rowOf("cr4").why).toBe("scoping a customer's problem into a solution plan.");
+    expect(rowOf("cr5").why).toBe("evals, the tests that show whether an AI app's answers are good enough.");
+    expect(rowOf("cr27").why).toBe("rolling Claude out at a customer.");
     expect(rowOf("cr1").why).toBeUndefined();
+    expect(rowOf("cr1").whyLead).toBeUndefined();
     expect(rowOf("cr1").url).toBe(COURSES[0].url);
-    expect(rowOf("cr1").notePlaceholder).toMatch(/badge/);
+    expect(rowOf("cr1").notePlaceholder).toBe("What did you learn? Key points, questions… Put your badge link in the link field.");
   });
 
-  it("makes the provider and chips searchable", () => {
+  it("makes the provider, the chips, the full phase name and top picks searchable", () => {
     expect(rowSearchText(rowOf("cr12"))).toContain("anthropic");
     expect(rowSearchText(rowOf("cr12"))).toContain("badge");
     expect(rowSearchText(rowOf("cr25"))).toContain("top pick");
+    expect(rowSearchText(rowOf("cr25"))).toContain("aws cloud and deployment");
+    expect(rowSearchText(rowOf("cr7"))).toContain("rag and retrieval");
   });
 
   it("counts done per card", () => {
-    const withDone = coursesView(COURSES, COURSE_GROUPS, COURSE_PHASE_NAMES, done("cr1", "cr13", "cr14"));
+    const withDone = coursesView(COURSES, COURSE_GROUPS, PHASES, done("cr1", "cr13", "cr14"));
     expect(withDone.map((card) => card.done)).toEqual([1, 0, 2]);
   });
 });
@@ -205,11 +248,13 @@ describe("course facts", () => {
     expect(knownHours(COURSES)).toEqual({ low: 44, high: 49, courses: 19 });
     expect(formatHours(knownHours(COURSES))).toBe("44–49 h");
     expect(formatHours({ low: 40, high: 40 })).toBe("40 h");
+    // The header fact: the total, and how many of all the courses state a length.
+    expect(statedLength(knownHours(COURSES), COURSES.length)).toBe("44–49 h (19 of 27 courses)");
   });
 });
 
 describe("tag filter (badges, top picks, phases)", () => {
-  const options = courseTagOptions(COURSES, COURSE_PHASE_NAMES);
+  const options = courseTagOptions(COURSES, COURSE_PHASE_SHORT_NAMES);
   const tags = options.map((o) => o.value).filter(Boolean);
 
   it("offers everything, badges, top picks, then the phases that have courses", () => {
@@ -219,7 +264,16 @@ describe("tag filter (badges, top picks, phases)", () => {
       { value: "top-pick", label: "Top picks" },
     ]);
     expect(options.slice(3).map((o) => o.value)).toEqual(["phase-1", "phase-2", "phase-4", "phase-5", "phase-6", "phase-7", "phase-8"]);
-    expect(options[3].label).toBe("Phase 1 · Foundations");
+    // The same short phase names as the chips.
+    expect(options.slice(3).map((o) => o.label)).toEqual([
+      "Phase 1 · Foundations",
+      "Phase 2 · RAG",
+      "Phase 4 · Agents",
+      "Phase 5 · Project 2",
+      "Phase 6 · AWS",
+      "Phase 7 · Evaluation",
+      "Phase 8 · Portfolio",
+    ]);
   });
 
   it("reads ?tag= only when the page offers it", () => {
@@ -240,7 +294,7 @@ describe("tag filter (badges, top picks, phases)", () => {
   });
 
   it("shows only the matching rows and cards", () => {
-    const entries = filterEntries(coursesView(COURSES, COURSE_GROUPS, COURSE_PHASE_NAMES, done("cr5")));
+    const entries = filterEntries(coursesView(COURSES, COURSE_GROUPS, PHASES, done("cr5")));
     const shown = (tag: string, status: "all" | "done" = "all") => [...computeVisibility(entries, { q: "", status, tag }).items];
     expect(shown("badge")).toHaveLength(21);
     expect(new Set(shown("top-pick"))).toEqual(new Set(["cr4", "cr5", "cr25", "cr26", "cr27"]));

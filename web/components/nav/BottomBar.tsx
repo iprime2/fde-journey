@@ -103,7 +103,9 @@ export function BottomBar({ nav, account }: { nav: PhoneNav | null; account?: Re
           const next = e.relatedTarget as Node | null;
           if (next && !sheet.current?.contains(next) && next !== moreButton.current) setOpen(false);
         }}
-        className="fixed inset-x-0 bottom-[calc(64px+env(safe-area-inset-bottom))] short:bottom-[calc(48px+env(safe-area-inset-bottom))] z-40 rounded-t-lg bg-surface pr-[max(16px,env(safe-area-inset-right))] pl-[max(16px,env(safe-area-inset-left))] py-2 shadow-overlay"
+        // Never runs off the top of the screen (design spec 3.1, sheet height): it scrolls on its
+        // own when its rows don't fit above the bar, as in phone landscape.
+        className="fixed inset-x-0 bottom-[calc(64px+env(safe-area-inset-bottom))] short:bottom-[calc(48px+env(safe-area-inset-bottom))] z-40 max-h-[calc(100dvh_-_64px_-_env(safe-area-inset-bottom)_-_max(8px,env(safe-area-inset-top)))] short:max-h-[calc(100dvh_-_48px_-_env(safe-area-inset-bottom)_-_max(8px,env(safe-area-inset-top)))] overflow-y-auto overscroll-contain rounded-t-lg bg-surface pr-[max(16px,env(safe-area-inset-right))] pl-[max(16px,env(safe-area-inset-left))] py-2 shadow-overlay"
       >
         {/* On wider screens (tablets, phone landscape) the rows keep a readable width. */}
         <div className="md:mx-auto md:max-w-[560px]">

@@ -12,43 +12,54 @@ export function StatTile({ tile }: { tile: TileModel }) {
   return (
     <Link
       href={tile.href}
-      className="grid min-w-0 content-start gap-1 rounded-lg border border-line bg-surface px-4 py-3.5 hover:border-line-strong motion-safe:transition-[color,background-color,border-color] motion-safe:duration-150"
+      className="flex min-w-0 flex-col gap-1 rounded-lg border border-line bg-surface px-4 py-3.5 hover:border-line-strong motion-safe:transition-[color,background-color,border-color] motion-safe:duration-150"
     >
       <span className="type-num-lg">
         <span aria-hidden="true">{tile.value}</span>
         <span className="sr-only">{tile.valueLabel},</span>
       </span>
       <span className="type-small text-muted">{tile.label}</span>
-      <ProgressBar percent={tile.percent} className="mt-1.5" />
+      {/* At the bottom of the tile, so the bars in a row line up when a label wraps (v0.7). */}
+      <div className="mt-auto pt-1.5">
+        <ProgressBar percent={tile.percent} />
+      </div>
     </Link>
   );
 }
 
 /**
- * Grids by tile count (design spec 5, Home with hidden sections): 5 or 6 tiles 2 columns, 3 from
- * 768 px; 4 tiles 2 by 2, one row from 1280 px; 3 tiles one row from 768 px, and below it the
- * third spans both columns. 7 tiles (every section on, with Courses): 2 columns, 4 from 768 px,
- * with the first tile (roadmap milestones) across two, so the rows fill: 1 + 2 + 2 + 2, then
- * 3 + 4.
+ * Grids by tile count (design spec 5, "Tile grid by count", v0.7). Home has 4 to 7 tiles: the three
+ * Roadmap tiles and Courses always show. With an odd count the first tile (roadmap milestones)
+ * spans two columns, so every row fills; with an even count nothing spans.
+ * - 7 (the owner): 2 columns, 4 from 768 px; 1 + 2 + 2 + 2, then 3 + 4.
+ * - 6: 2 by 3, then 3 by 2 from 768 px.
+ * - 5 (new users): 2 columns, 3 from 768 px; 1 + 2 + 2, then 2 + 3.
+ * - 4: 2 by 2, one row from 1280 px.
+ * Any other count gets the 6-tile grid. The Home skeleton uses the same helpers.
  */
 const TILE_GRID: Record<number, string> = {
-  3: "grid-cols-2 md:grid-cols-3",
   4: "grid-cols-2 xl:grid-cols-4",
+  5: "grid-cols-2 md:grid-cols-3",
+  6: "grid-cols-2 md:grid-cols-3",
   7: "grid-cols-2 md:grid-cols-4",
 };
 
-function tileSpan(count: number, i: number) {
-  if (count === 3 && i === 2) return "col-span-2 md:col-span-1";
-  if (count === 7 && i === 0) return "col-span-2";
-  return false;
+/** The grid columns for `count` tiles (the `ul`). */
+export function tileGridClass(count: number): string {
+  return TILE_GRID[count] ?? TILE_GRID[6];
+}
+
+/** The span of tile `i` of `count`: the first tile spans two columns when the count is odd. */
+export function tileSpanClass(count: number, i: number): string | undefined {
+  return i === 0 && count % 2 === 1 && count in TILE_GRID ? "col-span-2" : undefined;
 }
 
 export function StatTiles({ tiles }: { tiles: TileModel[] }) {
   return (
     <section aria-label="Summary">
-      <ul className={cn("grid gap-3", TILE_GRID[tiles.length] ?? "grid-cols-2 md:grid-cols-3")}>
+      <ul className={cn("grid gap-3", tileGridClass(tiles.length))}>
         {tiles.map((t, i) => (
-          <li key={t.key} className={cn("grid", tileSpan(tiles.length, i))}>
+          <li key={t.key} className={cn("grid", tileSpanClass(tiles.length, i))}>
             <StatTile tile={t} />
           </li>
         ))}

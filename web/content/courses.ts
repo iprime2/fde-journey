@@ -46,7 +46,7 @@ export const COURSES: readonly Course[] = [
     length: "",
     badge: true,
     phase: 8,
-    topPick: "scoping a customer problem into a solution plan",
+    topPick: "scoping a customer's problem into a solution plan",
   },
   // cr5
   {
@@ -56,7 +56,7 @@ export const COURSES: readonly Course[] = [
     length: "",
     badge: true,
     phase: 7,
-    topPick: "evals",
+    topPick: "evals, the tests that show whether an AI app's answers are good enough",
   },
   // cr6
   {
@@ -237,7 +237,7 @@ export const COURSES: readonly Course[] = [
     length: "65 lessons · 8 h",
     badge: true,
     phase: 6,
-    topPick: "lines up with the AWS certifications",
+    topPick: "it pairs with the AWS certifications",
   },
   // cr26
   {
@@ -247,7 +247,7 @@ export const COURSES: readonly Course[] = [
     length: "4 lessons · 1 h",
     badge: true,
     phase: 7,
-    topPick: "evals",
+    topPick: "evals, the tests that show whether an AI app's answers are good enough",
   },
   // cr27
   {
@@ -257,13 +257,13 @@ export const COURSES: readonly Course[] = [
     length: "14 lessons · 2.5 h",
     badge: true,
     phase: 8,
-    topPick: "rolling out at a customer",
+    topPick: "rolling Claude out at a customer",
   },
 ];
 
 /**
  * Phase names as the plan's table gives them. Some are shorter than the roadmap's titles ("Project
- * 2" for "Project 2 — AI SRE Agent"), which keeps the phase chip on one line on a phone.
+ * 2" for "Project 2 — AI SRE Agent"). Search matches these full names.
  */
 export const COURSE_PHASE_NAMES: Readonly<Record<number, string>> = {
   1: "Foundations",
@@ -273,6 +273,21 @@ export const COURSE_PHASE_NAMES: Readonly<Record<number, string>> = {
   6: "AWS cloud and deployment",
   7: "Evaluation",
   8: "Portfolio and career",
+};
+
+/**
+ * Short phase names for the phase chips and the filter options (design spec 5, /courses, v0.7):
+ * the same words in both, so a chip can be matched to its option, and short enough that no chip
+ * wraps at 320 px ("Phase 1 · Foundations" is the longest).
+ */
+export const COURSE_PHASE_SHORT_NAMES: Readonly<Record<number, string>> = {
+  1: "Foundations",
+  2: "RAG",
+  4: "Agents",
+  5: "Project 2",
+  6: "AWS",
+  7: "Evaluation",
+  8: "Portfolio",
 };
 
 /** The page's cards, one per provider, in this order. */
@@ -289,23 +304,23 @@ export const COURSE_GROUPS: readonly CourseGroup[] = [
     provider: "OpenAI",
     key: "openai",
     title: "OpenAI developer tracks",
-    sub: "Self-paced tracks on OpenAI's developer site. Each gives a length and a level; no badge is mentioned.",
+    sub: "Self-paced tracks on OpenAI's developer site, each with a length and a level. No badge.",
   },
   {
     provider: "OpenAI Academy",
     key: "openai-academy",
-    title: "OpenAI Academy · Build with AI",
-    sub: "Every course ends with an assessment and an official badge, issued through Accredible.",
+    title: "OpenAI Academy",
+    sub: "Every course ends with an assessment and an official badge from Accredible, a service that issues digital certificates. No lengths are given.",
   },
   {
     provider: "Anthropic",
     key: "anthropic",
     title: "Anthropic Claude Academy",
-    sub: "A completion badge where the course page lists one.",
+    sub: "Each course gives its lessons and length. Most award a completion badge, marked Badge.",
   },
 ];
 
-/** Where the lengths and badges come from (the plan's sources, read on COURSES_CHECKED). */
+/** Where the lengths and badges come from (the plan's sources, read on COURSES_CHECKED). Labels match the card titles. */
 export const COURSE_SOURCES = [
   {
     label: "OpenAI developer tracks",
@@ -313,12 +328,12 @@ export const COURSE_SOURCES = [
     note: "The learn page and its three track pages: length and level are given; no badge is mentioned.",
   },
   {
-    label: "OpenAI Academy courses",
+    label: "OpenAI Academy",
     url: "https://academy.openai.com/pages/courses",
     note: "“Every course includes an assessment, with official badges issued through Accredible.”",
   },
   {
-    label: "Claude Academy courses",
+    label: "Anthropic Claude Academy",
     url: "https://academy.claude.com/courses",
     note: "“Completion badge” is listed per course where it applies.",
   },

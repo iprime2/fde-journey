@@ -24,18 +24,14 @@ const CHIP_STYLES: Record<ChipState["variant"], string> = {
   now: "bg-accent text-accent-ink",
   warn: "bg-warn-soft text-warn",
   danger: "bg-danger-soft text-danger",
+  // Outlined, with an inset ring so it keeps the size of the filled chips.
+  tag: "bg-transparent text-ink ring-1 ring-inset ring-line-strong",
 };
 
-/** `wrap`: the label may wrap onto a second line when the row has no room (row chips). */
-export function StatusChip({ chip, wrap = false }: { chip: ChipState; wrap?: boolean }) {
+/** Never wraps inside itself; a row of chips wraps between them (design spec 4, row chips). */
+export function StatusChip({ chip }: { chip: ChipState }) {
   return (
-    <span
-      className={cn(
-        "type-label rounded-full px-2 py-[3px]",
-        wrap ? "max-w-full text-balance [overflow-wrap:anywhere]" : "whitespace-nowrap",
-        CHIP_STYLES[chip.variant],
-      )}
-    >
+    <span className={cn("type-label whitespace-nowrap rounded-full px-2 py-[3px]", CHIP_STYLES[chip.variant])}>
       {chip.label}
     </span>
   );

@@ -1,6 +1,10 @@
 // Status chips and "where am I now" rules, the same as the tracker's. Pure functions.
 
-export type ChipVariant = "neutral" | "ok" | "now" | "warn" | "danger";
+/**
+ * Filled variants are statuses; `tag` (outlined) is an attribute that isn't a status, such as
+ * "Badge" on Courses & badges (design spec 4, StatusChip, v0.7).
+ */
+export type ChipVariant = "neutral" | "ok" | "now" | "warn" | "danger" | "tag";
 
 export interface ChipState {
   label: string;

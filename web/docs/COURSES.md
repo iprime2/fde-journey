@@ -42,11 +42,11 @@ Recheck badges and lengths before relying on them; providers change their catalo
 | cr26 | Anthropic | [Introduction to evals](https://academy.claude.com/courses/introduction-to-evals) | 4 lessons · 1 h | ✓ | 7 Evaluation |
 | cr27 | Anthropic | [Deploying Claude Enterprise with confidence](https://academy.claude.com/courses/deploying-claude-enterprise-with-confidence) | 14 lessons · 2.5 h | ✓ | 8 Portfolio and career |
 
-**Mentor's top picks for the FDE role:**
-- cr4: scoping a customer problem into a solution plan.
-- cr27: rolling out at a customer.
-- cr5 and cr26: evals.
-- cr25: lines up with the AWS certifications.
+**Mentor's top picks for the FDE role** (reasons as the app shows them after "Top pick for the FDE role:", reworded in design spec v0.7; a unit test checks this list against `web/content/courses.ts`):
+- cr4: scoping a customer's problem into a solution plan.
+- cr27: rolling Claude out at a customer.
+- cr5 and cr26: evals, the tests that show whether an AI app's answers are good enough.
+- cr25: it pairs with the AWS certifications.
 
 **Left out on purpose:**
 - the product tours for Claude Cowork and Claude Tag

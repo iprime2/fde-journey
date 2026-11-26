@@ -54,10 +54,14 @@ export function aheadLine(place: number): string {
   return `${people(ahead)} ${ahead === 1 ? "is" : "are"} ahead of you.`;
 }
 
-/** A whole number typed in a field, within [min, max]; null for anything else ("", "1.5", "-2", "1e3"). */
+/**
+ * A whole number typed in a field, within [min, max]; null for anything else ("", "1.5", "-2",
+ * "1e3", "+5"). Leading zeros are refused ("0100", "00"): a 0 typed in front of a value must never
+ * be read as that value. A lone "0" is fine. Spaces around the number are ignored.
+ */
 export function parseWholeNumber(value: string, min: number, max: number): number | null {
   const text = value.trim();
-  if (!/^\d{1,7}$/.test(text)) return null;
+  if (!/^(0|[1-9]\d{0,6})$/.test(text)) return null;
   const n = Number(text);
   return n >= min && n <= max ? n : null;
 }
@@ -104,9 +108,36 @@ export function capChange(current: number, next: number, taken: number, waiting:
   return { kind: "plain" };
 }
 
-/** "Cap saved: 120 places." / "Cap saved: 120 places. 7 people were let in." */
-export function capSavedMessage(cap: number, admitted: number): string {
-  const saved = `Cap saved: ${formatCount(cap)} ${cap === 1 ? "place" : "places"}.`;
+export const CAP_LEADING_ZERO = "Type the number without a leading 0.";
+export const CAP_RANGE = "Enter a whole number from 0 to 1,000.";
+/** "The cap is already 100." Not an error: nothing is wrong, and nothing is saved. */
+export const capAlready = (cap: number) => `The cap is already ${formatCount(cap)}.`;
+
+export type CapInput = { ok: true; cap: number } | { ok: false; kind: "leading-zero" | "range" | "same"; message: string };
+
+/**
+ * The checks on Save, in order (design spec 5, Sign-up, v0.7): a leading zero ("0100", "00"; a lone
+ * "0" is fine), then a whole number from `min` to `max`, then the same as the saved cap. Only the
+ * first two are errors.
+ */
+export function checkCapInput(value: string, current: number, min: number, max: number): CapInput {
+  const text = value.trim();
+  if (/^0\d/.test(text)) return { ok: false, kind: "leading-zero", message: CAP_LEADING_ZERO };
+  const cap = parseWholeNumber(text, min, max);
+  if (cap === null) return { ok: false, kind: "range", message: CAP_RANGE };
+  if (cap === current) return { ok: false, kind: "same", message: capAlready(cap) };
+  return { ok: true, cap };
+}
+
+const places = (n: number) => (n === 1 ? "place" : "places");
+
+/**
+ * "Cap changed from 100 to 120 places." / "… 7 people were let in." / "Cap changed from 0 to 1
+ * place." Both values, so a wrong save shows at once. If the cap was already that value when the
+ * save arrived (someone else changed it meanwhile), say so instead.
+ */
+export function capSavedMessage(previous: number, cap: number, admitted: number): string {
+  const saved = previous === cap ? capAlready(cap) : `Cap changed from ${formatCount(previous)} to ${formatCount(cap)} ${places(cap)}.`;
   return admitted > 0 ? `${saved} ${letInResult(admitted)}` : saved;
 }
 

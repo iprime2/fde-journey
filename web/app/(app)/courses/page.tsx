@@ -11,16 +11,17 @@ import { type Fact, Facts, PageHeader } from "@/components/PageHeader";
 import { SectionCard } from "@/components/SectionCards";
 import { ListSkeleton } from "@/components/Skeleton";
 import { ExternalLink } from "@/components/ui";
-import { COURSES, COURSE_GROUPS, COURSE_PHASE_NAMES, COURSE_SOURCES, COURSES_DISCLAIMER } from "@/content/courses";
+import { COURSES, COURSE_GROUPS, COURSE_PHASE_NAMES, COURSE_PHASE_SHORT_NAMES, COURSE_SOURCES, COURSES_DISCLAIMER } from "@/content/courses";
 import { COURSES_DESCRIPTION, SEARCH_PLACEHOLDERS } from "@/content/page-copy";
 import { getProgress } from "@/lib/data";
 import { filterFromRecord } from "@/lib/filter";
 import { isReadOnly } from "@/lib/mode";
-import { type CourseFacts, courseFacts, courseTagOptions, coursesView, filterEntries, formatHours, knownHours } from "@/lib/views";
+import { type CourseFacts, courseFacts, courseTagOptions, coursesView, filterEntries, knownHours, statedLength } from "@/lib/views";
 
 export const metadata: Metadata = { title: "Courses & badges" };
 
-const TAG_OPTIONS = courseTagOptions(COURSES, COURSE_PHASE_NAMES);
+const PHASE_NAMES = { full: COURSE_PHASE_NAMES, short: COURSE_PHASE_SHORT_NAMES };
+const TAG_OPTIONS = courseTagOptions(COURSES, COURSE_PHASE_SHORT_NAMES);
 const TAGS = TAG_OPTIONS.map((o) => o.value).filter(Boolean);
 const HOURS = knownHours(COURSES);
 
@@ -57,13 +58,12 @@ export default function CoursesPage({ searchParams }: PageProps<"/courses">) {
   );
 }
 
-/** Total, done, badges earned and the hours the providers state. `null` while loading. */
+/** Done, badges earned and the hours the providers state (design spec 8, v0.7). `null` while loading. */
 function courseFactList(f: CourseFacts | null): Fact[] {
   return [
-    { label: "Courses", value: COURSES.length },
     { label: "Done", value: f ? `${f.done} of ${f.total}` : "–" },
     { label: "Badges earned", value: f ? `${f.badgesEarned} of ${f.badges}` : "–" },
-    { label: "Stated length", value: `${formatHours(HOURS)} · ${HOURS.courses} courses` },
+    { label: "Stated length", value: statedLength(HOURS, COURSES.length) },
   ];
 }
 
@@ -73,10 +73,10 @@ async function CourseFactsLoaded() {
 
 async function CoursesContent({ searchParams }: Pick<PageProps<"/courses">, "searchParams">) {
   const [sp, progress, readOnly] = await Promise.all([searchParams, getProgress(), isReadOnly()]);
-  const cards = coursesView(COURSES, COURSE_GROUPS, COURSE_PHASE_NAMES, progress);
+  const cards = coursesView(COURSES, COURSE_GROUPS, PHASE_NAMES, progress);
   return (
     <FilterProvider path="/courses" entries={filterEntries(cards)} initial={filterFromRecord(sp, TAGS)} tags={TAGS}>
-      <Toolbar placeholder={SEARCH_PLACEHOLDERS.courses} tagFilter={{ label: "Badge, pick or phase", options: TAG_OPTIONS }} />
+      <Toolbar placeholder={SEARCH_PLACEHOLDERS.courses} tagFilter={{ label: "Filter by badge, top pick or phase", options: TAG_OPTIONS }} />
       <div className="grid gap-3">
         {cards.map((card) => (
           <SectionCard key={card.key} card={card} readOnly={readOnly} />

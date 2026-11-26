@@ -7,7 +7,7 @@
 // Switches save like ticks: they change at once; a failed save puts the switch back and shows
 // "Couldn't save this change." with Try again (focus to the switch first). Offline or signed out,
 // they are disabled. Each change refreshes the navigation (the actions revalidate the layout).
-import { useId, useRef, useState } from "react";
+import { Fragment, useId, useRef, useState } from "react";
 import { setSectionVisible, unlockScalerSection } from "@/app/actions/settings";
 import { type SectionChoices, SWITCHABLE_SECTIONS, type SwitchableSection } from "@/lib/access-types";
 import { SECTION_LABELS } from "@/lib/nav";
@@ -31,6 +31,27 @@ const DESCRIPTIONS: Record<keyof SectionChoices, string> = {
 
 const SCALER_LOCKED = "Enter your access code below to unlock it.";
 
+/**
+ * Courses & badges is always on and isn't a section setting (no switch, nothing saved), but it is
+ * in the menu and on Home, so it gets a locked row like Roadmap's (design spec 5, /settings, v0.7),
+ * between Certifications and Projects.
+ */
+const COURSES_ROW = { label: "Courses & badges", description: "Courses from OpenAI and Anthropic, by roadmap phase." };
+const COURSES_AFTER: SwitchableSection = "certs";
+
+/** A section that can't be switched off: no switch, and "Always on" in the right column. */
+function AlwaysOnRow({ label, description }: { label: string; description: string }) {
+  return (
+    <li className="grid min-h-16 grid-cols-[minmax(0,1fr)_auto] items-start gap-x-4 border-t border-line px-4 py-2.5">
+      <div className="grid gap-0.5 py-0.5">
+        <span className="type-body-strong">{label}</span>
+        <span className="type-small max-w-[34em] text-muted">{description}</span>
+      </div>
+      <span className="type-small -my-2.5 flex min-h-11 items-center text-muted">Always on</span>
+    </li>
+  );
+}
+
 export function SectionSettings({ initial, scalerUnlocked: initialUnlocked }: { initial: SectionChoices; scalerUnlocked: boolean }) {
   const [sections, setSections] = useState(initial);
   const [scalerUnlocked, setScalerUnlocked] = useState(initialUnlocked);
@@ -46,22 +67,18 @@ export function SectionSettings({ initial, scalerUnlocked: initialUnlocked }: { 
           sub="Choose what shows in your menu and on Home. Hidden sections keep their progress, so you can turn them back on any time."
         />
         <ul>
-          <li className="grid min-h-16 grid-cols-[minmax(0,1fr)_auto] items-start gap-x-4 border-t border-line px-4 py-2.5">
-            <div className="grid gap-0.5 py-0.5">
-              <span className="type-body-strong">{SECTION_LABELS.roadmap}</span>
-              <span className="type-small max-w-[34em] text-muted">{DESCRIPTIONS.roadmap}</span>
-            </div>
-            <span className="type-small -my-2.5 flex min-h-11 items-center text-muted">Always on</span>
-          </li>
+          <AlwaysOnRow label={SECTION_LABELS.roadmap} description={DESCRIPTIONS.roadmap} />
           {SWITCHABLE_SECTIONS.map((section) => (
-            <SectionRow
-              key={section}
-              section={section}
-              on={sections[section]}
-              locked={section === "scaler" && !scalerUnlocked}
-              inputRef={section === "scaler" ? scalerSwitch : undefined}
-              onSaved={setSections}
-            />
+            <Fragment key={section}>
+              <SectionRow
+                section={section}
+                on={sections[section]}
+                locked={section === "scaler" && !scalerUnlocked}
+                inputRef={section === "scaler" ? scalerSwitch : undefined}
+                onSaved={setSections}
+              />
+              {section === COURSES_AFTER && <AlwaysOnRow {...COURSES_ROW} />}
+            </Fragment>
           ))}
         </ul>
       </section>

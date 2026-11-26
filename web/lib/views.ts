@@ -31,6 +31,8 @@ export interface RowModel {
   index?: string;
   meta?: string;
   why?: string;
+  /** Bold start of the why line, in `ink` ("Top pick for the FDE role:"; design spec 5, /courses). */
+  whyLead?: string;
   done: boolean;
   note: string;
   link: string;
@@ -39,7 +41,7 @@ export interface RowModel {
   /** Hint in the empty note field (the tracker's wording for each kind of item). */
   notePlaceholder: string;
   resources?: ResourceGroupModel;
-  /** Chips after the meta line (Courses & badges: Top pick, Badge, the phase). */
+  /** Chips after the meta and why lines (Courses & badges: Badge, then the phase). */
   chips?: ChipState[];
   /** What the page's tag filter matches (lib/filter.ts). */
   tags?: string[];
@@ -78,7 +80,7 @@ export const NOTE_PLACEHOLDERS = {
   scalerClass: "What did you build in this class? Project, assignment, key takeaways…",
   paper: "Your takeaway in one or two lines, and one question it raised…",
   book: "Chapters read, key ideas, what you will use…",
-  course: "What did you learn? Key points, and where the badge or certificate lives…",
+  course: "What did you learn? Key points, questions… Put your badge link in the link field.",
 } as const;
 
 function row(
@@ -239,8 +241,10 @@ export function projectsView(c: TrackerContent, progress: ProgressMap): CardMode
 
 // ---- Courses & badges
 
-export const BADGE_CHIP: ChipState = { label: "Badge", variant: "ok" };
-export const TOP_PICK_CHIP: ChipState = { label: "Top pick", variant: "now" };
+/** An attribute, not a status, so an outlined tag (design spec 4, StatusChip, v0.7). */
+export const BADGE_CHIP: ChipState = { label: "Badge", variant: "tag" };
+/** The why line of a top pick starts with this, in bold. "Top pick" is no longer a chip. */
+export const TOP_PICK_LEAD = "Top pick for the FDE role:";
 
 /** Phase names by number (content/courses.ts, COURSE_PHASE_NAMES). */
 export type PhaseNames = Readonly<Record<number, string>>;
@@ -258,32 +262,36 @@ export const BADGE_TAG = "badge";
 export const TOP_PICK_TAG = "top-pick";
 export const phaseTag = (n: number) => `phase-${n}`;
 
+/** Full phase names (search) and short ones (chips and filter options). */
+export interface CoursePhaseNames {
+  full: PhaseNames;
+  short: PhaseNames;
+}
+
 /**
  * One card per provider, in COURSE_GROUPS order; rows keep their list position for the id. The
- * chips, the provider and the phase are searchable too.
+ * chips, the provider and the full phase name are searchable too.
  */
 export function coursesView(
   courses: readonly Course[],
   groups: readonly CourseGroup[],
-  phaseNames: PhaseNames,
+  phaseNames: CoursePhaseNames,
   progress: ProgressMap,
 ): CardModel[] {
   return groups.map((g) => {
     const rows = courses.flatMap((course, i) => {
       if (course.provider !== g.provider) return [];
-      const phase = phaseLabel(phaseNames, course.phase);
-      const chips = [
-        ...(course.topPick ? [TOP_PICK_CHIP] : []),
+      const chips: ChipState[] = [
         ...(course.badge ? [BADGE_CHIP] : []),
-        { label: phase, variant: "neutral" as const },
+        { label: phaseLabel(phaseNames.short, course.phase), variant: "neutral" },
       ];
       return [
         row(progress, courseId(i), {
           title: course.title,
           url: course.url,
           meta: courseMeta(course) || undefined,
-          why: course.topPick ? `For the FDE role: ${course.topPick}.` : undefined,
-          searchExtra: [course.provider, ...chips.map((c) => c.label)].join(" "),
+          ...(course.topPick ? { whyLead: TOP_PICK_LEAD, why: `${course.topPick}.` } : {}),
+          searchExtra: [course.provider, ...chips.map((c) => c.label), phaseLabel(phaseNames.full, course.phase)].join(" "),
           notePlaceholder: NOTE_PLACEHOLDERS.course,
           chips,
           tags: [
@@ -299,13 +307,13 @@ export function coursesView(
 }
 
 /** The tag filter's choices: everything, badges, top picks, then each phase that has a course. */
-export function courseTagOptions(courses: readonly Course[], phaseNames: PhaseNames): TagOption[] {
+export function courseTagOptions(courses: readonly Course[], shortPhaseNames: PhaseNames): TagOption[] {
   const used = [...new Set(courses.map((c) => c.phase))].sort((a, b) => a - b);
   return [
     { value: "", label: "All courses" },
     { value: BADGE_TAG, label: "With a badge" },
     { value: TOP_PICK_TAG, label: "Top picks" },
-    ...used.map((n) => ({ value: phaseTag(n), label: phaseLabel(phaseNames, n) })),
+    ...used.map((n) => ({ value: phaseTag(n), label: phaseLabel(shortPhaseNames, n) })),
   ];
 }
 
@@ -358,6 +366,11 @@ export function formatHours({ low, high }: { low: number; high: number }): strin
   return lo === hi ? `${lo} h` : `${lo}–${hi} h`;
 }
 
+/** The "Stated length" fact: "44–49 h (19 of 27 courses)", the total for the courses that give one. */
+export function statedLength(hours: { low: number; high: number; courses: number }, total: number): string {
+  return `${formatHours(hours)} (${hours.courses} of ${total} courses)`;
+}
+
 export const CAREER_SUB = "Apply while learning; don't wait for every certification.";
 export const JOURNAL_SUB = "Blockers, next actions, exam dates, weekly reflections.";
 
@@ -371,7 +384,7 @@ export function careerView(c: TrackerContent, progress: ProgressMap): { mileston
 
 /** Lower-case search text for a row: what it shows, plus its note and link. */
 export const rowSearchText = (r: RowModel) =>
-  [r.index, r.title, r.meta, r.why, r.searchExtra, r.note, r.link].filter(Boolean).join(" ").toLowerCase();
+  [r.index, r.title, r.meta, r.whyLead, r.why, r.searchExtra, r.note, r.link].filter(Boolean).join(" ").toLowerCase();
 
 const entry = (r: RowModel, section: string, group?: string, parent?: string): FilterEntry => ({
   id: r.id,
