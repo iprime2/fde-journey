@@ -1,15 +1,16 @@
 "use client";
 
 // Phone and tablet navigation, below 1024 px (design spec 3.1 and 3.5): Home and the first three
-// visible sections at the bottom of the screen, then More, which opens a sheet with the other
-// visible sections, Settings, Admin (admins only) and the account row. On short screens (phone
+// visible sections at the bottom of the screen, then More, which opens a sheet with Insights (always
+// its first row, design spec 10.7), the other visible sections, Settings, Admin (admins only) and
+// the account row. On short screens (phone
 // landscape) the bar is 48 px with icons beside the labels.
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 import { cn } from "../cn";
 import { EllipsisIcon } from "../icons";
-import { ADMIN_ITEM, SETTINGS_ITEM, type ExtraItem, isCurrentExtra, isCurrentSection, sectionFor } from "./sections";
+import { ADMIN_ITEM, INSIGHTS_HREF, INSIGHTS_ITEM, SETTINGS_ITEM, type ExtraItem, isCurrentExtra, isCurrentSection, sectionFor } from "./sections";
 
 /** What the bar shows. Null while the user's sections stream in: Home and Roadmap, two empty cells and More. */
 export interface PhoneNav {
@@ -55,7 +56,8 @@ export function BottomBar({ nav, account }: { nav: PhoneNav | null; account?: Re
     { item: "settings", href: "/settings" },
     ...(adminHref ? [{ item: "admin" as const, href: adminHref }] : []),
   ];
-  const moreIsCurrent = more.some((href) => isCurrentSection(pathname, href)) || extras.some((e) => isCurrentExtra(pathname, e.item));
+  const moreIsCurrent =
+    isCurrentExtra(pathname, "insights") || more.some((href) => isCurrentSection(pathname, href)) || extras.some((e) => isCurrentExtra(pathname, e.item));
 
   const row = (key: string, href: string, label: string, Icon: (p: { size?: number; className?: string }) => React.ReactNode, current: boolean) => (
     <li key={key}>
@@ -109,14 +111,13 @@ export function BottomBar({ nav, account }: { nav: PhoneNav | null; account?: Re
       >
         {/* On wider screens (tablets, phone landscape) the rows keep a readable width. */}
         <div className="md:mx-auto md:max-w-[560px]">
-          {more.length > 0 && (
-            <ul className="mb-2 border-b border-line pb-2">
-              {more.map((href) => {
-                const section = sectionFor(href);
-                return section ? row(href, href, section.label, section.Icon, isCurrentSection(pathname, href)) : null;
-              })}
-            </ul>
-          )}
+          <ul className="mb-2 border-b border-line pb-2">
+            {row("insights", INSIGHTS_HREF, INSIGHTS_ITEM.label, INSIGHTS_ITEM.Icon, isCurrentExtra(pathname, "insights"))}
+            {more.map((href) => {
+              const section = sectionFor(href);
+              return section ? row(href, href, section.label, section.Icon, isCurrentSection(pathname, href)) : null;
+            })}
+          </ul>
           <ul>
             {extras.map(({ item, href }) => {
               const entry = item === "settings" ? SETTINGS_ITEM : ADMIN_ITEM;

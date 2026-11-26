@@ -1,14 +1,13 @@
 // /admin: Overview (metrics.view). Without that permission it goes to the first admin page the
 // user may open, or shows the not-found page when there is none (design spec 5).
 import type { Metadata } from "next";
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Suspense, useId } from "react";
 import { AdminHeader } from "@/components/admin/AdminHeader";
 import { CARD_STYLES, CardHead } from "@/components/Card";
-import { cn } from "@/components/cn";
 import { NoticeBanners, NoticeProvider } from "@/components/notices";
 import { CardsSkeleton } from "@/components/Skeleton";
+import { Tile } from "@/components/Tile";
 import { ProgressBar } from "@/components/ui";
 import { type AdminOverview, getAdminOverview } from "@/lib/admin-db";
 import { formatCount } from "@/lib/admin-format";
@@ -44,29 +43,6 @@ async function OverviewContent() {
       <Tiles data={data} waitlistLink={canSeeWaitlist} />
       <SignupsCard weeks={data.signupsPerWeek} />
     </>
-  );
-}
-
-const TILE = "grid min-w-0 content-start gap-1 rounded-lg border border-line bg-surface px-4 py-3.5";
-
-function Tile({ value, label, srValue, href, className, children }: { value: string; label: string; srValue?: string; href?: string; className?: string; children?: React.ReactNode }) {
-  const inner = (
-    <>
-      <span className="type-num-lg">
-        <span aria-hidden={srValue ? true : undefined}>{value}</span>
-        {srValue && <span className="sr-only">{srValue},</span>}
-      </span>
-      <span className="type-small text-muted">{label}</span>
-      {children}
-    </>
-  );
-  // A link when the admin may open the matching tab (StatTile), otherwise a plain box.
-  return href ? (
-    <Link href={href} className={cn(TILE, "hover:border-line-strong motion-safe:transition-[border-color] motion-safe:duration-150", className)}>
-      {inner}
-    </Link>
-  ) : (
-    <div className={cn(TILE, className)}>{inner}</div>
   );
 }
 

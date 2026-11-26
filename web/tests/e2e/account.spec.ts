@@ -184,7 +184,10 @@ test.describe("phone More sheet", () => {
     await expectPhoto(nav);
     expect((await signOut.boundingBox())!.height).toBeGreaterThanOrEqual(44);
 
-    // Focus order (design spec 3.5): Certifications, Courses, Projects, Career, Settings, Admin, Sign out.
+    // Focus order (design spec 3.5 and 10.7): Insights, Certifications, Courses, Projects, Career,
+    // Settings, Admin, Sign out.
+    await expect(nav.getByRole("link", { name: "Insights" })).toBeFocused();
+    await page.keyboard.press("Tab");
     await expect(nav.getByRole("link", { name: "Certifications" })).toBeFocused();
     await page.keyboard.press("Tab");
     await expect(nav.getByRole("link", { name: "Courses" })).toBeFocused();

@@ -34,6 +34,9 @@ const SPARE_USER_BASES = {
   leaver: { status: "waitlisted", desktop: ["Lee Leaving", "lee-leaving"], phone: ["Lou Leaving", "lou-leaving"] },
   // Waitlisted, then let in by the owner during the test (tests/e2e/landing.spec.ts).
   joiner: { status: "waitlisted", desktop: ["Jun Joining", "jun-joining"], phone: ["Jem Joining", "jem-joining"] },
+  // M5a: a few weeks of made-up history for the Insights tests (E2E_INSIGHTS_HISTORY). Sessions only
+  // in the "desktop" and "phone" projects (tests/e2e/auth.ts), which keeps the seed under its limit.
+  insights: { status: "active", desktop: ["Ivy Insights", "ivy-insights"], phone: ["Ike Insights", "ike-insights"] },
 };
 export const E2E_SPARE_ROLES = Object.keys(SPARE_USER_BASES);
 
@@ -107,3 +110,56 @@ export const E2E_SCALER_CODE = "MADE-UP-CODE-2026";
 /** The active user's saved progress: what their export key returns. */
 export const E2E_ACTIVE_DONE = ["l1-1", "pp1"];
 export const E2E_ACTIVE_NOTE = "Riley's made-up note, readable only with Riley's export key.";
+
+/**
+ * M5a: the Insights users' made-up history (each spare "insights" user gets the same). Completions
+ * sit on the Monday (00:05 IST) of the week `weeksAgo` before this one, so the week they land in
+ * never depends on the day the tests run. The user keeps the new-user sections (Projects and Career
+ * off, Scaler locked), so `p1-1` is saved but never counted. Weeks 0 to 2 make the current streak 3,
+ * weeks 4 to 7 the longest, 4.
+ */
+export const E2E_INSIGHTS_DONE = [
+  { itemId: "l1-1", weeksAgo: 0 },
+  { itemId: "r1-1-1", weeksAgo: 0 },
+  { itemId: "cr1", weeksAgo: 0 },
+  { itemId: "p1-1", weeksAgo: 0 },
+  { itemId: "l1-2", weeksAgo: 1 },
+  { itemId: "pp1", weeksAgo: 1 },
+  { itemId: "c1-1", weeksAgo: 1 },
+  { itemId: "l1-3", weeksAgo: 2 },
+  { itemId: "r1-1-2", weeksAgo: 2 },
+  { itemId: "bk1", weeksAgo: 4 },
+  { itemId: "cr2", weeksAgo: 5 },
+  { itemId: "l1-4", weeksAgo: 5 },
+  { itemId: "c1-2", weeksAgo: 6 },
+  { itemId: "r1-1-3", weeksAgo: 7 },
+];
+/** The numbers the Insights page shows for that history (shown kinds only). */
+export const E2E_INSIGHTS_EXPECTED = { thisWeek: 3, lastWeek: 3, currentStreak: 3, longestStreak: 4, total: 13 };
+/**
+ * Saves made "now", at seed time: a note saved twice (autosave) and a link on l1-1, and l1-5 ticked
+ * then unticked (it counts as activity, never as done).
+ */
+export const E2E_INSIGHTS_EVENTS_NOW = [
+  { itemId: "l1-1", kind: "note" },
+  { itemId: "l1-1", kind: "note" },
+  { itemId: "l1-1", kind: "link" },
+  { itemId: "l1-5", kind: "done" },
+  { itemId: "l1-5", kind: "undone" },
+];
+/** The first IST day with save history (lib/insights.ts EVENT_HISTORY_START): no events before it. */
+export const E2E_EVENT_HISTORY_START = "2026-11-26";
+
+const IST_OFFSET_MS = (5 * 60 + 30) * 60_000;
+const DAY_MS = 86_400_000;
+
+/** The instant `weeksAgo` weeks before this IST week's Monday, at 00:05 IST. */
+export function e2eIstMonday(nowMs, weeksAgo) {
+  const shifted = new Date(nowMs + IST_OFFSET_MS);
+  const sinceMonday = (shifted.getUTCDay() + 6) % 7;
+  const mondayUtcMidnight = Date.UTC(shifted.getUTCFullYear(), shifted.getUTCMonth(), shifted.getUTCDate()) - sinceMonday * DAY_MS;
+  return new Date(mondayUtcMidnight - weeksAgo * 7 * DAY_MS - IST_OFFSET_MS + 5 * 60_000);
+}
+
+/** The IST date ("YYYY-MM-DD") of an instant. */
+export const e2eIstDate = (date) => new Date(date.getTime() + IST_OFFSET_MS).toISOString().slice(0, 10);

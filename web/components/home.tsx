@@ -2,10 +2,12 @@
 // Server Components.
 import Link from "next/link";
 import { useId } from "react";
+import { homeStreakText } from "@/lib/insights-view";
 import type { NowModel, TileModel } from "@/lib/summary";
 import { percent } from "@/lib/summary";
 import { CARD_STYLES } from "./Card";
 import { cn } from "./cn";
+import { ChartColumnIcon } from "./icons";
 import { ProgressBar, StatusChip } from "./ui";
 
 export function StatTile({ tile }: { tile: TileModel }) {
@@ -129,5 +131,26 @@ export function NowPanel({ now, showScaler = true }: { now: NowModel; showScaler
         )}
       </div>
     </section>
+  );
+}
+
+/**
+ * One line between the tiles and the NowPanel (design spec 10.7): "This week: 5 done · 3-week
+ * streak  Insights →", a single link to /insights. The same numbers as the Insights tiles.
+ */
+export function InsightsLink({ done, streak }: { done: number; streak: number }) {
+  const streakText = homeStreakText(streak);
+  const [streakNumber, streakRest] = streak > 0 ? [String(streak), streakText.slice(String(streak).length)] : [null, streakText];
+  return (
+    <Link href="/insights" className="group type-small flex min-h-11 w-fit max-w-full flex-wrap items-center gap-x-2 rounded-sm">
+      <ChartColumnIcon size={18} className="flex-none text-accent" />
+      <span className="font-medium text-ink group-hover:text-accent motion-safe:transition-[color] motion-safe:duration-150">
+        This week: <span className="type-num">{done}</span> done · {streakNumber !== null && <span className="type-num">{streakNumber}</span>}
+        {streakRest}
+      </span>
+      <span className="text-accent">
+        <span className="underline underline-offset-2">Insights</span> <span aria-hidden="true">→</span>
+      </span>
+    </Link>
   );
 }

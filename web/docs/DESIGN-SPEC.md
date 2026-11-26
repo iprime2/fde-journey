@@ -10,7 +10,7 @@ Read with `.claude/skills/journey-app-dev/SKILL.md`. If this spec and the plan d
 - Chart text is HTML, not SVG text, so it keeps the type scale, never drops below 12 px on a phone, and follows text zoom (section 10.4).
 - Navigation: **Insights** right after Home in the sidebar, first row of the More sheet on phones; the bottom bar doesn't change. New icon `ChartColumnIcon` (Lucide "chart-column"). Home gets a one-line link under the tiles, "This week: 5 done · 3-week streak" (sections 3.2, 3.5 and 10.7).
 - "Show as table" uses a native `<details>`, so the page needs no client code beyond what it already has (section 10.5).
-- Open for the lead: certification "days left" needs a machine-readable date in `content/` (none exists today), and the projection's pace uses roadmap tasks only (section 10.9).
+- Open for the lead: certification "days left" needs a machine-readable date in `content/` (none exists today), and the projection's pace uses roadmap tasks only (section 10.9). Settled by the lead on 2026-11-26: see 10.9.
 
 **Changes in v0.7** (Courses & badges build review, 2026-11-26; screens `courses-build/courses-*` and `home-*` at 320, 390 and 1280 px, light and dark, made-up owner "Sam Example")
 - New page `/courses` (section 5) and its copy (section 8). Always shown, no Settings switch (lead's decision); in the sidebar after Certifications, in the More sheet on phones (sections 3.2 and 3.5).
@@ -1360,7 +1360,7 @@ Cards use Card and CardHead (section 4): `h2` in `title`, sub line `small` `mute
 **E. This month** (card).
 - Head: `h2` "This month"; sub "Since 1 Nov" (the 1st of the current IST month).
 - Body: a `<dl>` in two equal columns at every width (`grid grid-cols-2 gap-3`). Each pair shows the number first (`num-lg`, `ink`) and the label under it (`small`, `muted`); keep `dt` before `dd` in the DOM and order them visually with `flex flex-col-reverse`.
-  - "4" / "items with a note or link saved" (each item counts once a month, however many times it was saved; the back end counts distinct items with a note-saved event since the 1st).
+  - "4" / "items with a note saved" (each item counts once a month, however many times it was saved; the back end counts distinct items with a note-saved event since the 1st).
   - "7" / "learning resources finished" (`r` items done now with `done_at` this month).
 - In November 2026 only, a line under them (`small`, `muted`): "Notes are counted from 26 Nov 2026, when the app started recording them."
 - Both zero: a line under them: "Notes you save and learning resources you finish this month will show here."
@@ -1372,7 +1372,7 @@ Cards use Card and CardHead (section 4): `h2` in `title`, sub line `small` `mute
   1. The name (`body-strong`, wraps) and, on the right, Count "2/4" (prep steps done), or the StatusChip "Passed" (`ok`) once the last step is done. Same chip-and-count rule as Card heads.
   2. A `small` `muted` line: the certification's `date` text exactly as on `/certs` ("December 2026", "After joining a Claude partner company"). Passed: "Passed on 3 Dec 2026" (the last step's `done_at`, IST).
   3. ProgressBar.
-  - **Days left**: append " · 35 days left" (" · today", " · date passed") only for certifications that have a machine-readable target date in `content/`. None has one today (10.9), so M5a shows the date text alone. Don't parse the free text.
+  - **Days left**: append " · 35 days left" (" · today", " · date passed") when the back end gives the certification a target date (`targetDate` and `daysLeft`, parsed from the date text; 10.9). Text that names no date ("After joining…") shows alone, and so does a passed certification.
 - From `xl` the rows sit in two columns; the left column fills first in rank order (`grid-flow-row`, so row 1 is ranks 1 and 2).
 - Empty: not possible (the section always has 7 certifications). Zeros are "0/3" with an empty bar, as on Home.
 - Skeleton: head blocks and four rows of a 16 px line and a 6 px bar.
@@ -1532,16 +1532,17 @@ Each chart block has this structure:
 | Disclosure | "Show as table" / "Hide table" |
 | Table captions and columns | "Items done per week, last 12 weeks, newest first": "Week of", "Done", "By kind" ("Nothing done"; current week "this week"). "Active days per week, last 26 weeks, newest first": "Week of", "Active days", "Saves by day" ("No activity") |
 | Current phase | `h2` "Current phase"; sub "Phase 2 · RAG and retrieval"; facts "Ends" "Tue 15 Dec · 6 days left" / "· last day"; "Projected finish" "Sat 12 Dec · 3 days before it ends" / "· on its last day" / "Fri 18 Dec · 3 days after it ends" / "Not enough recent activity"; lines "At your pace over the last 4 weeks: 6 roadmap tasks done." / "Mark at least 2 roadmap tasks done within 4 weeks to see a projected finish." / "All tasks in this phase are done."; outside the roadmap "The roadmap starts on 24 Nov 2026." / "The roadmap's last phase ended on 15 Feb 2027." + "Go to the Roadmap" |
-| This month | `h2` "This month"; sub "Since 1 Nov"; "items with a note or link saved", "learning resources finished"; November 2026 only "Notes are counted from 26 Nov 2026, when the app started recording them."; both zero "Notes you save and learning resources you finish this month will show here." |
+| This month | `h2` "This month"; sub "Since 1 Nov"; "items with a note saved", "learning resources finished"; November 2026 only "Notes are counted from 26 Nov 2026, when the app started recording them."; both zero "Notes you save and learning resources you finish this month will show here." |
 | Certifications | `h2` "Certifications"; sub "Prep steps done, in the order to take them."; row line: the `/certs` date text, or "Passed on 3 Dec 2026"; with a target date later: " · 35 days left" / " · today" / " · date passed" |
 | Home link | "This week: 5 done · 3-week streak" / "1-week streak" / "This week: 0 done · no streak yet"; then "Insights →" |
 
 Numbers as digits; "1 item", "1 week", "1 day" in the singular. "Saves" is the plain word for activity events: every tick, untick, or note or link save is one save.
 
 ### 10.9 Open questions (for the lead)
-1. **Certification days left.** The scope asks for each certification's target date and days left, but `Cert.date` is free text ("December 2026", "April 2027 or later, when practice exams say ready", "After joining a Claude partner company"). Proposal: an optional `targetDate` ("YYYY-MM-DD") on `Cert` in `content/` (adding a field doesn't touch ids), filled only where the owner has a real date; rows without it show the text alone. Until then M5a shows no "days left". Parsing the text was rejected: "December 2026" has no day, and a guess would be presented as a fact.
-2. **Pace for the projection.** `M5-DESIGN.md` says "completions over the last 4 weeks" without a kind. This spec uses **roadmap tasks** only, because the phase total counts roadmap tasks; counting resources, papers and classes would project a finish for tasks that weren't done. Confirm.
-3. **"Notes saved" counts items, not saves.** Notes save 800 ms after typing stops, so one note can write many events. The card counts distinct items with a note or link saved this month. Confirm with the back end that `progress_event` can tell a note or link save from a tick.
+Questions 1 to 3 were settled by the lead on 2026-11-26, during the M5a build:
+1. **Certification days left: settled.** The back end parses the free-text date into `targetDate` (the last day it names: "December 2026" is 31 Dec 2026, "February–March 2027" is 31 Mar 2027) and `daysLeft` (`M5-DESIGN.md`, rule 9). A row shows " · N days left" when `daysLeft` isn't null, the date text alone when it is ("After joining…"), and "Passed" once the last step is done. The original concern stands as a known limit: a month-only date counts down to the month's last day.
+2. **Pace for the projection: settled.** Roadmap tasks of the current phase only, as above.
+3. **"Notes saved" counts items, not saves: settled.** Each item counts once a month, from its note-saved events (`M5-DESIGN.md`, rule 6); already built.
 4. **Week labels** use the IST Monday's date; with M5b's personal time zones they'd follow the person's zone. Nothing to do now.
 
 ## Later (not M1 to M3)
