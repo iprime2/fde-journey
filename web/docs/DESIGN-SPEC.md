@@ -1072,7 +1072,7 @@ Checked against `web/lib/login.ts` on 2026-11-26: `AccessMode` is `"owner-only" 
 **Privacy page text (v0.6).** Plain words; "the owner" is the one person who runs FDE Journey. v0.6 replaces the v0.5 draft and the built page's text. Changes from the build, and why:
 - Restore history: "removed automatically after a while" becomes 6 hours (Neon `history_retention_seconds` = 21,600 on the production project, read by the lead on 2026-11-26).
 - Vercel logs: no number (Hobby's retention isn't published as one); the page says they're kept for a short time on Vercel's schedule, and promises only what the app controls: it never writes notes, links, email addresses or keys to its logs. It no longer says "logs of visits" or implies the logs hold nothing personal: request logs can hold page addresses, which include search text.
-- Owner access: says plainly that the owner can reach everything, including notes, and when they would. **The owner must approve this sentence before launch**: it is a promise about their own behaviour.
+- Owner access: says plainly that the owner can reach everything, including notes, and when they would. Approved by the owner as written on 2026-11-26: it is a promise about their own behaviour, so change it only with their approval.
 - Added what M4b stores that the v0.5 draft didn't know about: export keys, Scaler access, admin actions about you, and wrong Scaler codes (visible to admins in the audit log).
 - "Download" now lists what the file holds; the build said "everything listed above", but the file has no sign-ins, keys or audit entries.
 - Items in braces are still to be filled at launch.
@@ -1105,7 +1105,7 @@ Checked against `web/lib/login.ts` on 2026-11-26: `AccessMode` is `"owner-only" 
 > - You.
 > - Admins, on the admin pages: your name, profile picture and username; whether your account is active, waitlisted or suspended; when you signed up and were last active; how many items you've marked done in each section; and, in the audit log, the admin actions about you and any wrong Scaler access codes you tried. Never your notes, links, Weekly notes or email address.
 > - Anyone you give one of your Claude export keys to (for example a Claude session): your ticks, notes, links and section choices, until you revoke the key in Settings.
-> - The owner runs FDE Journey and its database, so they can reach everything stored, including notes. They only do that to keep the app running or to fix a problem, and they don't read your notes, links or Weekly notes. (Wording for the owner to approve.)
+> - The owner runs FDE Journey and its database, so they can reach everything stored, including notes. They only do that to keep the app running or to fix a problem, and they don't read your notes, links or Weekly notes. (Approved by the owner, 2026-11-26.)
 >
 > **What isn't done with it**
 > - Nothing is sold or shared with anyone.
