@@ -416,6 +416,18 @@ describe("this month", () => {
     });
     expect(i.thisMonth).toEqual({ monthStart: "2026-12-01", notesSaved: 2, resourcesDone: 2 });
   });
+
+  it("counts each item's note once a month, however many times it autosaved", () => {
+    const i = run({
+      events: [
+        ev("l1-1", "note", ist("2026-12-02")),
+        ev("l1-1", "note", ist("2026-12-02")),
+        ev("l1-1", "note", ist("2026-12-03")),
+        ev("l1-2", "note", ist("2026-12-03")),
+      ],
+    });
+    expect(i.thisMonth.notesSaved).toBe(2);
+  });
 });
 
 describe("users with little or old data", () => {

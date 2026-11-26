@@ -192,7 +192,7 @@ export interface Insights {
   thisMonth: {
     /** The 1st of this month (IST). */
     monthStart: string;
-    /** Note saves this month (each change counts, weekly notes included; never the text). */
+    /** Items whose note was saved this month, each counted once (weekly notes included; never the text). */
     notesSaved: number;
     /** Learning resources (`r` ids) completed this month. */
     resourcesDone: number;
@@ -329,11 +329,11 @@ export function computeInsights({ nowMs, progress, events, settings, content, co
   const perDay = new Map<string, number>();
   const bump = (day: string) => perDay.set(day, (perDay.get(day) ?? 0) + 1);
   const shownEvent = (e: InsightEvent) => e.itemId === JOURNAL_ID || shownKind(e.itemId) !== null;
-  const eventDays: { kind: ProgressEventKind; day: string }[] = [];
+  const eventDays: { itemId: string; kind: ProgressEventKind; day: string }[] = [];
   for (const e of events) {
     const day = dayOf(e.at);
     if (!day || day < windowStart || day > today || !shownEvent(e)) continue;
-    eventDays.push({ kind: e.kind, day });
+    eventDays.push({ itemId: e.itemId, kind: e.kind, day });
     bump(day);
   }
   for (const c of completions) if (c.day < EVENT_HISTORY_START && c.day >= windowStart) bump(c.day);
@@ -417,7 +417,8 @@ export function computeInsights({ nowMs, progress, events, settings, content, co
     certs,
     thisMonth: {
       monthStart,
-      notesSaved: eventDays.filter((e) => e.kind === "note" && e.day >= monthStart).length,
+      // Distinct items, not saves: notes autosave while typing, so one note can record many saves.
+      notesSaved: new Set(eventDays.filter((e) => e.kind === "note" && e.day >= monthStart).map((e) => e.itemId)).size,
       resourcesDone: completions.filter((c) => c.kind === "resources" && c.day >= monthStart).length,
     },
   };

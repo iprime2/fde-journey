@@ -60,7 +60,7 @@ Insights is always shown, with no Settings switch. In the sidebar it goes right 
 3. **Scaler:** needs to be both shown and unlocked. Locked always wins.
 4. **Done with no `done_at`, or a future one:** counts in the phase and certification totals, but in no week.
 5. **Estimates from `done_at`:** only for days before 2026-11-26 (IST). From that day on, only events count.
-6. **"Notes saved":** counts saves, not distinct notes. Edits and clearing a note both count, because the event can't tell them apart.
+6. **"Notes saved":** counts the items whose note was saved this month, each once. Notes autosave while typing, so counting saves would inflate it (changed after the design review).
 7. **Pace:** the last 28 days, today included (IST).
    - Finish date = today + ceil(remaining × 28 / recent).
    - "On track" means the finish date is on or before the phase's end date.

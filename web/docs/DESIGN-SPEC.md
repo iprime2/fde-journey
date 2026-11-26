@@ -1,7 +1,16 @@
-# FDE Journey web app: design spec (v0.7)
+# FDE Journey web app: design spec (v0.8)
 
-Status: for M1 and later. v0.1 written 2026-11-25 against `PLAN.md` v0.1, which the owner approved on 2026-11-25 (GitHub sign-in for the owner's account only; job applications are the first new section after go-live; four agents plus one skill). v0.2 written 2026-11-25 after the M1 screen review. v0.3 written 2026-11-26 after the M2 screen review. v0.4 written 2026-11-26 for D1 (design refresh), phase 1; the `/login` mockup waits for the owner's approval. v0.4 updated 2026-11-26 after the D1 phase 1 build review, to record what was built and three rulings (see the last bullet below). v0.5 written 2026-11-26 for M4b, against `M4-DESIGN.md` and the owner's decisions of 2026-11-26 (its section 9). v0.6 written 2026-11-26 after the M4b build review. v0.7 written 2026-11-26 after the Courses & badges build review.
-Read with `.claude/skills/journey-app-dev/SKILL.md`. If this spec and the plan disagree, the plan wins; tell the lead. For M4, `M4-DESIGN.md` is the plan. For Courses & badges, `COURSES.md` is the content plan.
+Status: for M1 and later. v0.1 written 2026-11-25 against `PLAN.md` v0.1, which the owner approved on 2026-11-25 (GitHub sign-in for the owner's account only; job applications are the first new section after go-live; four agents plus one skill). v0.2 written 2026-11-25 after the M1 screen review. v0.3 written 2026-11-26 after the M2 screen review. v0.4 written 2026-11-26 for D1 (design refresh), phase 1; the `/login` mockup waits for the owner's approval. v0.4 updated 2026-11-26 after the D1 phase 1 build review, to record what was built and three rulings (see the last bullet below). v0.5 written 2026-11-26 for M4b, against `M4-DESIGN.md` and the owner's decisions of 2026-11-26 (its section 9). v0.6 written 2026-11-26 after the M4b build review. v0.7 written 2026-11-26 after the Courses & badges build review. v0.8 written 2026-11-26 for M5a (Insights), against `M5-DESIGN.md` v0.1.
+Read with `.claude/skills/journey-app-dev/SKILL.md`. If this spec and the plan disagree, the plan wins; tell the lead. For M4, `M4-DESIGN.md` is the plan. For Courses & badges, `COURSES.md` is the content plan. For M5, `M5-DESIGN.md` is the plan.
+
+**Changes in v0.8** (M5a Insights, 2026-11-26; designed from the scope and the code, no screens yet)
+- New page `/insights`, all of it in the new section 10: layout at 320 to 1920 px, six blocks with their empty states and skeletons, two server-rendered SVG charts (a stacked weekly bar chart and a 26-week calendar heatmap), accessibility for each chart, and all copy.
+- **One column, as every other page.** No page-level second column at 1280, 1440 or 1920 px. From `xl`, Current phase and This month share a row, and certification rows sit in two columns inside their card (section 10.1). The "right-hand column on Home from 1440 px" stays under Later: M5a gives Home only a link.
+- New tokens (section 10.3): seven chart colours `kind-*` and five heatmap steps `heat-0` to `heat-4`, light and dark, each with its contrast and a colour-blindness check. Nothing else in the palette changes.
+- Chart text is HTML, not SVG text, so it keeps the type scale, never drops below 12 px on a phone, and follows text zoom (section 10.4).
+- Navigation: **Insights** right after Home in the sidebar, first row of the More sheet on phones; the bottom bar doesn't change. New icon `ChartColumnIcon` (Lucide "chart-column"). Home gets a one-line link under the tiles, "This week: 5 done · 3-week streak" (sections 3.2, 3.5 and 10.7).
+- "Show as table" uses a native `<details>`, so the page needs no client code beyond what it already has (section 10.5).
+- Open for the lead: certification "days left" needs a machine-readable date in `content/` (none exists today), and the projection's pace uses roadmap tasks only (section 10.9).
 
 **Changes in v0.7** (Courses & badges build review, 2026-11-26; screens `courses-build/courses-*` and `home-*` at 320, 390 and 1280 px, light and dark, made-up owner "Sam Example")
 - New page `/courses` (section 5) and its copy (section 8). Always shown, no Settings switch (lead's decision); in the sidebar after Certifications, in the More sheet on phones (sections 3.2 and 3.5).
@@ -133,6 +142,8 @@ Dark mode follows the system setting (`prefers-color-scheme`). Set `color-scheme
 | `brand-chip` (as built) | `#143a32` | Background of the "Example" chip (the dark `accent-soft` value, fixed so it stays the same in light mode) |
 
 The "Example" chip on the panel uses `brand-accent` text on `brand-chip`.
+
+**Chart tokens (new in v0.8).** Seven `kind-*` colours for the weekly chart and five `heat-*` steps for the activity calendar, used only on `/insights` (section 10.3 has the values, contrast and the colour-blindness check).
 
 ### 2.2 Contrast
 Computed with the WCAG 2.x formula (relative luminance with sRGB linearisation, ratio = (L1 + 0.05) / (L2 + 0.05)) on 2026-11-25. Text needs 4.5:1. Field borders, tick boxes, focus rings and the progress fill need 3:1 (WCAG 1.4.11).
@@ -307,7 +318,7 @@ Nothing smaller than 12 px. Body text lines stay under about 75 characters. **v0
 ### 3.2 Desktop (1024 px and wider)
 - **Sidebar**, fixed on the left, 248 px wide, full height, `surface` with a 1 px `line` right border, padding 24 px by 16 px.
   - Top: the lockup (v0.4, section 9): the 24 px mark in `accent` and "FDE Journey" (`wordmark`, 18 px, `ink`), padding 0 12 px so it lines up with the nav labels. It replaces the eyebrow and app name; the Home page header keeps its eyebrow.
-  - Nav: Home, Roadmap, Reading, Scaler course, Certifications, Projects, Career (today's tab order). v0.5: only the visible sections, then a second group with Settings and Admin (section 3.5). v0.7: **Courses** (label "Courses", the page `h1` is "Courses & badges") sits between Certifications and Projects and is always shown, like Home and Roadmap. Each link is 44 px tall, `md` radius, 20 px icon, label (`body-strong`) and a right-aligned count (`num`, `muted`) as on today's tabs. Hover: `hover` background. Current: `accent-soft` background, `ink` label, `accent` icon, `aria-current="page"`.
+  - Nav: Home, Roadmap, Reading, Scaler course, Certifications, Projects, Career (today's tab order). v0.5: only the visible sections, then a second group with Settings and Admin (section 3.5). v0.8: **Insights** sits right after Home, always shown, with no count (section 10.7). v0.7: **Courses** (label "Courses", the page `h1` is "Courses & badges") sits between Certifications and Projects and is always shown, like Home and Roadmap. Each link is 44 px tall, `md` radius, 20 px icon, label (`body-strong`) and a right-aligned count (`num`, `muted`) as on today's tabs. Hover: `hover` background. Current: `accent-soft` background, `ink` label, `accent` icon, `aria-current="page"`.
   - Bottom, pinned: "Readiness review · N days left" (`small`, `muted`), then a 1 px `line` divider with 8 px above and below it, then the account button (v0.4, AccountMenu, section 4). It replaces the M2 ghost "Sign out" button.
 - **Main area**: left margin 248 px; content column at most 960 px wide, centred in the remaining space; padding 40 px top, 32 px sides, 64 px bottom.
 
@@ -370,6 +381,7 @@ Every user chooses which sections they see (`M4-DESIGN.md` section 5). New users
 ```
  [mark] FDE Journey
  Home
+ Insights                           v0.8, always shown, no count
  Roadmap                4/57
  Reading                1/18
  Certifications          0/7        visible sections only, in today's order
@@ -393,6 +405,7 @@ Every user chooses which sections they see (`M4-DESIGN.md` section 5). New users
 - More takes the current style whenever the current page is in the sheet, including `/settings` and `/admin/...`.
 - A section moving between the bar and the sheet when the user switches sections on or off is expected; the order of sections never changes.
 - v0.7, **Courses** counts as a visible section that is always on. Because it comes after Certifications, the bar doesn't change for the owner (Home, Roadmap, Reading, Scaler, More) or for new users (Home, Roadmap, Reading, Certifications, More). Courses is the first row of the sheet for new users and the second for the owner, after Certifications. A user who turns off Reading and Certifications gets Home, Roadmap, Courses and More. None of these cases causes a layout problem except the sheet's height in phone landscape (section 3.1, sheet height). Courses never shows the hidden-section banner and isn't named in the first-visit sentence, because it can't be switched off.
+- v0.8, **Insights** is not a section (it has no items and no count), so it never takes a bottom-bar cell. It is the **first row of the More sheet** for everyone, above the sections not in the bar, because it comes right after Home in the sidebar order. Opening the sheet now focuses Insights. More takes the current style on `/insights`. The owner's sheet grows by one 52 px row (about 474 px in all); the v0.7 sheet-height rule already scrolls it in phone landscape. Details in section 10.7.
 
 **Home and section counts.** Sidebar counts, StatTiles and the NowPanel's Scaler part follow the same choices (section 5, Home).
 
@@ -646,6 +659,7 @@ Each page has its own `<title>`: "{Page} · FDE Journey" ("FDE Journey" on Home)
 1. PageHeader: eyebrow "AI Engineering & FDE · 24 Nov 2026 – 15 Feb 2027"; `h1` "FDE Journey"; facts "Scaler classes: Mon · Wed · Fri, 09:00–11:30 IST", "Next class: {value}", "Readiness review: 15 Feb 2027 · N days left". At 1280 px the facts sit on one line.
 2. Banners.
 3. Six StatTiles, in today's order: Roadmap milestones (percent; label "x of y roadmap milestones"), Technical learning, Learning resources studied, Scaler classes (label "Scaler classes · now Module n"), Certifications passed (x/7), Portfolio projects complete (x/3). Links: the first three go to `/roadmap`, then `/scaler`, `/certs`, `/projects`. 2 by 3 at 390 px, 3 by 2 at 1280 px. v0.7: a seventh tile, **Courses done** ("0/27", label "Courses done · 2 badges earned", "1 badge earned" for one), between Certifications and Projects, linking to `/courses`; always shown. Grid in the tile-count rule below.
+3a. v0.8: the **Insights link** line, "This week: 5 done · 3-week streak  Insights →", between the tiles and the NowPanel (section 10.7).
 4. NowPanel. Stacked at 390 px, side by side at 1280 px.
 5. Footer note (`small`, `muted`): "15 Feb 2027 is a portfolio and job-readiness milestone, not a deadline to pass every certification."
 
@@ -966,6 +980,7 @@ Every admin page, top to bottom: AdminTabs; PageHeader with eyebrow "Admin", `h1
 | Permission removed mid-use (v0.5) | An admin action is refused for permission | Error banner "You no longer have permission to do this." | The Dialog closes; next visit shows not-found |
 | No free places (v0.5) | Places taken equals the cap | Waitlist tab: "All 100 places are taken." with a link to Sign-up; Let in disabled | New sign-ups go to the waitlist |
 | Offline (v0.5 pages) | Browser reports offline | The usual warning banner | Settings switches, Download, Delete, Unlock, Create a key, Revoke, and every admin action are disabled; lists and text stay readable |
+| Insights with little or no history (v0.8) | A new user, or nothing done in the chart's window | Each block's own empty text, never an empty or all-zero chart (section 10.2) | Tiles show zeros with a hint; charts are replaced by a sentence; the page never looks broken |
 | Scaler code wrong or limited (v0.6) | A wrong access code, or five wrong tries in an hour | The field error under "Access code" (section 8) with the tries left | Focus stays in the field. Each wrong try is counted in the audit log, never the code |
 
 ## 7. Accessibility
@@ -993,6 +1008,7 @@ The conventions checklist, applied:
 | Results of actions (v0.5) | Each admin or Settings action ends with an info banner (`role="status"`) that says what happened, and focus goes to a control that is still on the page (section 5 says which). The Users and Audit log filters announce "{n} people shown" or "{n} actions shown" as the Toolbar does |
 | Status chips (v0.5) | Active, Waitlisted, Suspended, Owner and Admin always carry text; colour only repeats it |
 | Buttons in repeated rows (v0.6) | A button's accessible name must tell its row apart from the others: "Choose Pat Example, signed up 26 Aug 2026" (two people can share a name), "Revoke the key created 26 Nov 2026, 14:05 IST" (two keys can share a day). When a control removes itself (Choose, Unlock, Revoke, Done), focus moves first: Choose to the first permission checkbox, Unlock to the Scaler switch, Revoke to the next Revoke or the card `h2`, Done to "Create a key" |
+| Charts (v0.8) | Each chart is one `role="img"` with a short name, followed by a visually hidden summary sentence, and a "Show as table" disclosure with the same numbers. Colour is never the only carrier: bar segments have fixed order and 2 px gaps, the legend lists kinds in stack order, the heatmap has a numeric legend and an outlined "today", and the tables hold everything. No hover, tooltips or focusable marks; no animation in any motion setting. Chart text is HTML, so it stays at least 12 px and follows text zoom (section 10.5) |
 | Typed confirm (v0.5) | The username to type is shown as text inside the label, so screen readers hear it with the field. The confirm button stays enabled and explains a mismatch with a field error, instead of being disabled with no reason |
 
 Each check is part of the M1 screen review at 390x844 and 1280x900, light and dark. From D1, screen reviews also cover 320, 768, 1024, 1440 and 1920 px wide and 844×390 (phone landscape), as the plan requires.
@@ -1233,6 +1249,301 @@ Checked against `web/lib/login.ts` on 2026-11-26: `AccessMode` is `"owner-only" 
 - The lead has candidate files for both and decides whether to add them.
 - The installable app (PWA manifest icons) comes later, with that feature.
 
+## 10. Insights (M5a, v0.8)
+
+Route `/insights`, `<title>` "Insights · FDE Journey". Behind the same gate as every app page; usual app frame. Scope and counting rules are `M5-DESIGN.md` (weeks start Monday in IST; a completion is an item done **now**, in the week of its `done_at`; activity comes from `progress_event`, and from `done_at` before 26 Nov 2026; hidden or locked sections are left out everywhere). This section decides how it looks and reads.
+
+**Kinds.** One list, used in the same order everywhere (stack order bottom to top, legend order, "By kind" order). A kind shows only while its section is on; Scaler only once unlocked.
+
+| # | Kind | Ids | Label (legend, table, summaries) | Shown when |
+|---|---|---|---|---|
+| 1 | Roadmap tasks | `l` | "Roadmap tasks" | Always |
+| 2 | Learning resources | `r` | "Learning resources" | Always |
+| 3 | Reading | `pp`, `bk` | "Reading" | Reading on |
+| 4 | Scaler classes | `s` | "Scaler classes" | Scaler on (so unlocked) |
+| 5 | Certification prep | `c` | "Certification prep" | Certifications on |
+| 6 | Courses | `cr` | "Courses" | Always |
+| 7 | Projects and career | `p`, `k` | "Projects and career"; "Projects" or "Career" when only that one is on | Projects or Career on |
+
+### 10.1 Page layout
+
+Order is the same at every width (and in the DOM):
+
+1. **PageHeader**: `h1` "Insights"; description "How your learning is going, week by week. Weeks run Monday to Sunday in India Standard Time (IST)."; facts **"This week" "Mon 23 Nov – Sun 29 Nov"** (one fact; `formatWeekdayDate` both ends). The fact depends on today, so it streams like Home's facts (Suspense, "–" until ready). The header renders at once.
+2. **Banners** (offline etc., as on every page).
+3. **At a glance**: three plain tiles, then the streak definition line and, if any section is hidden, the hidden-sections line (10.2 A).
+4. **Done per week** card (10.2 B).
+5. **Active days** card (10.2 C).
+6. **Current phase** card (10.2 D) and **This month** card (10.2 E): one row from `xl`.
+7. **Certifications** card (10.2 F), only while Certifications is on.
+
+Everything below the header waits for one data load (`M5-DESIGN.md`, Speed), so it sits in **one** Suspense boundary with one skeleton (10.6). Gaps: 12 px between cards and tiles, as elsewhere. Use `MidnightRefresh` (already in the app layout) so "this week" and "today" move on at midnight IST.
+
+| Width | Navigation | Column | At a glance | Cards |
+|---|---|---|---|---|
+| 320 | Bottom bar | 288 px (card inside 254 px) | 2 columns: "This week" across both, then the two streak tiles | One column. Bar chart columns 21 px, bars 13 px. Heatmap cells 7 px (it shrinks; all 26 weeks stay) |
+| 390 | Bottom bar | 358 px (inside 324 px) | As 320 | One column. Bars 16 px; heatmap cells 9.4 px |
+| 768 | Bottom bar | 720 px (inside 686 px) | 3 in a row | One column. Bars 34 px; chart plot 200 px tall from here; heatmap at its 520 px cap (cells 15.6 px), left-aligned |
+| 1024 | Sidebar | 712 px (inside 678 px) | 3 in a row | As 768 |
+| 1280 | Sidebar | 960 px (inside 926 px) | 3 in a row | Done per week and Active days full width (bars 46 px). **Current phase and This month side by side** (`xl:grid-cols-2`, 474 px each, equal height). Certifications full width with its rows in **two columns** (`xl:grid-cols-2 xl:gap-x-6`) |
+| 1440, 1920 | Sidebar | 960 px, centred (as 3.4) | As 1280 | As 1280. No right-hand column |
+
+**Why no second page column.** Every page is one 960 px column (3.4); the two charts read best at full width (a 12-bar chart in a 474 px half gets 22 px bars and cramped totals); and two independent stacks would put the cards in a different order on screen than in the DOM. The pairs above fill the only rows that would otherwise leave a half-empty line. Wrapper for the pair: `grid gap-3 xl:grid-cols-2`; when either card is absent, the other spans the row (it can't be: both always render, with their empty text when needed).
+
+```
+390 px                                  1280 px (content 960)
++-------------------------------+       +------------------------------------------------+
+| Insights               (h1)   |       | Insights                                (h1)   |
+| How your learning is going... |       | How your learning is going, week by week. ...  |
+| THIS WEEK Mon 23 Nov – Sun 29 |       | THIS WEEK  Mon 23 Nov – Sun 29 Nov             |
+| [ 5  done this week · 7 last ]|       | [5 done this week] [3 current streak] [6 long] |
+| [ 3 streak ]  [ 6 longest ]   |       | A streak counts the weeks in a row ...         |
+| A streak counts the weeks ... |       | +--------------------------------------------+ |
+| +---------------------------+ |       | | Done per week                              | |
+| | Done per week             | |       | |  ▁ ▃ ▂ ▅ ▇ ▆ ▃ ▅ ▆ ▄ ▇ █ (stacked, totals) | |
+| | stacked bars, 12 weeks    | |       | |  key · Show as table                       | |
+| | key · Show as table       | |       | +--------------------------------------------+ |
+| +---------------------------+ |       | | Active days   LAST 30 DAYS 12 ...          | |
+| | Active days  facts        | |       | | [26 x 7 calendar, 520 px]                  | |
+| | [26 x 7 calendar]         | |       | +--------------------------------------------+ |
+| +---------------------------+ |       | +----------------------+ +-------------------+ |
+| | Current phase             | |       | | Current phase        | | This month        | |
+| +---------------------------+ |       | +----------------------+ +-------------------+ |
+| | This month                | |       | | Certifications: rows in two columns        | |
+| +---------------------------+ |       | +--------------------------------------------+ |
+| | Certifications            | |       +------------------------------------------------+
++-------------------------------+
+```
+
+### 10.2 Blocks: content, empty state, skeleton
+
+Cards use Card and CardHead (section 4): `h2` in `title`, sub line `small` `muted`, body padding `px-4 pb-4`. Numbers in `num` or `num-lg`.
+
+**A. At a glance** (`<section>` with a visually hidden `h2` "This week at a glance").
+- Three **plain StatTiles** (StatTile, plain variant, v0.5: a `<div>`, no bar, no hover). The admin Overview's local `Tile` already draws exactly this; move it to `components/` and reuse it. Grid: `grid grid-cols-2 gap-3 md:grid-cols-3`, first tile `col-span-2 md:col-span-1` (the odd-count rule of 5, Home).
+  1. **This week**: value "5"; label "done this week · 7 last week". Hidden full reading "5 items done this week, 7 last week".
+  2. **Current streak**: value "3"; label "weeks in your current streak" ("week" for 1). Under it, a second `small` `muted` line only when it applies: this week has nothing yet but the streak is alive: "Mark something done this week to keep it going."; streak 0: "Mark something done this week to start one."
+  3. **Longest streak**: value "6"; label "weeks in your longest streak" ("week" for 1).
+- Under the tiles (`small`, `muted`, `max-w-[34em]`), the **streak definition**, the only place it is defined: "A streak counts the weeks in a row, Monday to Sunday, in which you marked at least one item done. This week joins your streak as soon as you do."
+- Then, only when the person has switched sections off (never for a locked Scaler, which they never had): "Hidden sections aren't counted here: Scaler course and Projects." plus the link "Show them in Settings" (`/settings`). List the nav labels, joined with commas and "and".
+- Empty: zeros are fine here (they are numbers, not a chart); the hint lines say what to do.
+- Skeleton: three tiles in the same grid, each a 28 by 48 px block and a 14 px line at 75%; then one 14 px line at 80% for the definition.
+
+**B. Done per week** (card).
+- Head: `h2` "Done per week"; sub "Last 12 weeks. An item counts in the week you marked it done; if you untick it, it leaves the chart."
+- Body: the bar chart (10.4), its key, the summary sentence and "Show as table" (10.5).
+- Empty (no completions of any shown kind in the 12 weeks): no chart, no key, no table. A paragraph (`small`, `muted`): "Nothing marked done in the last 12 weeks. Tick your first item to start your weekly chart." and a link "Go to the Roadmap" (`accent`, underlined, `/roadmap`).
+- Skeleton: head blocks (20 px at 33%, 14 px at 66%), then a 160 px (200 px from `md`) area holding 12 bottom-aligned `sunk` bars, 60% of their column wide, at fixed heights (35, 55, 45, 70, 60, 85, 50, 65, 90, 60, 75, 40 % of the area), then a 14 px line at 50% for the key.
+
+**C. Active days** (card).
+- Head: `h2` "Active days"; sub "Last 26 weeks. A day is active when you tick or untick an item, or save a note or link."
+- Body, in order:
+  1. Facts (the existing Facts component): "Last 30 days" "12 active days"; "Last 26 weeks" "48 active days" ("1 active day" for one).
+  2. The calendar heatmap (10.4), 12 px below.
+  3. Its key (10.4).
+  4. While the 26 weeks reach back before 26 Nov 2026 (until the week of Mon 24 May 2027): the estimate line (`small`, `muted`, `max-w-[34em]`): "Days before 26 Nov 2026 are estimated from when items were marked done, so they may show less than you did."
+  5. Summary sentence and "Show as table" (10.5).
+- Empty (no activity in the 26 weeks): no facts, chart, key or table. Paragraph: "No activity in the last 26 weeks yet. Each day you tick an item or save a note fills in a square here."
+- Skeleton: head blocks; a 14 px line at 60% (facts); one block `aspect-[26/7] w-full max-w-[488px]` with a 32 px left margin (the calendar); a 14 px line at 40% (key).
+
+**D. Current phase** (card).
+- Head: `h2` "Current phase"; sub "Phase 2 · RAG and retrieval" (`small`); chip-and-count group: StatusChip from the phase model ("This phase", `now`) and Count "3/9" ("3 of 9 done").
+- Body: ProgressBar (full width), then Facts, 12 px below:
+  - "Ends": "Tue 15 Dec · 6 days left" / "Tue 15 Dec · last day" (today is the end date).
+  - "Projected finish" (only while tasks are left): "Sat 12 Dec · 3 days before it ends" / "Tue 15 Dec · on its last day" / "Fri 18 Dec · 3 days after it ends" ("1 day"); or, with fewer than 2 recent completions, "Not enough recent activity".
+  - Under the facts (`small`, `muted`): "At your pace over the last 4 weeks: 6 roadmap tasks done." or, without a projection, "Mark at least 2 roadmap tasks done within 4 weeks to see a projected finish."
+  - All tasks done: no "Projected finish" and no pace line; instead "All tasks in this phase are done." (Home's existing words).
+- Projection (for the back end; pure function in `lib/insights.ts`): `pace` = roadmap tasks (`l`) done now whose `done_at` falls in the last 28 days including today (IST). Shown only when `pace >= 2`. Days needed = `ceil(remaining × 28 / pace)`; projected date = today + days needed. See 10.9 for the "roadmap tasks only" choice.
+- No phase includes today: before the first phase, "The roadmap starts on 24 Nov 2026."; after the last, "The roadmap's last phase ended on 15 Feb 2027." (`small`, `muted`), each followed by the link "Go to the Roadmap". No chip, count or bar.
+- Skeleton: head blocks plus a 6 px bar and two 14 px lines.
+
+**E. This month** (card).
+- Head: `h2` "This month"; sub "Since 1 Nov" (the 1st of the current IST month).
+- Body: a `<dl>` in two equal columns at every width (`grid grid-cols-2 gap-3`). Each pair shows the number first (`num-lg`, `ink`) and the label under it (`small`, `muted`); keep `dt` before `dd` in the DOM and order them visually with `flex flex-col-reverse`.
+  - "4" / "items with a note or link saved" (each item counts once a month, however many times it was saved; the back end counts distinct items with a note-saved event since the 1st).
+  - "7" / "learning resources finished" (`r` items done now with `done_at` this month).
+- In November 2026 only, a line under them (`small`, `muted`): "Notes are counted from 26 Nov 2026, when the app started recording them."
+- Both zero: a line under them: "Notes you save and learning resources you finish this month will show here."
+- Skeleton: head blocks and two 28 by 32 px blocks with 14 px lines under them.
+
+**F. Certifications** (card; only while Certifications is on).
+- Head: `h2` "Certifications"; sub "Prep steps done, in the order to take them."; Count "1/7" (passed of all), as the nav count.
+- Body: a `<ul>` in rank order (today's `CERT_ORDER`). Each `<li>`: padding 12 px 16 px, 1 px `line` top border, a grid of:
+  1. The name (`body-strong`, wraps) and, on the right, Count "2/4" (prep steps done), or the StatusChip "Passed" (`ok`) once the last step is done. Same chip-and-count rule as Card heads.
+  2. A `small` `muted` line: the certification's `date` text exactly as on `/certs` ("December 2026", "After joining a Claude partner company"). Passed: "Passed on 3 Dec 2026" (the last step's `done_at`, IST).
+  3. ProgressBar.
+  - **Days left**: append " · 35 days left" (" · today", " · date passed") only for certifications that have a machine-readable target date in `content/`. None has one today (10.9), so M5a shows the date text alone. Don't parse the free text.
+- From `xl` the rows sit in two columns; the left column fills first in rank order (`grid-flow-row`, so row 1 is ranks 1 and 2).
+- Empty: not possible (the section always has 7 certifications). Zeros are "0/3" with an empty bar, as on Home.
+- Skeleton: head blocks and four rows of a 16 px line and a 6 px bar.
+
+### 10.3 Chart colours (new tokens)
+
+Add to `globals.css` like the other tokens (variables in `:root` and the dark block, then `--color-kind-*` and `--color-heat-*` in `@theme inline`, so `fill-kind-roadmap` and `bg-heat-2` work). `kind-roadmap` is the `accent` value in both schemes, so the main kind keeps the brand colour.
+
+| Token | Light | Dark | On `surface` light / dark | On `sunk` light / dark |
+|---|---|---|---|---|
+| `kind-roadmap` | `#0b7a68` (= `accent`) | `#3fcfb3` (= `accent`) | 5.25 / 8.82 | 4.52 / 8.09 |
+| `kind-resources` (blue) | `#2f7ddb` | `#3f86f0` | 4.14 / 4.81 | 3.56 / 4.41 |
+| `kind-reading` (orange) | `#923d00` | `#ec742c` | 7.27 / 5.81 | 6.25 / 5.33 |
+| `kind-scaler` (violet) | `#61409e` | `#c8ccf4` | 7.68 / 10.96 | 6.61 / 10.05 |
+| `kind-certs` (yellow) | `#867d00` | `#e6d14a` | 4.24 / 11.11 | 3.65 / 10.19 |
+| `kind-courses` (rose) | `#d64592` | `#c0698a` | 4.10 / 4.60 | 3.53 / 4.22 |
+| `kind-projects` (slate) | `#455766` | `#969cbd` | 7.48 / 6.37 | 6.43 / 5.84 |
+
+- Every kind passes 3:1 (WCAG 1.4.11) on the card (`surface`) and on `sunk` (the current-week band behind a bar) in both schemes; lowest 3.53 (light `kind-courses` on `sunk`).
+- **Colour-blind check** (computed 2026-11-26; Machado 2009 simulation at full severity for protanopia, deuteranopia and tritanopia, then CIEDE2000 between every pair). Any two kinds can touch in a bar, because a kind with nothing that week leaves no segment, so every pair was checked. Smallest difference across all four kinds of vision: **11.3 light, 10.4 dark** (about 2.3 is a just-noticeable difference; above 10 is clearly different side by side). Typical vision: 12.0 light, 13.4 dark. Hard pairs, for review: light `courses`/`projects` (protan) and `roadmap`/`projects` (deutan), 11.3; dark `reading`/`courses` (tritan), 10.4.
+- Seven colours can't all be told apart by name for every reader, so colour is never the only way in: fixed stack order matching the key, 2 px gaps between segments, totals as text, and the table.
+- Hue families match across schemes (teal, blue, orange, violet, yellow, rose, slate), so a kind looks like itself in dark mode.
+
+**Heatmap steps.** One teal ramp at the accent's hue, stepped in lightness only, so it reads the same with any colour vision. More activity is darker in light mode and brighter in dark mode.
+
+| Token | Saves that day | Light | Dark | On `surface` light / dark | Against the step below, light / dark |
+|---|---|---|---|---|---|
+| `heat-0` | None | `#eaefed` (= `sunk`) | `#27332f` (= `line`) | 1.16 / 1.31 (decorative: an empty day) | |
+| `heat-1` | 1–2 | `#619d8f` | `#0a7b68` | 3.12 / 3.31 | 2.69 / 2.53 |
+| `heat-2` | 3–5 | `#2d8271` | `#14a088` | 4.62 / 5.25 | 1.48 / 1.59 |
+| `heat-3` | 6–9 | `#006857` | `#31c5aa` | 6.74 / 7.93 | 1.46 / 1.51 |
+| `heat-4` | 10 or more | `#004d3f` | `#90e7d2` | 9.84 / 11.90 | 1.46 / 1.50 |
+
+- Every active step passes 3:1 on the card, so "active" against "not active" is always visible. Fixed thresholds (not relative to the busiest day) keep a square's meaning the same from week to week, and let the key give numbers.
+- Other chart pairs (existing tokens): today's outline `ink` on `surface` 16.76 / 14.29; bar baseline `line-strong` on `surface` 3.93 / 3.68; current-week band `sunk` on `surface` 1.16 / 1.10 (decorative; the bold week label carries it).
+
+```css
+/* v0.8, add to :root */
+--kind-roadmap:#0b7a68; --kind-resources:#2f7ddb; --kind-reading:#923d00; --kind-scaler:#61409e;
+--kind-certs:#867d00; --kind-courses:#d64592; --kind-projects:#455766;
+--heat-0:#eaefed; --heat-1:#619d8f; --heat-2:#2d8271; --heat-3:#006857; --heat-4:#004d3f;
+/* v0.8, add to the dark block */
+--kind-roadmap:#3fcfb3; --kind-resources:#3f86f0; --kind-reading:#ec742c; --kind-scaler:#c8ccf4;
+--kind-certs:#e6d14a; --kind-courses:#c0698a; --kind-projects:#969cbd;
+--heat-0:#27332f; --heat-1:#0a7b68; --heat-2:#14a088; --heat-3:#31c5aa; --heat-4:#90e7d2;
+```
+
+### 10.4 The charts
+
+Plain SVG made in a Server Component, no library. **Marks are SVG; every piece of text is HTML** laid over or beside it. Why: an SVG that scales to its box also scales its text, so labels sized for 1280 px would drop below 12 px at 320 px (the type floor, 2.4), and SVG text ignores text-only zoom. HTML labels keep the type scale and reflow.
+
+**Weekly bar chart** (in card B).
+```
+ (sunk band = this week)                                   ┌──┐
+      5     3     0     8     6     9     4     7     6   │ 5│   totals: num, ink (0 in muted)
+     ▆▆    ▆▆          ▆▆    ▆▆    ▆▆    ▆▆    ▆▆    ▆▆   │▆▆│   stacked segments, 2 px gaps
+     ▆▆    ▆▆          ▆▆    ▆▆    ▆▆    ▆▆    ▆▆    ▆▆   │▆▆│
+ ────────────────────────────────────────────────────────┴──┴──  baseline, line-strong
+      7    14    21    28     5    12    19    26     2    23     Monday's day: num, muted
+     Sep                     Oct                    Nov            month where it changes
+ ■ Roadmap tasks  ■ Learning resources  ■ Reading  ■ Courses       key, in stack order
+ › Show as table
+```
+- **Weeks:** the current week and the 11 before it, oldest on the left. The current week is partial; that's expected.
+- **Plot:** a `relative` box 160 px tall below `md`, 200 px from `md` (`H`), full width of the card's inner column. Inside it, `<svg viewBox="0 0 1200 {H}" preserveAspectRatio="none" width="100%" height="{H}" aria-hidden="true" focusable="false" class="absolute inset-0 block">`. Each week owns a 100-unit column; x stretches with the card and y is in real pixels, so gaps and the baseline stay exact. No `rx` (it would stretch).
+- **Current week:** a `fill-sunk` rect behind its column (`x = i×100 + 4`, width 92, full height), its total in `font-semibold`, and its day label in `ink` `font-semibold`. No "now" text in the plot (it doesn't fit 21 px columns); the summary sentence and the table say "this week".
+- **Bars:** `x = i×100 + 20`, width 60 (60% of the column: 13 px at 320, 46 px at 1280). Segments from the baseline up in kind order, each `fill="var(--kind-…)"` with `shape-rendering="crispEdges"`, 2 px apart (the background shows through). A segment is at least 3 px tall so one item stays visible.
+- **Scale:** top = `max(largest weekly total, 5)`, so a quiet week doesn't look full. Usable height `H − 22` (room for the totals). No y-axis labels and **no gridlines**: every bar has its total, and gridlines would only add lines (principle 5, calm and dense).
+- **Baseline:** `<line>` across the full width at `y = H − 0.5`, `stroke="var(--line-strong)"`, 1 px, `vector-effect="non-scaling-stroke"`.
+- **Totals above each bar:** an `aria-hidden` overlay `absolute inset-0 grid grid-cols-12`; in each column a `relative` box with the total as `type-num text-ink`, `absolute inset-x-0 text-center`, `bottom: {bar height + 4}px`. A week with nothing shows "0" in `muted` just above the baseline.
+- **Week labels** under the plot: `grid grid-cols-12 pt-1.5 text-center type-num text-muted`, two lines per column: the day of month of that week's Monday ("23"), then the month ("Nov") only on the first column and on each column whose Monday starts a new month (`&nbsp;` otherwise, so the rows line up). Drop the first column's month when column 2 already has one, so the two don't touch at 320 px.
+- **Key** (direct labels don't fit 12 bars): under the week labels, 12 px gap. `<ul aria-label="Colour key" class="flex flex-wrap gap-x-4 gap-y-1.5 type-small text-ink">`; each item a 12 px square (`rounded-[3px]`, the kind's colour) and its label, gap 6 px. Only kinds with at least one completion in the 12 weeks, in stack order, so the first item in the key is the segment on the baseline. Below the key: summary and "Show as table" (10.5).
+
+**Calendar heatmap** (in card C).
+```
+      Jun        Jul         Aug        Sep         Oct        Nov     months: num, muted
+ Mon  ■ ■ □ ■ ■ □ □ ■ ■ ■ □ ■ ■ ■ □ ■ ■ ■ ■ □ ■ ■ ■ ■ ■ ■
+      □ ■ □ □ ■ □ ■ ■ □ ■ □ □ ■ ■ □ □ ■ ■ □ □ ■ ■ ■ ■ ■ ■
+ Wed  ...                                               ▣ <- today, ink outline
+      ...                                               (later days of this week: no square)
+ Fri
+ Sat
+ Sun
+ SAVES PER DAY  □ None  ■ 1–2  ■ 3–5  ■ 6–9  ■ 10 or more  ▣ Today
+```
+- **Grid:** 26 columns (the current week and the 25 before it, oldest left) by 7 rows, **Monday at the top**. Days after today get no square.
+- **It shrinks, it doesn't drop weeks.** The SVG scales to its column and all 26 weeks always show; cells are 7.1 px at 320, 9.4 px at 390 and 15.6 px from 768 (the 520 px cap). 7 px is small but still reads as a pattern, and the facts, summary and table carry the numbers. Showing fewer weeks on phones would need a second rendering and a table that disagrees with the chart.
+- **Box:** `grid w-full max-w-[520px] grid-cols-[28px_minmax(0,1fr)] gap-x-1`, left-aligned in the card.
+  - Row 1, column 2: the month labels, `relative h-[18px]`; each label `absolute type-num text-muted` at `left: {col / 26 × 100}%`, left-aligned. A month's label sits on the first column that contains its 1st. The leftmost column gets its month only when the next label is 3 or more columns away. Three-letter months ("Sep", never "Sept").
+  - Row 2, column 1: day labels in `grid grid-rows-7`, "Mon", "Wed" and "Fri" on rows 1, 3 and 5 (`type-num text-muted leading-none self-center`); rows 2, 4, 6 and 7 empty. At 320 px a label overhangs its 8.5 px row by about 2 px into the empty rows around it, which is fine.
+  - Row 2, column 2: `<svg viewBox="0 0 312 84" class="block h-auto w-full" aria-hidden="true" focusable="false">`. Each day: `<rect x={c×12+1} y={r×12+1} width="10" height="10" rx="1.5" fill="var(--heat-n)"/>` (12-unit pitch, 2-unit gap).
+- **Today:** an extra `<rect x={c×12} y={r×12} width="12" height="12" rx="2" fill="none" stroke="var(--ink)" stroke-width="2" vector-effect="non-scaling-stroke"/>`, a ring in the gap around today's square. A shape, not a colour, so it reads in every scheme and colour vision. Today shows even with no saves.
+- **Steps:** by saves that day (each `progress_event` row; before 26 Nov 2026, items whose `done_at` is that day): 0 → `heat-0`, 1–2 → `heat-1`, 3–5 → `heat-2`, 6–9 → `heat-3`, 10 or more → `heat-4`.
+- **Key** under the grid, 12 px gap, as for the bar chart: `<ul aria-label="Colour key">` preceded by the `label`-type text "Saves per day", then 12 px squares labelled "None", "1–2", "3–5", "6–9", "10 or more", and "Today" with an outlined square (2 px `ink` ring on `surface`).
+
+**Progress: bars, not rings.** Current phase and each certification use the existing ProgressBar (6 px, `accent` on `sunk`, `aria-hidden`, the Count beside it says the same). Rings would be a new component, need a number inside to be readable, and take more room per row; bars line up in a list and match Home.
+
+### 10.5 Chart accessibility
+
+Each chart block has this structure:
+```
+<div role="img" aria-label="{name}">  …plot, labels and overlays, all aria-hidden…  </div>
+<ul aria-label="Colour key">…</ul>
+<p class="sr-only">{summary sentence}</p>
+<details> <summary>Show as table</summary> <table>…</table> </details>
+```
+- **`role="img"`** on the box that holds the SVG and its HTML labels, so the whole picture is one object. Names: "Bar chart of items done per week, last 12 weeks" and "Calendar of active days, last 26 weeks".
+- **Summary sentence**, visually hidden, right after the key (so it is read after the name and before the table):
+  - Bar chart: "Over the last 12 weeks you marked 38 items done. This week so far: 5; last week: 7. Busiest week: week of Mon 2 Nov, with 9. Most were roadmap tasks (15)." Ties for the busiest week: the most recent. Drop "Most were…" when only one kind is shown.
+  - Heatmap: "48 of the last 180 days were active. Last 30 days: 12 active days. Busiest day: Thu 26 Nov, with 14 saves. Today: 3 saves so far." ("Today: no saves yet." for none.) 180 is the number of days in the grid up to today.
+- **"Show as table"**: a native `<details>` (no heading inside it, so the v0.2 concern about `<summary>` doesn't apply, and its state needn't be stored). Closed on every load.
+  - `<summary>`: `group flex min-h-11 w-fit items-center gap-1.5 rounded-sm type-small font-semibold text-accent`, the Caret (section 4) turning with `group-open:rotate-90` (`motion-safe` transition, as elsewhere), and two spans that swap with `group-open:hidden` / `hidden group-open:inline`: "Show as table" and "Hide table". The hidden span is `display: none`, so the accessible name follows the visible text; the browser announces expanded or collapsed. Shared focus ring.
+  - Table: the admin "Sign-ups per week" style (5, Overview): `w-full table-fixed border-collapse`, `<caption class="sr-only">`, `<th scope="col">` in `label` `muted` with a 1 px `line` bottom border, the week as `<th scope="row">` (`type-num font-medium`), rows at least 44 px with 8 px vertical padding when a cell wraps, 1 px `line` dividers, cell padding 8 px (`px-2`; the admin table's `px-3` doesn't fit 320 px), numbers right-aligned in `num`. **Newest week first**, like the admin table.
+  - **Done per week table.** Caption "Items done per week, last 12 weeks, newest first". Columns: **"Week of"** (72 px; "23 Nov", and for the current week a second line "this week" in `small` `muted`), **"Done"** (56 px, right-aligned), **"By kind"** (the rest, `small`): the non-zero kinds in stack order, "Roadmap tasks 2 · Learning resources 3", or "Nothing done" in `muted`.
+  - **Active days table.** Caption "Active days per week, last 26 weeks, newest first". Columns: **"Week of"** (72 px, as above), **"Active days"** (72 px, right-aligned; its header wraps to two lines), **"Saves by day"** (the rest, `small`): "Mon 3 · Wed 1 · Sat 5", or "No activity" in `muted`. The estimate line (10.2 C) above the summary covers the older rows.
+  - At 320 px the free column gets about 110 px and wraps to two or three lines; nothing scrolls sideways.
+- **No hover, no tooltips, no focusable marks.** The table gives exact numbers to everyone, so the charts stay pictures. Tab order inside a chart card: "Show as table", then the table's content (no controls).
+- **Motion:** the charts never animate, with or without reduced motion: no grow-in, no hover effects. Only the existing ProgressBar width and Caret transitions, already `motion-safe`, and the skeleton pulse.
+- **Colour:** see 10.3; the key always has text, the heatmap key has numbers, today is an outline, and the current week is a band plus bold text.
+
+### 10.6 Loading, errors and offline
+- **Loading:** the header renders at once (the "This week" fact shows "–"); everything else is one `InsightsSkeleton` (add to `Skeleton.tsx`, using its `Wrapper`, so it gets `aria-busy`, the hidden "Loading" and the 3 s "still loading" line). It draws the blocks of 10.2 in page order at their real sizes, with the `xl` pair side by side and the Certifications card included (it is on for most people; if it turns out off, the page only gets shorter).
+- **Page error:** the existing page error card ("This page didn't load." with Try again and Go to Home), from the route group's `error.tsx`.
+- **Offline:** the usual warning banner; the page is read-only anyway, so nothing else changes. It shows what loaded last.
+- **Signed out:** as every page (to `/login?next=/insights`).
+
+### 10.7 Navigation and the Home link
+- **Label** "Insights", **icon** a new `ChartColumnIcon` in `components/icons.tsx` (Lucide "chart-column", ISC licence like the others; nothing in the current set says "chart"). Paths, to be checked against the Lucide source when copied: `M3 3v16a2 2 0 0 0 2 2h16`, `M18 17V9`, `M13 17V5`, `M8 17v-3`. A column chart says "weekly numbers" more plainly than a trend line, and matches the main chart.
+- **Sidebar** (from `lg`): the second link of the first group, right after Home, no count, same NavLink look; current on `/insights`. It is not part of `SECTIONS` (that list feeds the bottom bar's first three cells); add it like `SETTINGS_ITEM`, for example an `INSIGHTS_ITEM`, rendered after Home. The owner then has 11 links; the sidebar's existing scroll takes over below about 780 px of window height, and 1280×900 still fits.
+- **Phone and tablet:** the bottom bar is unchanged for everyone. In the More sheet, Insights is the **first row**, above the visible sections not in the bar (sidebar order, with Home already in the bar), then the divider, Settings, Admin and the account row. When no section is left for the sheet, Insights is still first, then the divider. Opening the sheet focuses Insights. More takes the current style on `/insights` (add it to `moreIsCurrent`).
+- **Home link** (section 5, Home, step 3a). Between the tiles and the NowPanel, at both widths:
+  ```
+  [chart icon]  This week: 5 done · 3-week streak   Insights →
+  ```
+  - One link to `/insights`: `flex min-h-11 w-fit max-w-full flex-wrap items-center gap-x-2 rounded-sm type-small` (wraps under itself at 320 px; the whole line is the target). Content: `ChartColumnIcon` 18 px in `accent` (decorative); the text in `ink`, `font-medium`, numbers in `type-num`; then "Insights" in `accent`, underlined, followed by an `aria-hidden` "→". Hover: the text turns `accent`, as the NowPanel links do.
+  - Copy: "This week: 5 done · 3-week streak"; "1-week streak"; no streak: "This week: 0 done · no streak yet". Accessible name is the visible text ("This week: 5 done · 3-week streak Insights"), which says where it goes.
+  - Same numbers as the Insights tiles: computed by the same functions in `lib/insights.ts` from the progress rows Home already reads, with the same hidden-section rule. Inside Home's existing Suspense boundary; the Home skeleton gets a 44 px row with a 14 px line at 40% between the tiles and the panel.
+  - Why there: the tiles say where you stand overall, this line says how this week is going, and the NowPanel says what's next; it reads in that order, it's a real 44 px target (a link inside the facts row would be 13 px text), and it is above the fold on a 390×844 phone.
+
+### 10.8 Copy
+
+| Where | Copy |
+|---|---|
+| Nav, `<title>`, `h1` | "Insights"; `<title>` "Insights · FDE Journey" |
+| Description | "How your learning is going, week by week. Weeks run Monday to Sunday in India Standard Time (IST)." |
+| Fact | "This week" "Mon 23 Nov – Sun 29 Nov" |
+| Tiles | "5" "done this week · 7 last week"; "3" "weeks in your current streak" (1: "week in your current streak"); "6" "weeks in your longest streak"; hints "Mark something done this week to keep it going." / "Mark something done this week to start one." |
+| Streak definition (once) | "A streak counts the weeks in a row, Monday to Sunday, in which you marked at least one item done. This week joins your streak as soon as you do." |
+| Hidden sections | "Hidden sections aren't counted here: Scaler course and Projects." Link "Show them in Settings" ("Show it in Settings" for one) |
+| Done per week | `h2` "Done per week"; sub "Last 12 weeks. An item counts in the week you marked it done; if you untick it, it leaves the chart."; empty "Nothing marked done in the last 12 weeks. Tick your first item to start your weekly chart." + "Go to the Roadmap" |
+| Kind labels | "Roadmap tasks", "Learning resources", "Reading", "Scaler classes", "Certification prep", "Courses", "Projects and career" ("Projects" or "Career" alone) |
+| Active days | `h2` "Active days"; sub "Last 26 weeks. A day is active when you tick or untick an item, or save a note or link."; facts "Last 30 days" "12 active days", "Last 26 weeks" "48 active days"; empty "No activity in the last 26 weeks yet. Each day you tick an item or save a note fills in a square here." |
+| Estimate line | "Days before 26 Nov 2026 are estimated from when items were marked done, so they may show less than you did." |
+| Heatmap key | "Saves per day": "None", "1–2", "3–5", "6–9", "10 or more", "Today" |
+| Chart names (`aria-label`) | "Bar chart of items done per week, last 12 weeks" / "Calendar of active days, last 26 weeks" |
+| Summaries (hidden) | See 10.5 |
+| Disclosure | "Show as table" / "Hide table" |
+| Table captions and columns | "Items done per week, last 12 weeks, newest first": "Week of", "Done", "By kind" ("Nothing done"; current week "this week"). "Active days per week, last 26 weeks, newest first": "Week of", "Active days", "Saves by day" ("No activity") |
+| Current phase | `h2` "Current phase"; sub "Phase 2 · RAG and retrieval"; facts "Ends" "Tue 15 Dec · 6 days left" / "· last day"; "Projected finish" "Sat 12 Dec · 3 days before it ends" / "· on its last day" / "Fri 18 Dec · 3 days after it ends" / "Not enough recent activity"; lines "At your pace over the last 4 weeks: 6 roadmap tasks done." / "Mark at least 2 roadmap tasks done within 4 weeks to see a projected finish." / "All tasks in this phase are done."; outside the roadmap "The roadmap starts on 24 Nov 2026." / "The roadmap's last phase ended on 15 Feb 2027." + "Go to the Roadmap" |
+| This month | `h2` "This month"; sub "Since 1 Nov"; "items with a note or link saved", "learning resources finished"; November 2026 only "Notes are counted from 26 Nov 2026, when the app started recording them."; both zero "Notes you save and learning resources you finish this month will show here." |
+| Certifications | `h2` "Certifications"; sub "Prep steps done, in the order to take them."; row line: the `/certs` date text, or "Passed on 3 Dec 2026"; with a target date later: " · 35 days left" / " · today" / " · date passed" |
+| Home link | "This week: 5 done · 3-week streak" / "1-week streak" / "This week: 0 done · no streak yet"; then "Insights →" |
+
+Numbers as digits; "1 item", "1 week", "1 day" in the singular. "Saves" is the plain word for activity events: every tick, untick, or note or link save is one save.
+
+### 10.9 Open questions (for the lead)
+1. **Certification days left.** The scope asks for each certification's target date and days left, but `Cert.date` is free text ("December 2026", "April 2027 or later, when practice exams say ready", "After joining a Claude partner company"). Proposal: an optional `targetDate` ("YYYY-MM-DD") on `Cert` in `content/` (adding a field doesn't touch ids), filled only where the owner has a real date; rows without it show the text alone. Until then M5a shows no "days left". Parsing the text was rejected: "December 2026" has no day, and a guess would be presented as a fact.
+2. **Pace for the projection.** `M5-DESIGN.md` says "completions over the last 4 weeks" without a kind. This spec uses **roadmap tasks** only, because the phase total counts roadmap tasks; counting resources, papers and classes would project a finish for tasks that weren't done. Confirm.
+3. **"Notes saved" counts items, not saves.** Notes save 800 ms after typing stops, so one note can write many events. The card counts distinct items with a note or link saved this month. Confirm with the back end that `progress_event` can tell a note or link save from a tick.
+4. **Week labels** use the IST Monday's date; with M5b's personal time zones they'd follow the person's zone. Nothing to do now.
+
 ## Later (not M1 to M3)
 
 **M6 Job applications (sketch only; needs its own design note before build, as the plan says; it was M4 before multi-user took that slot)**
@@ -1249,7 +1560,7 @@ Checked against `web/lib/login.ts` on 2026-11-26: `AccessMode` is `"owner-only" 
 **From D1 (v0.4), not planned yet:**
 - `/login` offline: a warning banner "You're offline. Signing in needs a connection." and the button disabled.
 - More items in the account panel when they exist. (v0.5: Settings and Admin went to the sidebar and the More sheet instead, section 3.5; data export and the privacy page are reached from Settings.)
-- A right-hand column on Home from 1440 px, once M5 gives it something to show (weekly insights); until then Home stays one 960 px column.
+- A right-hand column on Home from 1440 px, once M5 gives it something to show (weekly insights); until then Home stays one 960 px column. v0.8: still Later. M5a gives Home one link line (section 10.7), not a block worth a column, and Insights itself stays one 960 px column (section 10.1).
 - A sticky phase index beside `/roadmap` on wide screens.
 - A favicon that switches colour with the browser theme.
 
@@ -1267,5 +1578,11 @@ Checked against `web/lib/login.ts` on 2026-11-26: `AccessMode` is `"owner-only" 
 - A Courses switch in Settings, if people ask to hide it (`COURSES.md` build notes: needs a `user_settings` column and a migration). Then the 3-tile Home grid returns (section 5, tile grid) and Courses joins the hidden-section banner and the first-visit sentence.
 - The Badge tag reading "Badge earned" once the course is ticked (only from the tick: the app can't check the badge itself).
 - Grouping the page filter's phase options under an `<optgroup label="Roadmap phase">`.
+
+**From Insights (v0.8), not in M5a:**
+- M5b (needs the owner's yes, `M5-DESIGN.md`): a weekly target, shown as a dashed target line across the weekly chart and as "5 of 8" on the This week tile; the "Weekly goal" card in Settings (above).
+- Hover or tap details on a heatmap day or a bar (a small popover with the date and counts). Left out because the tables already give every number and a popover needs client code and its own focus rules.
+- A phase burn-up line, if the weekly chart isn't enough (`M5-DESIGN.md`, out of scope).
+- A key that filters the chart to one kind.
 
 **Other ideas, not planned:** a light, dark or system theme switch; a "Jump to current phase" link on `/roadmap`; a sticky toolbar on long pages; search across all sections; the installable phone app from the plan's list; a browser "leave page?" warning while a note change is unsaved, or keeping unsaved note text in the browser until it saves (text typed offline is lost if the page closes first); a "Go to it" action on the save-failed banner that scrolls to the first failed item.
