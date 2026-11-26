@@ -1,9 +1,28 @@
 // Where a signed-in visitor may go (lib/landing.ts): the rule the proxy and the post-sign-in route
 // share. Pure functions; no database.
 import { describe, expect, it } from "vitest";
-import { type Standing, SUSPENDED_HREF, continueTarget, gateTarget, standingOf } from "@/lib/landing";
+import { type Standing, SUSPENDED_HREF, continueTarget, gateTarget, pagePathname, standingOf } from "@/lib/landing";
 
 const STANDINGS: Standing[] = ["signed-out", "active", "waitlisted", "suspended"];
+
+describe("pagePathname (Next's page payload paths)", () => {
+  it.each([
+    ["/roadmap", "/roadmap"],
+    ["/", "/"],
+    ["/roadmap.rsc", "/roadmap"],
+    ["/roadmap.segments/_full.segment.rsc", "/roadmap"],
+    ["/admin/users.segments/$c$children/__PAGE__.segment.rsc", "/admin/users"],
+    ["/index.rsc", "/"],
+    ["/index.segments/_tree.segment.rsc", "/"],
+    ["/waitlist.segments/_full.segment.rsc", "/waitlist"],
+    ["/login.rsc", "/login"],
+    // Only Next's own suffixes are removed; a page called /index stays itself.
+    ["/index", "/index"],
+    ["/roadmap.rscx", "/roadmap.rscx"],
+  ])("%s is the page %s", (from, to) => {
+    expect(pagePathname(from)).toBe(to);
+  });
+});
 
 describe("standingOf", () => {
   it("no live session is signed out", () => {

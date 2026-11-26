@@ -56,8 +56,15 @@ test.describe("a waitlisted user", () => {
     for (const path of ["/", "/roadmap", "/roadmap?q=rag", "/admin", "/auth/continue", "/auth/continue?next=%2Froadmap"]) {
       await expectRedirect(await firstResponse(page, path), "/waitlist", path);
     }
-    // A client navigation (an RSC request) too.
+    // A client navigation (an RSC request) too, and Next's page payload paths.
     await expectRedirect(await firstResponse(page, "/roadmap", true), "/waitlist", "/roadmap (rsc)");
+    for (const path of ["/roadmap.rsc", "/roadmap.segments/_full.segment.rsc", "/index.rsc"]) {
+      await expectRedirect(await firstResponse(page, path, true), "/waitlist", path);
+    }
+    // A Server Action anywhere but /waitlist is refused before it runs (403, no body).
+    const action = await page.request.post("/roadmap", { maxRedirects: 0, headers: { "next-action": "made-up-action-id" } });
+    expect(action.status()).toBe(403);
+    expect(await action.text()).toBe("");
     // /waitlist itself is theirs.
     expect((await firstResponse(page, "/waitlist")).status()).toBe(200);
   });

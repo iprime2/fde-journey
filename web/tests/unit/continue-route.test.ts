@@ -2,15 +2,26 @@
 // redirect only, chosen from the session and the user's status: signed out, wrong user (owner-only
 // mode), active, waitlisted, suspended, the owner, and unsafe `next` values. Then the whole sign-in
 // through Better Auth's real handler, with GitHub replaced by a fake `fetch`. Made-up users only.
+import type { PGlite } from "@electric-sql/pglite";
+import { neonConfig } from "@neondatabase/serverless";
 import { NextRequest } from "next/server";
 import { eq, sql } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+// The app's database, swappable per test (Neon over a fake endpoint); the in-memory one otherwise.
+const appDb = vi.hoisted(() => ({ override: null as null | (() => Promise<unknown>) }));
+vi.mock("@/db/client", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/db/client")>();
+  return { ...real, getDb: () => (appDb.override ? appDb.override() : real.getDb()) };
+});
+
 import { GET } from "@/app/auth/continue/route";
-import type { Db } from "@/db/client";
+import { type Db, openDb } from "@/db/client";
 import { session, user } from "@/db/schema";
 import { createAuth } from "@/lib/auth";
 import { continueHref, loginHref } from "@/lib/login";
 import { captureOutput } from "./support/capture-output";
+import { fakeNeon } from "./support/fake-neon";
 import { OTHER_ID, OWNER_ID, emptyDb, resetAuth, seedOwner, seedUser, setTestEnv } from "./support/db";
 
 setTestEnv();
@@ -37,6 +48,7 @@ beforeEach(async () => {
 });
 afterEach(() => {
   setTestEnv();
+  appDb.override = null;
   resetAuth();
   vi.restoreAllMocks();
 });
@@ -137,6 +149,43 @@ describe("/auth/continue: capped mode", () => {
     expect(await land("/roadmap", cookie)).toBe("/login?next=%2Froadmap&error=unavailable");
     expect(output.join("\n")).toMatch(/After sign-in: session check failed/);
     expect(output.join("\n")).not.toContain(token);
+  });
+});
+
+describe("/auth/continue on Neon over HTTP, when the database fails", () => {
+  let originalFetch: typeof neonConfig.fetchFunction;
+  let failing = false;
+
+  beforeEach(async () => {
+    process.env.SIGNUP_MODE = "capped";
+    // Neon's driver over the same in-memory data, through a fake endpoint (no network).
+    const pg = (db as unknown as { $client: PGlite }).$client;
+    const fake = fakeNeon(pg, () => (failing ? Object.assign(new Error("socket hang up"), { code: "ECONNRESET" }) : null));
+    originalFetch = neonConfig.fetchFunction;
+    neonConfig.fetchFunction = fake.fetchFunction;
+    const neonDb = await openDb({ kind: "neon", url: "postgresql://someone:not-a-password@db.example.invalid/journey" });
+    appDb.override = async () => neonDb;
+    failing = false;
+    resetAuth();
+  });
+  afterEach(() => {
+    neonConfig.fetchFunction = originalFetch;
+  });
+
+  it("works through Neon's driver (the set-up is real)", async () => {
+    const { cookie } = await seed("wren", OTHER_ID, "waitlisted");
+    expect(await land("/roadmap", cookie)).toBe("/waitlist");
+  });
+
+  it("unreachable: the sign-in page's try-again message, keeping next; the token is never logged", async () => {
+    const output = captureOutput();
+    const { cookie, token } = await seed("wren", OTHER_ID, "waitlisted");
+    failing = true;
+    expect(await land("/roadmap", cookie)).toBe("/login?next=%2Froadmap&error=unavailable");
+    const log = output.join("\n");
+    expect(log).toMatch(/After sign-in: session check failed \(SafeError/);
+    expect(log).not.toContain(token);
+    expect(log).not.toMatch(/params|select/i);
   });
 });
 

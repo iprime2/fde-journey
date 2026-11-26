@@ -1,9 +1,18 @@
 // The proxy, called directly with NextRequest objects, against the in-memory test database: the
 // quick sign-in check, and the status gate that decides before any page renders (made-up users).
+import { createRequire } from "node:module";
 import { unstable_doesMiddlewareMatch } from "next/experimental/testing/server";
 import { NextRequest } from "next/server";
 import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+// The proxy's database, swappable per test (a failing one); the real in-memory one otherwise.
+const gateDb = vi.hoisted(() => ({ override: null as null | (() => Promise<unknown>) }));
+vi.mock("@/db/client", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/db/client")>();
+  return { ...real, getGateDb: () => (gateDb.override ? gateDb.override() : real.getGateDb()) };
+});
+
 import type { Db } from "@/db/client";
 import { session, user } from "@/db/schema";
 import { config, proxy } from "@/proxy";
@@ -44,8 +53,19 @@ beforeEach(async () => {
 });
 afterEach(() => {
   setTestEnv();
+  gateDb.override = null;
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
+
+/** The cookies the response sets to expire (Max-Age=0), by name. */
+const expired = (res: Response) =>
+  res.headers
+    .getSetCookie()
+    .filter((c) => /;\s*Max-Age=0/i.test(c))
+    .map((c) => c.split("=")[0])
+    .sort();
+const BOTH_COOKIES = ["__Secure-better-auth.session_token", "better-auth.session_token"];
 
 /** A made-up user with a live session. Their seeding doesn't count toward the recorded queries. */
 async function seed(userId: string, githubId: string, status: "active" | "waitlisted" | "suspended") {
@@ -88,13 +108,20 @@ describe("proxy: signed out", () => {
     expect(location(await call("/roadmap", { method: "POST" }))).toBe(`${BASE}/login?next=%2Froadmap`);
   });
 
-  it("a forged cookie counts as signed out, with no database query", async () => {
+  it("a forged cookie counts as signed out, with no database query, and is expired under both names", async () => {
     const res = await call("/roadmap", { headers: { cookie: FORGED } });
     expect(location(res)).toBe(`${BASE}/login?next=%2Froadmap`);
+    expect(expired(res)).toEqual(BOTH_COOKIES);
     // Right shape, wrong secret.
     const otherSecret = `better-auth.session_token=${signedCookieValue("made-up-token-of-32-characters-xx", "another-made-up-secret")}`;
-    expect(location(await call("/roadmap", { headers: { cookie: otherSecret } }))).toBe(`${BASE}/login?next=%2Froadmap`);
+    const res2 = await call("/roadmap", { headers: { cookie: otherSecret } });
+    expect(location(res2)).toBe(`${BASE}/login?next=%2Froadmap`);
+    expect(expired(res2)).toEqual(BOTH_COOKIES);
     expect(statements).toEqual([]);
+  });
+
+  it("without a cookie there is nothing to expire", async () => {
+    expect(expired(await call("/roadmap"))).toEqual([]);
   });
 });
 
@@ -162,12 +189,11 @@ describe("proxy status gate, capped mode", () => {
     expect(statements).toHaveLength(8);
   });
 
-  it("a waitlisted user still reaches the public pages, the post-sign-in route and Server Actions (typed answers)", async () => {
+  it("a waitlisted user still reaches the public pages and the post-sign-in route, with no query", async () => {
     const { cookie } = await seed("wren", OTHER_ID, "waitlisted");
     for (const path of ["/privacy", "/login", "/api/auth/get-session", "/api/export", "/auth/continue"]) {
       expect(passed(await call(path, { headers: { cookie } })), path).toBe(true);
     }
-    expect(passed(await call("/roadmap", { method: "POST", headers: { cookie, "next-action": "made-up-action-id" } }))).toBe(true);
     expect(statements).toEqual([]);
   });
 
@@ -184,12 +210,34 @@ describe("proxy status gate, capped mode", () => {
     expect(passed(await call("/", { headers: { cookie } }))).toBe(true);
   });
 
-  it("an ended or expired session goes to /login, keeping where it was going", async () => {
+  it("an ended or expired session goes to /login, keeping where it was going, and its cookie is expired", async () => {
     const { cookie } = await seed("riley", OTHER_ID, "active");
     await db.update(session).set({ expiresAt: new Date(Date.now() - 1000) }).where(eq(session.userId, "riley"));
-    expect(location(await call("/roadmap", { headers: { cookie } }))).toBe(`${BASE}/login?next=%2Froadmap`);
+    const res = await call("/roadmap", { headers: { cookie } });
+    expect(location(res)).toBe(`${BASE}/login?next=%2Froadmap`);
+    expect(expired(res)).toEqual(BOTH_COOKIES);
     await db.delete(session).where(eq(session.userId, "riley"));
+    const res2 = await call("/roadmap", { headers: { cookie } });
+    expect(location(res2)).toBe(`${BASE}/login?next=%2Froadmap`);
+    expect(expired(res2)).toEqual(BOTH_COOKIES);
+  });
+
+  it("judges expiry by this server's clock, as Better Auth does, not the database's", async () => {
+    const { cookie } = await seed("riley", OTHER_ID, "active");
+    // Seeded sessions end in a day. Two days on by the server's clock, the database's now() still
+    // says live; Better Auth would say ended, and so does the proxy.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(Date.now() + 2 * 24 * 60 * 60 * 1000);
     expect(location(await call("/roadmap", { headers: { cookie } }))).toBe(`${BASE}/login?next=%2Froadmap`);
+    vi.useRealTimers();
+    expect(passed(await call("/roadmap", { headers: { cookie } }))).toBe(true);
+  });
+
+  it("a suspended or waitlisted user's live cookie is kept (the page they land on deals with it)", async () => {
+    const wren = await seed("wren", OTHER_ID, "waitlisted");
+    const sid = await seed("sid", "900000000003", "suspended");
+    expect(expired(await call("/roadmap", { headers: { cookie: wren.cookie } }))).toEqual([]);
+    expect(expired(await call("/roadmap", { headers: { cookie: sid.cookie } }))).toEqual([]);
   });
 
   it("wrong user: a cookie only ever speaks for its own user", async () => {
@@ -205,7 +253,7 @@ describe("proxy status gate, capped mode", () => {
     process.env.OWNER_GITHUB_ID = OWNER_ID;
   });
 
-  it("fails closed when the check can't run: 503, no page, and nothing secret in the log", async () => {
+  it("fails closed without the auth secret: 503, no page, and nothing secret in the log", async () => {
     const output = captureOutput();
     const { cookie, token } = await seed("wren", OTHER_ID, "waitlisted");
     delete process.env.BETTER_AUTH_SECRET;
@@ -224,18 +272,259 @@ describe("proxy status gate, owner-only mode (SIGNUP_MODE unset)", () => {
     for (const status of ["active", "waitlisted", "suspended"] as const) {
       await db.delete(user).where(eq(user.id, "someone"));
       const { cookie } = await seed("someone", OTHER_ID, status);
-      expect(location(await call("/roadmap", { headers: { cookie } })), status).toBe(`${BASE}/login?next=%2Froadmap`);
+      const res = await call("/roadmap", { headers: { cookie } });
+      expect(location(res), status).toBe(`${BASE}/login?next=%2Froadmap`);
+      // A live session, refused: the cookie stays so /login can revoke the session (lib/session.ts).
+      expect(expired(res), status).toEqual([]);
     }
   });
 });
 
+describe("proxy: the production cookie name (__Secure-, over https)", () => {
+  const secure = (cookie: string) => cookie.replace(/^better-auth\./, "__Secure-better-auth.");
+
+  it("reads it like the plain one: the owner passes, a waitlisted user goes to /waitlist", async () => {
+    process.env.SIGNUP_MODE = "capped";
+    expect(passed(await call("/roadmap", { headers: { cookie: secure(owner) } }))).toBe(true);
+    const wren = await seed("wren", OTHER_ID, "waitlisted");
+    statements.length = 0;
+    expect(location(await call("/roadmap", { headers: { cookie: secure(wren.cookie) } }))).toBe(`${BASE}/waitlist`);
+    expect(statements).toHaveLength(1);
+  });
+
+  it("a forged or ended one is expired under both names", async () => {
+    const res = await call("/roadmap", { headers: { cookie: secure(FORGED) } });
+    expect(location(res)).toBe(`${BASE}/login?next=%2Froadmap`);
+    expect(expired(res)).toEqual(BOTH_COOKIES);
+    const secureExpiry = res.headers.getSetCookie().find((c) => c.startsWith("__Secure-"));
+    expect(secureExpiry).toMatch(/;\s*Secure/i);
+    expect(secureExpiry).toMatch(/;\s*Path=\//i);
+  });
+});
+
+describe("proxy: rotated secrets (BETTER_AUTH_SECRETS)", () => {
+  const CURRENT = "made-up-current-secret-0123456789abcdef";
+  const OLDER = "made-up-older-secret-0123456789abcdefgh";
+  const signedWith = (token: string, secret: string) => `better-auth.session_token=${signedCookieValue(token, secret)}`;
+
+  it("checks cookies with the current (first) secret only, as Better Auth does", async () => {
+    process.env.SIGNUP_MODE = "capped";
+    const { token } = await seed("riley", OTHER_ID, "active");
+    process.env.BETTER_AUTH_SECRETS = `2:${CURRENT}, 1:${OLDER}`;
+    expect(passed(await call("/roadmap", { headers: { cookie: signedWith(token, CURRENT) } }))).toBe(true);
+    // Better Auth would refuse these, so the proxy does too (and is never stricter or looser).
+    for (const secret of [OLDER, process.env.BETTER_AUTH_SECRET ?? ""]) {
+      const res = await call("/roadmap", { headers: { cookie: signedWith(token, secret) } });
+      expect(location(res)).toBe(`${BASE}/login?next=%2Froadmap`);
+    }
+  });
+
+  it("fails closed when the list is malformed", async () => {
+    captureOutput();
+    for (const bad of ["no-version-here", "x:secret", "-1:secret", "1:   "]) {
+      process.env.BETTER_AUTH_SECRETS = bad;
+      expect((await call("/roadmap", { headers: { cookie: owner } })).status, bad).toBe(503);
+    }
+  });
+});
+
+describe("proxy: Next's page payload paths (.rsc, .segments)", () => {
+  beforeEach(() => {
+    process.env.SIGNUP_MODE = "capped";
+  });
+
+  it("are gated as their page: a waitlisted user goes to /waitlist, and /waitlist's own stay theirs", async () => {
+    const { cookie } = await seed("wren", OTHER_ID, "waitlisted");
+    for (const path of ["/roadmap.rsc", "/roadmap.segments/_full.segment.rsc", "/index.rsc", "/index.segments/_tree.segment.rsc", "/admin/users.rsc"]) {
+      expect(location(await call(path, { headers: { cookie } })), path).toBe(`${BASE}/waitlist`);
+    }
+    for (const path of ["/waitlist.rsc", "/waitlist.segments/_full.segment.rsc", "/waitlist.segments/$c$children/__PAGE__.segment.rsc"]) {
+      expect(passed(await call(path, { headers: { cookie } })), path).toBe(true);
+    }
+  });
+
+  it("signed out: /login remembers the page, not the payload path", async () => {
+    expect(location(await call("/roadmap.segments/_full.segment.rsc?_rsc=x"))).toBe(`${BASE}/login?next=%2Froadmap`);
+    expect(location(await call("/index.rsc"))).toBe(`${BASE}/login`);
+  });
+
+  it("the public pages' payloads stay public, with no query", async () => {
+    for (const path of ["/login.rsc", "/login.segments/_full.segment.rsc", "/privacy.segments/_full.segment.rsc"]) {
+      expect(passed(await call(path)), path).toBe(true);
+    }
+    expect(statements).toEqual([]);
+  });
+
+  it("an active user passes, and the page header names the page", async () => {
+    const { cookie } = await seed("riley", OTHER_ID, "active");
+    const res = await call("/roadmap.segments/_full.segment.rsc", { headers: { cookie } });
+    expect(passed(res)).toBe(true);
+    expect(forwarded(res).get(PATH_HEADER)).toBe("/roadmap");
+  });
+});
+
+describe("proxy: Server Actions", () => {
+  const action = (path: string, cookie?: string) =>
+    call(path, { method: "POST", headers: { "next-action": "made-up-action-id", ...(cookie ? { cookie } : {}) } });
+  const refused = async (res: Response) => res.status === 403 && (await res.text()) === "" && res.headers.get("cache-control") === "no-store";
+
+  beforeEach(() => {
+    process.env.SIGNUP_MODE = "capped";
+  });
+
+  it("a waitlisted user's are refused (403, no body) everywhere but /waitlist", async () => {
+    const { cookie } = await seed("wren", OTHER_ID, "waitlisted");
+    for (const path of ["/", "/roadmap", "/settings", "/admin/waitlist", "/roadmap.rsc"]) expect(await refused(await action(path, cookie)), path).toBe(true);
+    // Leaving the waitlist, signing out and renewing the session all post to /waitlist.
+    expect(passed(await action("/waitlist", cookie))).toBe(true);
+  });
+
+  it("a suspended user's are refused everywhere but /waitlist (whose actions refuse them themselves)", async () => {
+    const { cookie } = await seed("sid", OTHER_ID, "suspended");
+    for (const path of ["/", "/roadmap", "/settings"]) expect(await refused(await action(path, cookie)), path).toBe(true);
+    expect(passed(await action("/waitlist", cookie))).toBe(true);
+  });
+
+  it("active users and the owner (whatever their status reads) pass", async () => {
+    const { cookie } = await seed("riley", OTHER_ID, "active");
+    expect(passed(await action("/roadmap", cookie))).toBe(true);
+    await db.update(user).set({ status: "waitlisted" }).where(eq(user.id, "owner"));
+    expect(passed(await action("/roadmap", owner))).toBe(true);
+  });
+
+  it("signed out (no cookie, a forged one, an ended session, a refused one) keeps the typed answer", async () => {
+    expect(passed(await action("/roadmap"))).toBe(true);
+    expect(passed(await action("/roadmap", FORGED))).toBe(true);
+    const { cookie } = await seed("riley", OTHER_ID, "active");
+    delete process.env.SIGNUP_MODE; // owner-only: Riley's session is refused
+    expect(passed(await action("/roadmap", cookie))).toBe(true);
+    await db.delete(session).where(eq(session.userId, "riley"));
+    expect(passed(await action("/roadmap", cookie))).toBe(true);
+  });
+
+  it("on public paths, pass with no query (signing in from /login)", async () => {
+    const { cookie } = await seed("wren", OTHER_ID, "waitlisted");
+    expect(passed(await action("/login", cookie))).toBe(true);
+    expect(statements).toEqual([]);
+  });
+
+  it("when the check fails: 503, no body", async () => {
+    captureOutput();
+    gateDb.override = async () => {
+      throw new TypeError("fetch failed");
+    };
+    const { cookie } = await seed("wren", OTHER_ID, "waitlisted");
+    const res = await action("/roadmap", cookie);
+    expect(res.status).toBe(503);
+    expect(await res.text()).toBe("");
+  });
+});
+
+describe("proxy: when the database doesn't answer", () => {
+  /** A database whose queries fail like a dropped connection `failures` times, then work. */
+  async function flaky(failures: number, error: () => Error = () => new TypeError("fetch failed")) {
+    const real = db;
+    let calls = 0;
+    const fake = {
+      select: (...args: Parameters<Db["select"]>) => {
+        calls += 1;
+        if (calls <= failures) throw error();
+        return real.select(...args);
+      },
+    };
+    gateDb.override = async () => fake;
+    return () => calls;
+  }
+
+  it("tries once more after a network failure, and the second try counts", async () => {
+    process.env.SIGNUP_MODE = "capped";
+    const { cookie } = await seed("wren", OTHER_ID, "waitlisted");
+    const calls = await flaky(1);
+    expect(location(await call("/roadmap", { headers: { cookie } }))).toBe(`${BASE}/waitlist`);
+    expect(calls()).toBe(2);
+  });
+
+  it("twice: a small static page (503, no-store, Retry-After) with a way to try again, never the app", async () => {
+    const output = captureOutput();
+    const { cookie, token } = await seed("wren", OTHER_ID, "waitlisted");
+    const calls = await flaky(5);
+    const res = await call("/roadmap", { headers: { cookie } });
+    expect(calls()).toBe(2);
+    expect(res.status).toBe(503);
+    expect(passed(res)).toBe(false);
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    expect(res.headers.get("retry-after")).toBe("30");
+    expect(res.headers.get("content-type")).toBe("text/html; charset=utf-8");
+    const html = await res.text();
+    expect(html).toContain("<title>FDE Journey</title>");
+    expect(html).toMatch(/<a href="">Try again<\/a>/);
+    expect(html).not.toMatch(/Sections|Skip to content|<script/);
+    expect(html.length).toBeLessThan(600);
+    const log = output.join("\n");
+    expect(log).toMatch(/Proxy: session status check failed \(SafeError/);
+    expect(log).not.toContain(token);
+  });
+
+  it("a database's own error is not retried", async () => {
+    captureOutput();
+    const { cookie } = await seed("wren", OTHER_ID, "waitlisted");
+    const calls = await flaky(5, () => Object.assign(new Error("relation does not exist"), { code: "42P01" }));
+    expect((await call("/roadmap", { headers: { cookie } })).status).toBe(503);
+    expect(calls()).toBe(1);
+  });
+});
+
 describe("proxy config", () => {
-  it("runs on pages and actions, not on Next's static files or files with an extension", () => {
+  // Next's own matcher compiler, as the build uses it (it adds the .rsc and .segments suffixes).
+  const nodeRequire = createRequire(import.meta.url);
+  const compiled = () => {
+    const g = globalThis as { AsyncLocalStorage?: unknown };
+    g.AsyncLocalStorage ??= nodeRequire("node:async_hooks").AsyncLocalStorage;
+    const { getMiddlewareMatchers } = nodeRequire("next/dist/build/analysis/get-page-static-info.js") as {
+      getMiddlewareMatchers: (matcher: unknown, nextConfig: unknown) => { regexp: string }[];
+    };
+    const matchers = getMiddlewareMatchers(config.matcher, {});
+    return (url: string) => matchers.some((m) => new RegExp(m.regexp).test(url));
+  };
+
+  /** Every file the app serves at its own address: app/ metadata files and everything in public/. */
+  function staticFiles(): string[] {
+    const fs = nodeRequire("node:fs") as typeof import("node:fs");
+    const path = nodeRequire("node:path") as typeof import("node:path");
+    const root = process.cwd();
+    const fromApp = fs.readdirSync(path.join(root, "app")).filter((f) => /\.[a-z0-9]+$/i.test(f) && !/\.(tsx?|css)$/.test(f)).map((f) => `/${f}`);
+    const fromPublic = (fs.readdirSync(path.join(root, "public"), { recursive: true }) as string[])
+      .filter((f) => fs.statSync(path.join(root, "public", f)).isFile())
+      .map((f) => `/${f.split(path.sep).join("/")}`);
+    return [...fromApp, ...fromPublic];
+  }
+
+  it("runs on pages, actions and Next's page payloads", () => {
+    const matches = compiled();
+    for (const url of ["/", "/roadmap", "/login", "/api/auth/get-session", "/auth/continue", "/roadmap.rsc", "/roadmap.segments/_full.segment.rsc", "/index.rsc", "/index.segments/_tree.segment.rsc", "/waitlist.segments/_full.segment.rsc", "/admin/users.rsc"]) {
+      expect(matches(url), url).toBe(true);
+    }
     for (const url of ["/", "/roadmap", "/login", "/api/auth/get-session", "/auth/continue"]) {
       expect(unstable_doesMiddlewareMatch({ config, url }), url).toBe(true);
     }
-    for (const url of ["/_next/static/chunks/app.js", "/_next/image?url=x", "/favicon.ico"]) {
-      expect(unstable_doesMiddlewareMatch({ config, url }), url).toBe(false);
+  });
+
+  it("skips Next's static files and every static file the app serves", () => {
+    const matches = compiled();
+    const files = staticFiles();
+    expect(files).toEqual(expect.arrayContaining(["/favicon.ico", "/icon.svg", "/apple-icon.png", "/brand/logo-mark.svg"]));
+    for (const url of [
+      ...files,
+      "/_next/static/chunks/app.js",
+      "/_next/static/media/inter-latin.woff2",
+      "/_next/static/css/app.css",
+      "/_next/image?url=x",
+      "/robots.txt",
+      "/sitemap.xml",
+      "/manifest.webmanifest",
+      "/opengraph-image.png",
+    ]) {
+      expect(matches(url), url).toBe(false);
     }
   });
 });

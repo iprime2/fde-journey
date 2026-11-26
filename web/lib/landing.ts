@@ -15,6 +15,18 @@ export const WAITLIST_PATH = "/waitlist";
 /** The sign-in page with the suspended notice (design spec 8). */
 export const SUSPENDED_HREF = `/login?error=${SUSPENDED_ERROR}`;
 
+/**
+ * The page a request is for. Next also fetches pages through transport paths: the page's payload
+ * at "/roadmap.rsc", its prefetch segments under "/roadmap.segments/…", and Home's as "/index.rsc"
+ * or "/index.segments/…". On Vercel those can be answered from the prerendered shell, so they are
+ * gated (and kept public) exactly as the page itself.
+ */
+export function pagePathname(pathname: string): string {
+  const page = pathname.replace(/\.segments\/[^]*$/, "").replace(/\.rsc$/, "");
+  if (page === pathname) return pathname;
+  return page === "/index" || page === "" ? "/" : page;
+}
+
 /** A session's user as one query reads it (lib/session-gate.ts). Null: no live session. */
 export interface SessionStatusRow {
   status: unknown;

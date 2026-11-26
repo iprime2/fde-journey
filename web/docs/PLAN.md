@@ -53,6 +53,8 @@ Next.js on Vercel
 Postgres (Neon)           progress, sign-in tables, later feature tables
 ```
 
+Proxy cost: one indexed status query (session token to user status) per page navigation, prefetch and Server Action for signed-in visitors; if that ever matters, the lever is a short-lived signed status cookie that `/waitlist` refreshes.
+
 Folder layout:
 ```
 web/
