@@ -1,9 +1,12 @@
 // /admin (design spec 5): tabs per permission, and the admin actions. Made-up people only. The
-// actions use spare people, one per screen size (scripts/lib/e2e-data.mjs, E2E_TARGETS), and keep
-// the shared state stable: Wren Waiting stays first in line, and the cap keeps free places.
+// actions use spare people, one per screen size and attempt (scripts/lib/e2e-data.mjs,
+// E2E_TARGETS), so a retry never meets someone already let in or removed, and they keep the shared
+// state stable: Wren Waiting stays first in line, and the cap keeps free places.
 import type { Page, TestInfo } from "@playwright/test";
+import { e2eTarget } from "../../scripts/lib/e2e-data.mjs";
+import { screenOf } from "./auth";
 import { expect, test } from "./fixtures";
-import { expectNoSidewaysScroll, forProject, gotoReady, isPhone, pageHeading } from "./helpers";
+import { expectNoSidewaysScroll, gotoReady, isPhone, pageHeading } from "./helpers";
 
 const NOT_FOUND = "This page doesn't exist.";
 const ALL_TABS = ["Overview", "Users", "Waitlist", "Sign-up", "Admins", "Audit log"];
@@ -12,8 +15,9 @@ const PRIVACY_LINE = "Counts and dates only. Notes, links, Weekly notes and emai
 const tabs = (page: Page) => page.getByRole("navigation", { name: "Admin pages" }).getByRole("link");
 const adminNavLinks = (page: Page) => page.locator('nav[aria-label="Sections"] a[href^="/admin"]');
 
-/** The person's own card or row: the table from 1280 px, cards below. */
-const target = (testInfo: TestInfo, desktop: string, phone: string) => forProject(testInfo, desktop, phone);
+/** This run's made-up target for an action ("letin", "remove", "suspend"): its screen size and attempt. */
+const target = (testInfo: TestInfo, role: "letin" | "remove" | "suspend"): { name: string; login: string } =>
+  e2eTarget(role, screenOf(testInfo.project.name), testInfo.retry);
 
 test.describe("admin tabs per permission", () => {
   test("the owner sees all six tabs and every page", async ({ page }) => {
@@ -73,8 +77,9 @@ test.describe("admin tabs per permission", () => {
 
 test.describe("admin actions (the owner)", () => {
   test("let one person in from the waitlist, and remove another", async ({ page }, testInfo) => {
-    const letInName = target(testInfo, "Lana Letin", "Leo Letin");
-    const removeName = target(testInfo, "Rae Remove", "Rex Remove");
+    const letIn = target(testInfo, "letin");
+    const letInName = letIn.name;
+    const removeName = target(testInfo, "remove").name;
     await gotoReady(page, "/admin/waitlist");
     await expect(pageHeading(page)).toHaveText("Waitlist");
     await expect(page.getByText(/\d+ places? free · \d+ waiting/)).toBeVisible();
@@ -93,7 +98,7 @@ test.describe("admin actions (the owner)", () => {
     await expect(page.getByRole("button", { name: "Let in Wren Waiting" })).toBeVisible();
 
     await page.goto("/admin/audit");
-    await expect(page.getByText(`Let in @${letInName.toLowerCase().replace(" ", "-")}.`).filter({ visible: true })).toBeVisible();
+    await expect(page.getByText(`Let in @${letIn.login}.`).filter({ visible: true })).toBeVisible();
   });
 
   test("“Let them in” asks first, and checks the number", async ({ page }) => {
@@ -114,7 +119,7 @@ test.describe("admin actions (the owner)", () => {
   });
 
   test("suspend a person, then reactivate them", async ({ page }, testInfo) => {
-    const name = target(testInfo, "Sue Spare", "Stu Spare");
+    const name = target(testInfo, "suspend").name;
     await gotoReady(page, "/admin/users");
     await page.getByRole("searchbox", { name: "Search this page" }).fill(name);
     await expect(page.getByRole("button", { name: `Suspend ${name}` })).toBeVisible();

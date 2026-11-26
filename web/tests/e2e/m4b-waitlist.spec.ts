@@ -1,6 +1,6 @@
 // /waitlist (design spec 5): the designed page, and leaving the waitlist. Made-up users only:
 // Wren Waiting (first in line, shared, read-only here) and a spare waitlisted user per screen size
-// for leaving, which deletes their account (scripts/lib/e2e-data.mjs).
+// and attempt for leaving, which deletes their account (scripts/lib/e2e-data.mjs).
 import { expect, test } from "./fixtures";
 import { expectNoSidewaysScroll, gotoReady, pageHeading } from "./helpers";
 

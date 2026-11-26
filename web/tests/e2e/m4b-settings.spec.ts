@@ -1,9 +1,10 @@
 // /settings (design spec 5): section switches change the navigation; hidden sections are refused
 // on the server; the Scaler access code; Claude export keys; Download my data; deleting the
-// account. Each screen size uses its own made-up spare user (tests/e2e/auth.ts, PER_PROJECT_USERS),
-// so nothing here touches the shared users.
+// account. Each screen size and each attempt uses its own made-up spare user (tests/e2e/auth.ts,
+// PER_PROJECT_USERS), so nothing here touches the shared users and a retry starts fresh.
 import type { Page } from "@playwright/test";
-import { E2E_SCALER_CODE } from "../../scripts/lib/e2e-data.mjs";
+import { E2E_SCALER_CODE, e2eSpareUser } from "../../scripts/lib/e2e-data.mjs";
+import { screenOf } from "./auth";
 import { expect, test } from "./fixtures";
 import { expectNoSidewaysScroll, gotoReady, pageHeading } from "./helpers";
 
@@ -139,7 +140,7 @@ test.describe("deleting an account", () => {
   test.use({ as: "deleter" });
 
   test("asks for the GitHub username, then deletes and signs out", async ({ page }, testInfo) => {
-    const username = testInfo.project.name.startsWith("phone") ? "dov-deleting" : "dee-deleting";
+    const username = e2eSpareUser("deleter", screenOf(testInfo.project.name), testInfo.retry).login;
     await gotoReady(page, "/settings");
     await page.getByRole("button", { name: "Delete my account" }).click();
     const dialog = page.getByRole("dialog", { name: "Delete your account?" });

@@ -1,5 +1,5 @@
 import { expect, test as base } from "@playwright/test";
-import { type E2eSession, type E2eUser, type PerProjectUser, SESSION_COOKIE, signedSessionCookie, spareSessionToken, userSessionToken } from "./auth";
+import { type E2eSession, type PerProjectUser, SESSION_COOKIE, type SharedUser, PER_PROJECT_USERS, signedSessionCookie, spareSessionToken, spareUserFor, userSessionToken } from "./auth";
 import { AVATAR_ROUTE, TEST_AVATAR_PNG } from "./avatar";
 
 /**
@@ -20,7 +20,7 @@ export const test = base.extend<{
   signedIn: boolean;
   session: E2eSession;
   /** Who is signed in: the owner (default) or one of M4b's made-up users (tests/e2e/auth.ts). */
-  as: "owner" | E2eUser | PerProjectUser;
+  as: "owner" | SharedUser | PerProjectUser;
   allowedConsoleErrors: RegExp[];
   ownerSession: void;
   avatarRoute: void;
@@ -39,7 +39,11 @@ export const test = base.extend<{
       if (signedIn) {
         const token =
           as !== "owner"
-            ? userSessionToken(projectUser(as, testInfo.project.name), testInfo.project.name, testInfo.retry)
+            ? userSessionToken(
+                (PER_PROJECT_USERS as readonly string[]).includes(as) ? spareUserFor(as as PerProjectUser, testInfo.project.name, testInfo.retry) : (as as SharedUser),
+                testInfo.project.name,
+                testInfo.retry,
+              )
             : session === "shared"
               ? undefined
               : spareSessionToken(session, testInfo.project.name, testInfo.retry);
@@ -80,10 +84,5 @@ export const test = base.extend<{
     { auto: true },
   ],
 });
-
-/** A per-project spare user ("settings") becomes "settings-desktop" or "settings-phone". */
-function projectUser(as: E2eUser | PerProjectUser, project: string): E2eUser {
-  return as === "settings" || as === "deleter" || as === "leaver" ? `${as}-${project.startsWith("phone") ? "phone" : "desktop"}` : as;
-}
 
 export { expect };

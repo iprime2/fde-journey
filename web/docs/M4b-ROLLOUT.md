@@ -14,6 +14,14 @@ Status: written 2026-11-26 by the backend engineer for the lead. Nothing here ha
 - `github_login` stays empty for the owner until their next sign-in.
 - No data is changed or removed in `progress`, `progress_event`, `session`, `account` or `verification`.
 
+## Release notes (what changes for people)
+With `SIGNUP_MODE` unset (this release), only the owner can sign in, as before. For the owner:
+- **Settings** (`/settings`): section switches, "Download my data", Claude export keys. The owner's account can't be deleted there.
+- **Admin** (`/admin`): overview, users, waitlist, sign-up (the cap and the Scaler access code), admins, audit log.
+- **Hidden sections are not found.** A section switched off in Settings leaves the navigation and Home, and its page (`/reading`, `/certs`, `/projects`, `/career`) shows the not-found page until it is switched back on. Its progress is kept. Roadmap can't be hidden.
+- **Scaler is locked until unlocked.** For everyone but the owner, `/scaler` is not found until the user enters the Scaler access code in Settings. While it is locked, the server also refuses ticks, notes and links on Scaler items, and "Download my data" and `/api/export` leave Scaler items out. The owner always has Scaler.
+- **Claude export** (`/api/export`) needs a key made in Settings (one user's data per key).
+
 New environment variable: `SIGNUP_MODE` (empty by default, which keeps sign-in owner-only; see "Switching on capped sign-up"). Nothing to set for this release.
 
 Expected in production today: 1 user (the owner), 3 applied migrations, and the owner's progress rows (12 at M4a's release, more if saved since).
@@ -169,7 +177,20 @@ The migrator decides what to apply by `created_at` only, so a later `npm run db:
 3. Apply option A (with the branch's URL) or option B on the branch.
 4. Run the "After" queries. Compare.
 5. Optionally, point a local `npm run dev` at the branch (`DATABASE_URL`) and sign in as the owner: Home and every section should look exactly as before.
-6. Delete the branch when done.
+6. **Capped mode on the branch** (this is where the cap lock meets a real Postgres server; the unit tests run on PGlite, which is one connection). Run `npm run dev` locally with `DATABASE_URL=<branch URL>`, `SIGNUP_MODE=capped`, and a GitHub OAuth app whose callback is `http://localhost:3000/api/auth/callback/github`:
+   1. As the owner, on Admin > Sign-up, save the cap at the number of places taken (0 while you are the only user), so the next sign-up must wait.
+   2. In a private window, sign in with a second GitHub test account: it lands on `/waitlist`, place 1.
+   3. As the owner, Admin > Waitlist: "Let in" the test account (with no free place you get "All places are taken"; raise the cap by one first). Its next page load goes to Home.
+   4. Admin > Users: suspend the test account (its window goes to `/login` on the next page load), then reactivate it.
+   5. Run on the branch, and check the rows (counts and actions only):
+      ```text
+      SELECT action, details FROM admin_audit ORDER BY id;
+      -- expect, in order: cap_changed ({"from": 100, "to": …}), let_in (or cap_changed with "admitted": 1), suspended, reactivated
+      SELECT status, count(*) FROM "user" GROUP BY status;
+      -- expect active 2
+      ```
+   6. Delete the test account from its own Settings (type its GitHub username), and check that `admin_audit` gained an `account_deleted` row and the earlier rows now have no target.
+7. Delete the branch when done.
 
 These statements, the "Before" and "After" queries and the rollback were run on PGlite 0.6.0 with 1 made-up owner and 12 made-up progress rows on 2026-11-26: option B applied in one transaction, the "After" queries gave the expected results, the fingerprint matched before and after, a following `migrate` applied nothing, the rollback restored the 0002 state with the same fingerprint, and a fresh `migrate` re-applied 0003 afterwards.
 

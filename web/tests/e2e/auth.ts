@@ -3,9 +3,16 @@
 // fresh local test database; the fixtures send it as a cookie signed with the secret, exactly as
 // Better Auth would after a real GitHub sign-in. No real credential is involved anywhere.
 import { createHash, createHmac, randomBytes } from "node:crypto";
+import { E2E_ATTEMPTS } from "../../scripts/lib/e2e-data.mjs";
 
 export const E2E_PORT = 3100;
 export const E2E_BASE_URL = `http://localhost:${E2E_PORT}`;
+/**
+ * A second test server with SIGNUP_MODE unset (owner-only, the production default), its own test
+ * database and the same made-up users, for tests/e2e/owner-only.spec.ts (project "owner-only").
+ */
+export const E2E_OWNER_ONLY_PORT = 3200;
+export const E2E_OWNER_ONLY_URL = `http://localhost:${E2E_OWNER_ONLY_PORT}`;
 /** Made-up GitHub id for the test owner. */
 export const E2E_OWNER_GITHUB_ID = "900000000001";
 export const SESSION_COOKIE = "better-auth.session_token";
@@ -36,7 +43,7 @@ export type E2eSession = "shared" | SpareSession;
  * with `--repeat-each` (local runs only) are not attempts: they would share one, so don't repeat
  * tests that sign out.
  */
-export const SPARE_ATTEMPTS = 3;
+export const SPARE_ATTEMPTS: number = E2E_ATTEMPTS;
 
 /**
  * A spare session's token: one per name, project and attempt, so desktop and phone (which run the
@@ -56,40 +63,52 @@ export function spareSessionToken(name: SpareSession, project: string, attempt: 
  * `test.use({ as: "waitlisted" })`. Each has its own session per project and attempt, as spare
  * sessions do, so a test that ends one (a suspended user's is ended on sight) touches no other.
  */
-export const E2E_USER_KEYS = [
-  "active",
-  "waitlisted",
-  "suspended",
-  "admin",
-  "settings-desktop",
-  "settings-phone",
-  "deleter-desktop",
-  "deleter-phone",
-  "leaver-desktop",
-  "leaver-phone",
-] as const;
-export type E2eUser = (typeof E2E_USER_KEYS)[number];
+export const SHARED_USERS = ["active", "waitlisted", "suspended", "admin"] as const;
+export type SharedUser = (typeof SHARED_USERS)[number];
 
 /**
- * Spare users that tests change (scripts/lib/e2e-data.mjs): `test.use({ as: "settings" })` signs
- * in as "settings-desktop" or "settings-phone", by the project, so the two never share one.
+ * Spare users that tests change for good (scripts/lib/e2e-data.mjs): `test.use({ as: "deleter" })`
+ * signs in as "deleter-desktop-0" or "deleter-phone-0" by the project, and as "…-1" on the retry,
+ * so neither the two screen sizes nor a retry ever share one.
  */
 export const PER_PROJECT_USERS = ["settings", "deleter", "leaver"] as const;
 export type PerProjectUser = (typeof PER_PROJECT_USERS)[number];
+export type Screen = "desktop" | "phone";
+export type SpareUser = `${PerProjectUser}-${Screen}-${number}`;
+export type E2eUser = SharedUser | SpareUser;
+
+/** The screen size a project tests: phone projects start with "phone"; everything else is desktop. */
+export const screenOf = (project: string): Screen => (project.startsWith("phone") ? "phone" : "desktop");
+
+/** The spare user a test signs in as, for its project and attempt (testInfo.retry). */
+export const spareUserFor = (role: PerProjectUser, project: string, attempt: number): SpareUser => `${role}-${screenOf(project)}-${attempt}`;
 
 export function userSessionToken(user: E2eUser, project: string, attempt: number): string {
   if (!Number.isInteger(attempt) || attempt < 0 || attempt >= SPARE_ATTEMPTS) {
-    throw new Error(`No session for attempt ${attempt + 1}: raise SPARE_ATTEMPTS in tests/e2e/auth.ts.`);
+    throw new Error(`No session for attempt ${attempt + 1}: raise E2E_ATTEMPTS in scripts/lib/e2e-data.mjs.`);
   }
   const { secret } = e2eRunSecrets();
   return createHmac("sha256", secret).update(`e2e-user-session\n${user}\n${project}\n${attempt}`).digest("base64url");
 }
 
-/** Every user session, as `user:token` pairs, for the seed (E2E_USER_SESSION_TOKENS). */
+/**
+ * Every user session, as `user:token` pairs, for the seed (E2E_USER_SESSION_TOKENS). Shared users
+ * get one per project and attempt; a spare user only the ones it is used in (projects of its screen
+ * size, its own attempt), which keeps the list well under the seed guard's limit of 128.
+ */
 export function userSessionTokens(projects: readonly string[]): string[] {
-  return E2E_USER_KEYS.flatMap((user) =>
+  const shared = SHARED_USERS.flatMap((user) =>
     projects.flatMap((project) => Array.from({ length: SPARE_ATTEMPTS }, (_, attempt) => `${user}:${userSessionToken(user, project, attempt)}`)),
   );
+  const spare = PER_PROJECT_USERS.flatMap((role) =>
+    projects.flatMap((project) =>
+      Array.from({ length: SPARE_ATTEMPTS }, (_, attempt) => {
+        const user = spareUserFor(role, project, attempt);
+        return `${user}:${userSessionToken(user, project, attempt)}`;
+      }),
+    ),
+  );
+  return [...shared, ...spare];
 }
 
 /** The active user's Claude export key for this run (made up; the seed stores only its hash). */
