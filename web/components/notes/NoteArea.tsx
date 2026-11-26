@@ -1,19 +1,25 @@
 "use client";
 
-// NoteButton, NotePreview and NoteEditor for one item row (design spec 4). They render as grid
-// items of the row: the button sits right of the text on desktop and under it on phones; the
-// preview and the editor sit under the text.
-import { useId, useRef, useState } from "react";
+// NoteButton, NotePreview, NoteEditor and their status lines for one item row (design spec 4).
+// They render as grid items of the row: the button sits right of the text on desktop and under it
+// on phones; the preview, the editor and the status lines sit under the text.
+//
+// Closing the editor always closes it (spec option (b)). Anything not saved stays visible in the
+// collapsed row: the preview shows the typed text, and a line under it says what is wrong, with
+// Try again, Fix link or Fix note.
+import { useEffect, useId, useRef, useState } from "react";
 import { saveLink, saveNote } from "@/app/actions/progress";
 import { linkProblem } from "@/lib/notes";
-import { combineStatus, noteButtonLabel, statusText } from "@/lib/save-state";
+import { CLOSED_SAVING_DELAY_MS, type LineAction, combineStatus, noteButtonLabel, saveLines } from "@/lib/save-state";
 import { cn } from "../cn";
-import { useCanWrite, useSaveStatus } from "../save/SaveStatusProvider";
+import { SaveLines, describedByIds } from "../save/SaveLines";
+import { useFieldMode, useSaveStatus } from "../save/SaveStatusProvider";
 import { useFieldSaver } from "../save/useFieldSaver";
+import { FIELD_STYLES } from "../save/fieldStyles";
 import { NotePreview } from "./NotePreview";
 
-const FIELD =
-  "type-input w-full rounded-md border bg-surface px-3 py-2.5 text-ink [overflow-wrap:anywhere] read-only:cursor-not-allowed read-only:opacity-50";
+/** Text column; from md, the text column and the note button column (spec, NotePreview). */
+const UNDER_TEXT = "col-start-2 md:col-end-[-1]";
 
 export function NoteArea({
   itemId,
@@ -30,36 +36,91 @@ export function NoteArea({
   placeholder: string;
   readOnly: boolean;
 }) {
-  const canWrite = useCanWrite(readOnly);
+  const mode = useFieldMode(readOnly);
   const page = useSaveStatus();
   const [open, setOpen] = useState(false);
+  /** Which field opening the editor focuses: the note, or the link after "Fix link". */
+  const [focusField, setFocusField] = useState<"note" | "link">("note");
   const button = useRef<HTMLButtonElement>(null);
   const editorId = useId();
   const noteErrorId = useId();
   const linkErrorId = useId();
+  const ids = { saving: useId(), save: useId(), field: useId() };
 
   const noteField = useFieldSaver({
     serverValue: note,
     save: (value) => saveNote(itemId, value),
     failureKey: `note:${itemId}`,
-    canWrite,
+    mode,
   });
   const linkField = useFieldSaver({
     serverValue: link,
     save: (value) => saveLink(itemId, value),
     check: linkProblem,
     failureKey: `link:${itemId}`,
-    canWrite,
+    mode,
   });
 
   const status = combineStatus([noteField.status, linkField.status]);
-  const hasSaved = noteField.saved !== "" || linkField.saved !== "";
-  const label = noteButtonLabel(open, hasSaved);
+  const hasText = noteField.value !== "" || linkField.value !== "";
+  const label = noteButtonLabel(open, hasText);
 
+  // The collapsed row says "Saving…" only once a save has been running for 1 s since closing
+  // (a normal close shows no line at all), or at once after its Try again.
+  const closedSaving = !open && status === "saving";
+  const [slow, setSlow] = useState(false);
+  const [retried, setRetried] = useState(false);
+  const [wasClosedSaving, setWasClosedSaving] = useState(closedSaving);
+  if (closedSaving !== wasClosedSaving) {
+    setWasClosedSaving(closedSaving);
+    setSlow(false);
+  }
+  if (retried && !closedSaving) setRetried(false);
+  useEffect(() => {
+    if (!closedSaving) return;
+    const timer = window.setTimeout(() => setSlow(true), CLOSED_SAVING_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [closedSaving]);
+
+  const lines = saveLines({
+    fields: [
+      { kind: "note", status: noteField.status, error: noteField.error },
+      { kind: "link", status: linkField.status, error: linkField.error },
+    ],
+    signedOut: page.signedOut,
+    savingShown: open || slow || retried,
+  });
+
+  function openEditor(target: "note" | "link") {
+    setFocusField(target);
+    setOpen(true);
+  }
+
+  /** Hide note and Escape: start saving anything changed, then close at once. */
   function close() {
     noteField.flush();
     linkField.flush();
     setOpen(false);
+  }
+
+  function retry() {
+    // Try again goes away once the save starts, so focus moves to the note button first.
+    button.current?.focus();
+    if (!open) setRetried(true);
+    noteField.retry();
+    linkField.retry();
+  }
+
+  function onAction(action: LineAction) {
+    if (action === "retry") retry();
+    else openEditor(action === "fix-link" ? "link" : "note");
+  }
+
+  function onEscape(e: React.KeyboardEvent) {
+    if (e.key !== "Escape") return;
+    e.stopPropagation();
+    close();
+    button.current?.focus();
   }
 
   return (
@@ -70,7 +131,9 @@ export function NoteArea({
           type="button"
           aria-expanded={open}
           aria-controls={open ? editorId : undefined}
-          onClick={() => (open ? close() : setOpen(true))}
+          // While the collapsed row says something isn't saved, the button reads it ("Edit note, Not saved.").
+          aria-describedby={open ? undefined : describedByIds(lines, ids)}
+          onClick={() => (open ? close() : openEditor("note"))}
           className={cn(
             // 32 px visible, 44 px to tap (the ::after adds 6 px above and below).
             "relative inline-flex h-8 items-center rounded-md px-3 type-small font-medium whitespace-nowrap",
@@ -83,38 +146,30 @@ export function NoteArea({
         </button>
       </div>
 
-      {!open && hasSaved && (
-        <div className="col-start-2 pb-2 md:col-span-2">
-          <NotePreview note={noteField.saved} link={linkField.saved} />
+      {!open && hasText && (
+        <div className={cn(UNDER_TEXT, "pb-2")}>
+          {/* The typed text, so an unsaved change is never hidden behind the old one. */}
+          <NotePreview note={noteField.value} link={linkField.value} />
         </div>
       )}
 
       {open && (
-        <div
-          id={editorId}
-          className="col-start-2 col-end-[-1] grid gap-2 pb-3"
-          onKeyDown={(e) => {
-            if (e.key !== "Escape") return;
-            e.stopPropagation();
-            close();
-            button.current?.focus();
-          }}
-        >
+        <div id={editorId} className={cn(UNDER_TEXT, "grid gap-2 pt-1")} onKeyDown={onEscape}>
           <label className="sr-only" htmlFor={`${editorId}-note`}>
             Note for {title}
           </label>
           <textarea
             id={`${editorId}-note`}
-            // Opening the editor focuses the note (it only mounts when opened).
-            autoFocus
+            // Opening the editor focuses the note (it only mounts when opened), or the link after Fix link.
+            autoFocus={focusField === "note"}
             value={noteField.value}
             onChange={(e) => noteField.onChange(e.target.value)}
             onBlur={noteField.flush}
-            readOnly={!canWrite}
+            readOnly={mode === "read-only"}
             placeholder={placeholder}
             aria-invalid={noteField.error ? true : undefined}
             aria-describedby={noteField.error ? noteErrorId : undefined}
-            className={cn(FIELD, "min-h-24 resize-y", noteField.error ? "border-danger" : "border-line-strong")}
+            className={cn(FIELD_STYLES, "min-h-24 resize-y", noteField.error ? "border-danger" : "border-line-strong")}
           />
           {noteField.error && (
             <p id={noteErrorId} className="type-small text-danger">
@@ -129,41 +184,35 @@ export function NoteArea({
             type="url"
             inputMode="url"
             autoComplete="off"
+            autoFocus={focusField === "link"}
             value={linkField.value}
             onChange={(e) => linkField.onChange(e.target.value)}
             onBlur={linkField.flush}
-            readOnly={!canWrite}
+            readOnly={mode === "read-only"}
             placeholder="https://…"
             aria-invalid={linkField.error ? true : undefined}
             aria-describedby={linkField.error ? linkErrorId : undefined}
-            className={cn(FIELD, "h-11", linkField.error ? "border-danger" : "border-line-strong")}
+            className={cn(FIELD_STYLES, "h-11", linkField.error ? "border-danger" : "border-line-strong")}
           />
           {linkField.error && (
             <p id={linkErrorId} className="type-small text-danger">
               {linkField.error}
             </p>
           )}
-          <p aria-live="polite" className={cn("type-num min-h-[1.4em]", status === "error" ? "text-danger" : "text-muted")}>
-            {statusText(status)}
-            {status === "error" && !page.signedOut && (
-              <>
-                {" "}
-                <button
-                  type="button"
-                  onClick={() => {
-                    noteField.retry();
-                    linkField.retry();
-                  }}
-                  disabled={!canWrite}
-                  className="font-sans underline underline-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  Try again
-                </button>
-              </>
-            )}
-          </p>
         </div>
       )}
+
+      {/* Always rendered: it holds the note's live region, open or closed. */}
+      <div
+        className={cn(
+          UNDER_TEXT,
+          open ? "type-num flex min-h-11 flex-wrap items-center gap-x-2 pb-2" : "type-small max-w-[75ch] [overflow-wrap:anywhere]",
+          !open && (lines.saving || lines.save || lines.field) && "-mt-1 pb-2",
+        )}
+        onKeyDown={open ? onEscape : undefined}
+      >
+        <SaveLines lines={lines} editing={open} ids={ids} onAction={onAction} />
+      </div>
     </>
   );
 }
