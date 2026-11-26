@@ -22,6 +22,17 @@
   --danger-soft: #fdeceb;
   --scrim: rgb(0 0 0 / 0.3);
   --overlay-shadow: 0 8px 24px rgb(0 0 0 / 0.14);
+  /* Sign-in card only (design spec 2.5); none in dark mode. */
+  --raised-shadow: 0 1px 2px rgb(16 40 34 / 0.05), 0 12px 32px rgb(16 40 34 / 0.08);
+  /* Brand panel on /login (design spec 2.1): the same in both schemes, so not repeated below. */
+  --brand-panel: #0c1f1a;
+  --brand-card: #12302a;
+  --brand-ink: #e8f0ed;
+  --brand-muted: #a3b8b1;
+  --brand-accent: #3fcfb3;
+  --brand-faint: #5d7c74;
+  --brand-line: #2a4a42;
+  --brand-chip: #143a32; /* dark accent-soft, behind the "Example" chip */
 }
 
 @media (prefers-color-scheme: dark) {
@@ -43,6 +54,7 @@
     --danger: #ff958a;
     --danger-soft: #3d1915;
     --overlay-shadow: 0 8px 24px rgb(0 0 0 / 0.5);
+    --raised-shadow: none; /* the card's border is enough on dark */
   }
 }
 
@@ -54,6 +66,13 @@
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 12px;
+  --radius-xl: 16px;
+  --animate-spinner: spinner 0.8s linear infinite;
+  @keyframes spinner {
+    to {
+      transform: rotate(1turn);
+    }
+  }
   --animate-skeleton: skeleton 1.2s ease-in-out infinite alternate;
   @keyframes skeleton {
     from {
@@ -83,8 +102,20 @@
   --color-danger: var(--danger);
   --color-danger-soft: var(--danger-soft);
   --color-scrim: var(--scrim);
+  --color-brand-panel: var(--brand-panel);
+  --color-brand-card: var(--brand-card);
+  --color-brand-ink: var(--brand-ink);
+  --color-brand-muted: var(--brand-muted);
+  --color-brand-accent: var(--brand-accent);
+  --color-brand-faint: var(--brand-faint);
+  --color-brand-line: var(--brand-line);
+  --color-brand-chip: var(--brand-chip);
   --shadow-overlay: var(--overlay-shadow);
+  --shadow-raised: var(--raised-shadow);
 }
+
+/* Phone landscape and other short screens below 1024 px: the compact bottom bar (design spec 3.4). */
+@custom-variant short (@media (width < 64rem) and (max-height: 500px));
 
 /* Type scale: design spec 2.4. */
 @utility type-display {
@@ -101,6 +132,31 @@
   line-height: 1.3;
   font-weight: 600;
   text-wrap: balance;
+}
+/* v0.4: /login headline on the brand panel only. */
+@utility type-hero {
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 1.2rem + 1.6vw, 2.5rem);
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  font-weight: 600;
+  text-wrap: balance;
+}
+/* v0.4: the sign-in card's h1. */
+@utility type-title-lg {
+  font-family: var(--font-display);
+  font-size: 24px;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  font-weight: 600;
+}
+/* v0.4: "FDE Journey" in the lockup. 18 px; the brand panel sets --wordmark-size to 20 px. */
+@utility type-wordmark {
+  font-family: var(--font-display);
+  font-size: var(--wordmark-size, 18px);
+  line-height: 1;
+  letter-spacing: -0.01em;
+  font-weight: 600;
 }
 @utility type-body {
   font-size: 15px;
@@ -158,6 +214,12 @@
   @media (width < 64rem) {
     html {
       scroll-padding-bottom: calc(64px + env(safe-area-inset-bottom) + 16px);
+    }
+  }
+  /* The compact 48 px bar on short screens (design spec 3.4). */
+  @media (width < 64rem) and (max-height: 500px) {
+    html {
+      scroll-padding-bottom: calc(48px + env(safe-area-inset-bottom) + 16px);
     }
   }
   body {
@@ -251,6 +313,47 @@
   .card-head:has(button:focus-visible) {
     outline: 2px solid var(--accent);
     outline-offset: 2px;
+  }
+}
+
+/* /login brand panel, 1024 px and wider (design spec 5): a glow and a 24 px dot grid behind the
+   content, fading out towards the bottom. Decoration only. */
+@layer components {
+  @media (width >= 64rem) {
+    .brand-panel::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background:
+        radial-gradient(60% 50% at 15% 0%, rgb(63 207 179 / 0.18), transparent 70%),
+        radial-gradient(1px 1px at 1px 1px, rgb(232 240 237 / 0.09) 1px, transparent 0) 0 0 / 24px 24px;
+      mask-image: linear-gradient(to bottom, #000 30%, transparent 95%);
+    }
+  }
+
+  /* The example path draws in once, and its nodes fade in (design spec 2.5). Without motion the
+     path is simply shown fully drawn. */
+  @media (prefers-reduced-motion: no-preference) {
+    .path-draw {
+      stroke-dasharray: 1;
+      stroke-dashoffset: 1;
+      animation: path-draw 0.9s ease-out 0.15s forwards;
+    }
+    .path-node {
+      opacity: 0;
+      animation: path-node 0.2s ease-out forwards;
+    }
+  }
+  @keyframes path-draw {
+    to {
+      stroke-dashoffset: 0;
+    }
+  }
+  @keyframes path-node {
+    to {
+      opacity: 1;
+    }
   }
 }
 

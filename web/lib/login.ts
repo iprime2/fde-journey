@@ -56,6 +56,52 @@ export function parseLoginParams(params: Params): { next: string; notice: LoginN
   return { next, notice: null };
 }
 
+/** Who may sign in (design spec 8). Only the access line and the not-allowed error depend on it. */
+export type AccessMode = "owner-only" | "invite-only" | "open";
+
+/**
+ * The sign-up mode the sign-in page describes. This changes the wording only; it does not decide
+ * who can sign in. The real gate is ownerGate (lib/owner.ts) and isOwnerUser (lib/auth.ts): when
+ * sign-up opens up (M4), change those and this line together.
+ */
+export const ACCESS_MODE: AccessMode = "owner-only";
+
+/** Everything on the sign-in page that depends on the access mode. */
+export const ACCESS_COPY: Record<AccessMode, { access: string; notAllowed: string | null }> = {
+  "owner-only": {
+    access: "Private for now: only the owner's GitHub account can sign in.",
+    notAllowed: "This GitHub account can't sign in. FDE Journey is private to its owner for now.",
+  },
+  "invite-only": {
+    access: "Invite only for now. Use the GitHub account your invite was sent to.",
+    notAllowed: "This GitHub account doesn't have an invite yet.",
+  },
+  open: {
+    access: "New here? Continue with GitHub to start your own tracker.",
+    notAllowed: null,
+  },
+};
+
+/** The banner above the sign-in button for a notice, or null for none (design spec 5 and 8). */
+export function loginMessage(
+  notice: LoginNotice,
+  mode: AccessMode = ACCESS_MODE,
+): { tone: "error" | "info"; text: string } | null {
+  switch (notice) {
+    case "not-owner": {
+      // With open sign-up nobody is turned away; if the code still arrives, treat it as a failure.
+      const text = ACCESS_COPY[mode].notAllowed ?? "Sign-in didn't finish. Try again.";
+      return { tone: "error", text };
+    }
+    case "failed":
+      return { tone: "error", text: "Sign-in didn't finish. Try again." };
+    case "signed-out":
+      return { tone: "info", text: "You're signed out." };
+    default:
+      return null;
+  }
+}
+
 /** Pages anyone may open without signing in. Everything else needs the owner's sign-in. */
 export function isPublicPath(pathname: string): boolean {
   return pathname === "/login" || pathname === "/api/auth" || pathname.startsWith("/api/auth/");

@@ -35,7 +35,7 @@ export default function HomePage() {
       <Suspense fallback={<HomeSkeleton />}>
         <HomeContent />
       </Suspense>
-      <p className="type-small text-muted">
+      <p className="type-small max-w-[34em] text-muted">
         {formatDate(READINESS_REVIEW)} is a portfolio and job-readiness milestone, not a deadline to pass every
         certification.
       </p>

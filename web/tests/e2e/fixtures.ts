@@ -1,5 +1,6 @@
 import { expect, test as base } from "@playwright/test";
 import { type E2eSession, SESSION_COOKIE, signedSessionCookie, spareSessionToken } from "./auth";
+import { AVATAR_ROUTE, TEST_AVATAR_PNG } from "./avatar";
 
 /**
  * Every e2e test runs signed in as the (made-up) owner unless it opts out with
@@ -9,6 +10,9 @@ import { type E2eSession, SESSION_COOKIE, signedSessionCookie, spareSessionToken
  * Every e2e test fails if the page throws or logs a console error, so hydration
  * mismatches and runtime errors cannot pass silently.
  *
+ * No test reaches GitHub's avatar host: every request to it gets a made-up solid-colour PNG
+ * (tests/e2e/avatar.ts). A test can override that with its own `page.route(AVATAR_ROUTE, …)`.
+ *
  * One exception: a 404 for the page document itself (a test that visits a missing
  * address on purpose). A 404 for any asset (script, style, image, font) still fails.
  */
@@ -17,6 +21,7 @@ export const test = base.extend<{
   session: E2eSession;
   allowedConsoleErrors: RegExp[];
   ownerSession: void;
+  avatarRoute: void;
   failOnPageErrors: void;
 }>({
   signedIn: [true, { option: true }],
@@ -34,6 +39,15 @@ export const test = base.extend<{
           { name: SESSION_COOKIE, value: signedSessionCookie(token), url: baseURL ?? "", httpOnly: true, sameSite: "Lax" },
         ]);
       }
+      await use();
+    },
+    { auto: true },
+  ],
+  avatarRoute: [
+    async ({ context }, use) => {
+      await context.route(AVATAR_ROUTE, (route) =>
+        route.fulfill({ status: 200, contentType: "image/png", body: TEST_AVATAR_PNG }),
+      );
       await use();
     },
     { auto: true },

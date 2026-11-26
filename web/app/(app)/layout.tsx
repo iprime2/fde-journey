@@ -1,5 +1,7 @@
 // Frame for every signed-in page: sidebar on desktop, bottom bar on phones (design spec 3).
 // The save status (signed out while using, failed saves, offline) is shared by every page.
+import { Suspense } from "react";
+import { AccountSkeleton, SheetAccount } from "@/components/account/Account";
 import { MidnightRefresh } from "@/components/MidnightRefresh";
 import { BottomBar } from "@/components/nav/BottomBar";
 import { RouteFocus } from "@/components/nav/RouteFocus";
@@ -19,11 +21,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <Sidebar />
       <main
         id="main"
-        className="pt-[max(24px,env(safe-area-inset-top))] pr-[max(16px,env(safe-area-inset-right))] pb-[calc(24px+64px+env(safe-area-inset-bottom))] pl-[max(16px,env(safe-area-inset-left))] lg:ml-[248px] lg:px-8 lg:pt-10 lg:pb-16"
+        className="pt-[max(24px,env(safe-area-inset-top))] pr-[max(16px,env(safe-area-inset-right))] pb-[calc(24px+64px+env(safe-area-inset-bottom))] pl-[max(16px,env(safe-area-inset-left))] short:pb-[calc(24px+48px+env(safe-area-inset-bottom))] md:pr-[max(24px,env(safe-area-inset-right))] md:pl-[max(24px,env(safe-area-inset-left))] lg:ml-[248px] lg:px-8 lg:pt-10 lg:pb-16"
       >
         <div className="mx-auto grid w-full max-w-[960px] gap-5 lg:gap-6">{children}</div>
       </main>
-      <BottomBar />
+      <BottomBar
+        account={
+          <Suspense fallback={<AccountSkeleton tall />}>
+            <SheetAccount />
+          </Suspense>
+        }
+      />
       <RouteFocus />
       <SessionKeeper />
       <MidnightRefresh />

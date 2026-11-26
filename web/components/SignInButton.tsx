@@ -3,20 +3,25 @@
 import { useFormStatus } from "react-dom";
 import { cn } from "./cn";
 import { GitHubMark } from "./icons";
-import { buttonStyles } from "./ui";
+import { Spinner, buttonStyles } from "./ui";
 
-/** "Sign in with GitHub"; "Opening GitHub…" while the form is on its way (design spec 4, Button). */
-export function SignInButton({ disabled = false }: { disabled?: boolean }) {
+/**
+ * "Continue with GitHub"; "Opening GitHub…" with a spinner while the form is on its way
+ * (design spec 4, Button, size lg). `describedBy` points at the access line above it.
+ */
+export function SignInButton({ disabled = false, describedBy }: { disabled?: boolean; describedBy?: string }) {
   const { pending } = useFormStatus();
   return (
     <button
       type="submit"
       disabled={disabled || pending}
       aria-busy={pending || undefined}
-      className={cn(buttonStyles.primary, "w-full")}
+      aria-describedby={describedBy}
+      className={cn(buttonStyles.primaryLg, "w-full")}
     >
-      <GitHubMark size={20} />
-      {pending ? "Opening GitHub…" : "Sign in with GitHub"}
+      <GitHubMark size={20} className={cn("flex-none", pending && "motion-safe:hidden")} />
+      {pending && <Spinner />}
+      {pending ? "Opening GitHub…" : "Continue with GitHub"}
     </button>
   );
 }

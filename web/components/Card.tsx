@@ -37,7 +37,7 @@ export function CardHead({
         <h2 id={titleId} className="type-title">
           {title}
         </h2>
-        {sub && <p className={cn("text-muted", subIsDate ? "type-num" : "type-small")}>{sub}</p>}
+        {sub && <p className={cn("max-w-[34em] text-muted", subIsDate ? "type-num" : "type-small")}>{sub}</p>}
       </div>
       {(chip || hasCount) && (
         <div className="flex items-center gap-3 self-start whitespace-nowrap">
@@ -50,7 +50,7 @@ export function CardHead({
 }
 
 export function CardDescription({ children }: { children: React.ReactNode }) {
-  return <p className="type-small max-w-[65ch] px-4 pb-3 text-muted">{children}</p>;
+  return <p className="type-small max-w-[34em] px-4 pb-3 text-muted">{children}</p>;
 }
 
 /** The "›" before a collapsible title; turns to point down when open. */
