@@ -54,3 +54,26 @@ export async function openScriptDb(config) {
     close: () => client.close(),
   };
 }
+
+/**
+ * Names and codes along an error's chain (`cause`, and Neon's `sourceError`), for script output,
+ * for example "DrizzleQueryError < DatabaseError 42P07". Never a message: database messages
+ * quote the query's parameters and sometimes the row. Same rules as lib/safe-log.ts.
+ * @param {unknown} error
+ * @returns {string}
+ */
+export function errorSummary(error) {
+  const parts = [];
+  const queue = [error];
+  while (queue.length > 0 && parts.length < 8) {
+    const link = queue.shift();
+    if (link === undefined || link === null || typeof link !== "object") continue;
+    const ctor = link.constructor?.name;
+    let name = typeof link.name === "string" && /^[A-Za-z][\w$]{0,63}$/.test(link.name) ? link.name : "Error";
+    if (name === "Error" && typeof ctor === "string" && ctor.length > 3 && /^[A-Za-z][\w$]{0,63}$/.test(ctor)) name = ctor;
+    const code = typeof link.code === "number" ? String(link.code) : link.code;
+    parts.push(typeof code === "string" && /^[A-Za-z0-9_.-]{1,64}$/.test(code) ? `${name} ${code}` : name);
+    queue.push(link.cause, link.sourceError);
+  }
+  return parts.join(" < ") || "unknown";
+}

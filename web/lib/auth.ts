@@ -14,6 +14,7 @@ import { and, eq, lt } from "drizzle-orm";
 import { type Db, getDb } from "@/db/client";
 import { account, authSchema, verification } from "@/db/schema";
 import { ownerGate, ownerGithubId } from "./owner";
+import { betterAuthLog, describeError } from "./safe-log";
 
 type Env = Record<string, string | undefined>;
 
@@ -62,7 +63,7 @@ export async function deleteExpiredVerifications(db: Db, now = new Date()): Prom
   try {
     await db.delete(verification).where(lt(verification.expiresAt, now));
   } catch (error) {
-    console.error(`Clearing expired sign-in attempts failed (${error instanceof Error ? error.name : "unknown"})`);
+    console.error(`Clearing expired sign-in attempts failed (${describeError(error)})`);
   }
 }
 
@@ -119,6 +120,10 @@ export function createAuth({ db, env, writeCookies = true }: { db: Db; env: Env;
     // everywhere, so tests exercise the same protection as production.
     advanced: { disableOriginCheck: false },
     telemetry: { enabled: false },
+    // Better Auth's default logger prints whole errors: a failed session lookup printed the
+    // query's parameters, the session token among them. This one prints error names and codes
+    // only, and nothing for Next's own prerender interruptions (lib/safe-log.ts).
+    logger: { level: "warn", log: betterAuthLog },
     // Lets Server Actions that call auth.api (sign-in, sign-out, renewal) set cookies. Must stay last.
     plugins: writeCookies ? [nextCookies()] : [],
   });

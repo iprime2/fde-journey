@@ -18,18 +18,21 @@ const nextHeaders = vi.hoisted(() => () => ({
 }));
 vi.mock("next/headers", nextHeaders);
 vi.mock("next/headers.js", nextHeaders);
-vi.mock("next/navigation", () => ({
+vi.mock("next/navigation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/navigation")>()),
   redirect: (url: string) => {
     throw new Error(`REDIRECT ${url}`);
   },
 }));
 
-import { eq } from "drizzle-orm";
+import { inspect } from "node:util";
+import { eq, sql } from "drizzle-orm";
 import { session } from "@/db/schema";
 import { getProgress } from "@/lib/data";
 import { PATH_HEADER } from "@/lib/login";
 import { isReadOnly } from "@/lib/mode";
 import { setDone, setNote } from "@/lib/progress-db";
+import { SafeError } from "@/lib/safe-log";
 import { SignedOutError, getOwnerSession, requireUser } from "@/lib/session";
 import { OWNER_ID, emptyDb, seedOtherUser, seedOwner, setTestEnv, signedCookieValue } from "./support/db";
 
@@ -171,5 +174,20 @@ describe("getProgress", () => {
     await expect(getProgress()).rejects.toThrow(/^REDIRECT \/login/);
     useCookie((await seedOtherUser(db)).cookie);
     await expect(getProgress()).rejects.toThrow(/^REDIRECT \/login/);
+  });
+
+  it("throws a SafeError when the read fails, so the server log never gets the query or its parameters", async () => {
+    const db = await emptyDb();
+    useCookie((await seedOwner(db)).cookie);
+    await db.execute(sql`alter table progress rename to progress_unavailable`);
+    try {
+      const error = await getProgress().catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(SafeError);
+      expect((error as SafeError).message).toMatch(/^Reading progress failed \(DrizzleQueryError < \w+ 42P01\)$/);
+      expect((error as SafeError).cause).toBeUndefined();
+      expect(inspect(error, { depth: 10 })).not.toMatch(/params|select|"owner"/);
+    } finally {
+      await db.execute(sql`alter table progress_unavailable rename to progress`);
+    }
   });
 });

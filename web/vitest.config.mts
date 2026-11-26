@@ -11,6 +11,8 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["tests/unit/**/*.test.ts"],
+    // connection() resolves as for a real request (see the file).
+    setupFiles: ["tests/unit/support/next-request.ts"],
     // Run Better Auth through Vitest's pipeline so its own `import("next/headers.js")` sees the
     // tests' mocks (the cookie a Server Action sets can then be checked).
     server: { deps: { inline: [/better-auth/] } },
