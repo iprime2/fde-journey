@@ -15,6 +15,13 @@
       "when": 1795660912022,
       "tag": "0001_verification_expires_index",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1795673329674,
+      "tag": "0002_progress_per_user",
+      "breakpoints": true
     }
   ]
 }

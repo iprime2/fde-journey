@@ -2,7 +2,7 @@
 // All data here is invented. Nothing in this file is a real credential.
 import { createHmac, randomBytes } from "node:crypto";
 import { type Db, getDb } from "@/db/client";
-import { account, progress, session, user, verification } from "@/db/schema";
+import { account, progress, progressEvent, session, user, verification } from "@/db/schema";
 
 /** Values for a test run. The secret is random per run; the GitHub ids are made up. */
 export const TEST_SECRET = randomBytes(32).toString("base64url");
@@ -27,6 +27,7 @@ export function resetAuth() {
 /** The app's database under Vitest (in memory), emptied. */
 export async function emptyDb(): Promise<Db> {
   const db = await getDb();
+  await db.delete(progressEvent);
   await db.delete(progress);
   await db.delete(session);
   await db.delete(account);

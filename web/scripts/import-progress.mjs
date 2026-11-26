@@ -10,11 +10,13 @@
 // - A record only replaces a saved row when it is newer, so running it twice changes nothing and
 //   changes made in the app are never overwritten. A timestamp in the future is stored as the
 //   import time, and such a record only fills an empty row, never replaces a saved one.
+// - The records are imported for the owner: the user whose GitHub account id is OWNER_GITHUB_ID.
+//   The import refuses to run if that setting is missing or the owner has never signed in.
 // - Prints counts only, never note text or links. Keep exported files outside this repository.
 // - Uses DATABASE_URL (Neon, migrated first) or else the local PGlite folder. Stop `npm run dev`
 //   first when importing into the local folder: two processes must not open it at once.
 import path from "node:path";
-import { applyImport, collectRecords, planImport, readExisting, summaryLines } from "./lib/import-core.mjs";
+import { applyImport, collectRecords, findOwnerUserId, planImport, readExisting, summaryLines } from "./lib/import-core.mjs";
 import { WEB_DIR, openScriptDb, scriptDbConfig } from "./lib/db.mjs";
 
 const args = process.argv.slice(2);
@@ -51,13 +53,21 @@ try {
 let db;
 try {
   db = await openScriptDb(scriptDbConfig(process.env));
-  const ids = [...new Set(collected.entries.map((e) => e.id).filter((id) => id && knownIds.has(id)))];
-  const plan = planImport(collected.entries, await readExisting(db, ids), knownIds, linkProblem);
-  const applied = dryRun
-    ? { inserted: plan.writes.filter((w) => w.isNew).length, updated: plan.writes.filter((w) => !w.isNew).length, skipped: 0 }
-    : await applyImport(db, plan.writes);
-  for (const line of summaryLines({ files: collected.files, unreadable: collected.unreadable, counts: plan.counts, applied, dryRun })) {
-    console.log(line);
+  const ownerUserId = await findOwnerUserId(db, process.env.OWNER_GITHUB_ID);
+  if (!ownerUserId) {
+    console.error(
+      "Import refused: no owner found. Set OWNER_GITHUB_ID to the owner's numeric GitHub id, and sign in to the app once so the owner's user exists.",
+    );
+    process.exitCode = 2;
+  } else {
+    const ids = [...new Set(collected.entries.map((e) => e.id).filter((id) => id && knownIds.has(id)))];
+    const plan = planImport(collected.entries, await readExisting(db, ownerUserId, ids), knownIds, linkProblem);
+    const applied = dryRun
+      ? { inserted: plan.writes.filter((w) => w.isNew).length, updated: plan.writes.filter((w) => !w.isNew).length, skipped: 0 }
+      : await applyImport(db, ownerUserId, plan.writes);
+    for (const line of summaryLines({ files: collected.files, unreadable: collected.unreadable, counts: plan.counts, applied, dryRun })) {
+      console.log(line);
+    }
   }
 } catch (error) {
   // Database messages can quote the row (and so a note): print the error code only.

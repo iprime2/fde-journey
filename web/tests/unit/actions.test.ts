@@ -19,7 +19,7 @@ vi.mock("@/lib/progress-db", async (importOriginal) => {
       if (fail.next) {
         fail.next = false;
         // Like a Postgres error, whose detail can quote the row.
-        throw Object.assign(new Error(`Failing row contains (${String(args[2])})`), { code: "23514" });
+        throw Object.assign(new Error(`Failing row contains (${String(args[3])})`), { code: "23514" });
       }
       return fn(...args);
     };
@@ -147,7 +147,7 @@ describe("saveNote and saveJournal", () => {
     await toggleDone("s2-4", true);
     await saveNote("s2-4", NOTE);
     await toggleDone("s2-4", false);
-    expect((await readProgress(db)).get("s2-4")).toMatchObject({ done: false, note: NOTE });
+    expect((await readProgress("owner", db)).get("s2-4")).toMatchObject({ done: false, note: NOTE });
   });
 
   it("saves the weekly journal under the id journal", async () => {

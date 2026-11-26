@@ -1,6 +1,7 @@
 "use server";
-// Saving progress. Every action checks the owner's sign-in first, then validates its input,
-// then writes one row and refreshes the pages. Results are typed (lib/save-result.ts); raw
+// Saving progress. Every action takes the signed-in user from the server session first
+// (requireUser), then validates its input, then writes that user's row and its event in one
+// statement (lib/progress-db.ts) and refreshes the pages. Results are typed (lib/save-result.ts); raw
 // database errors never reach the browser.
 //
 // Call from a client component, for example inside startTransition:
@@ -12,7 +13,7 @@ import { JOURNAL_ID } from "@/lib/ids";
 import type { ProgressEntry } from "@/lib/progress";
 import { setDone, setLink, setNote } from "@/lib/progress-db";
 import { FAILED_ERROR, SIGNED_OUT_ERROR, type SaveResult } from "@/lib/save-result";
-import { getOwnerSession } from "@/lib/session";
+import { SignedOutError, requireUser } from "@/lib/session";
 import { type Parsed, doneSchema, linkSchema, noteIdSchema, noteSchema, parseField, tickableIdSchema } from "@/lib/validation";
 
 /** Postgres error code only: messages and details can contain the row, which holds personal notes. */
@@ -21,17 +22,19 @@ function errorCode(error: unknown): string {
   return error instanceof Error ? error.name : "unknown";
 }
 
-async function save<T>(parse: () => Parsed<T>, write: (db: Db, input: T) => Promise<ProgressEntry>): Promise<SaveResult> {
+async function save<T>(parse: () => Parsed<T>, write: (userId: string, db: Db, input: T) => Promise<ProgressEntry>): Promise<SaveResult> {
   try {
-    if (!(await getOwnerSession())) return { ok: false, error: SIGNED_OUT_ERROR };
+    // The user comes from the session only, never from the action's arguments.
+    const userId = await requireUser({ onSignedOut: "throw" });
     const input = parse();
     if (!input.ok) return { ok: false, error: input.error };
-    const record = await write(await getDb(), input.value);
+    const record = await write(userId, await getDb(), input.value);
     // Every page shows done counts (sidebar, Home tiles), so refresh them all. The current page
     // re-renders in this response; other pages refresh when next visited.
     revalidatePath("/", "layout");
     return { ok: true, record };
   } catch (error) {
+    if (error instanceof SignedOutError) return { ok: false, error: SIGNED_OUT_ERROR };
     console.error(`Saving progress failed (${errorCode(error)})`);
     return { ok: false, error: FAILED_ERROR };
   }
@@ -47,7 +50,7 @@ function both<A, B>(a: Parsed<A>, b: Parsed<B>): Parsed<[A, B]> {
 export async function toggleDone(itemId: string, done: boolean): Promise<SaveResult> {
   return save(
     () => both(parseField(tickableIdSchema, itemId, "itemId"), parseField(doneSchema, done, "done")),
-    (db, [id, value]) => setDone(db, id, value),
+    (userId, db, [id, value]) => setDone(userId, db, id, value),
   );
 }
 
@@ -55,7 +58,7 @@ export async function toggleDone(itemId: string, done: boolean): Promise<SaveRes
 export async function saveNote(itemId: string, note: string): Promise<SaveResult> {
   return save(
     () => both(parseField(noteIdSchema, itemId, "itemId"), parseField(noteSchema, note, "note")),
-    (db, [id, value]) => setNote(db, id, value),
+    (userId, db, [id, value]) => setNote(userId, db, id, value),
   );
 }
 
@@ -63,7 +66,7 @@ export async function saveNote(itemId: string, note: string): Promise<SaveResult
 export async function saveLink(itemId: string, link: string): Promise<SaveResult> {
   return save(
     () => both(parseField(tickableIdSchema, itemId, "itemId"), parseField(linkSchema, link, "link")),
-    (db, [id, value]) => setLink(db, id, value),
+    (userId, db, [id, value]) => setLink(userId, db, id, value),
   );
 }
 
@@ -71,6 +74,6 @@ export async function saveLink(itemId: string, link: string): Promise<SaveResult
 export async function saveJournal(note: string): Promise<SaveResult> {
   return save(
     () => parseField(noteSchema, note, "note"),
-    (db, value) => setNote(db, JOURNAL_ID, value),
+    (userId, db, value) => setNote(userId, db, JOURNAL_ID, value),
   );
 }

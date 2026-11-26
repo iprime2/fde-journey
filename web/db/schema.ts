@@ -1,18 +1,21 @@
 // Database schema (Drizzle, Postgres). Migrations are generated from this file with
 // `npm run db:generate` and committed in db/migrations/. Never edit a merged migration.
 import { sql } from "drizzle-orm";
-import { boolean, check, index, pgTable, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import { bigint, boolean, check, index, pgTable, primaryKey, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 
 const tz = { withTimezone: true, mode: "date" } as const;
 
 /**
- * Saved progress, one row per item id (lib/ids.ts), same fields as the tracker's records.
- * Single-owner app: rows belong to the owner, so there is no user id column.
+ * Saved progress, one row per user and item id (lib/ids.ts), same fields as the tracker's records.
+ * Every query on this table filters on `user_id` (lib/progress-db.ts; tests/unit/isolation-guard.test.ts).
  */
 export const progress = pgTable(
   "progress",
   {
-    itemId: text("item_id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    itemId: text("item_id").notNull(),
     done: boolean("done").notNull().default(false),
     note: text("note").notNull().default(""),
     link: text("link").notNull().default(""),
@@ -20,11 +23,38 @@ export const progress = pgTable(
     updatedAt: timestamp("updated_at", tz).notNull().defaultNow(),
   },
   (t) => [
+    primaryKey({ columns: [t.userId, t.itemId] }),
     // Defence in depth: the server validates first, these only stop bad rows from any other path.
     check("progress_note_length", sql`char_length(${t.note}) <= 10000`),
     check("progress_link_length", sql`char_length(${t.link}) <= 2000`),
     check("progress_link_https", sql`${t.link} = '' OR ${t.link} ~* '^https://'`),
     check("progress_done_at", sql`${t.done} OR ${t.doneAt} IS NULL`),
+  ],
+);
+
+/** What a save changed. One row per change, written in the same statement as the change itself. */
+export const PROGRESS_EVENT_KINDS = ["done", "undone", "note", "link"] as const;
+export type ProgressEventKind = (typeof PROGRESS_EVENT_KINDS)[number];
+
+/**
+ * The history of saves, for the insights dashboard (M5). It records only that something changed,
+ * never the note or link text: there is deliberately no column that could hold it.
+ */
+export const progressEvent = pgTable(
+  "progress_event",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    itemId: text("item_id").notNull(),
+    kind: text("kind", { enum: PROGRESS_EVENT_KINDS }).notNull(),
+    at: timestamp("at", tz).notNull().defaultNow(),
+  },
+  (t) => [
+    index("progress_event_user_at_idx").on(t.userId, t.at),
+    check("progress_event_kind", sql`${t.kind} IN ('done', 'undone', 'note', 'link')`),
+    check("progress_event_item_id_length", sql`char_length(${t.itemId}) <= 64`),
   ],
 );
 

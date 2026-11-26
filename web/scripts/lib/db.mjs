@@ -35,8 +35,9 @@ export async function openScriptDb(config) {
     const { neon } = await import("@neondatabase/serverless");
     const sql = neon(config.url);
     const db = { kind: "neon", query: (text, params = []) => sql.query(text, params), close: async () => {} };
-    const [row] = await db.query("select to_regclass('public.progress') is not null as ready");
-    if (!row?.ready) throw new Error("The database has no progress table yet. Run `npm run db:migrate` first.");
+    // progress_event arrives with migration 0002 (progress per user), which the import needs.
+    const [row] = await db.query("select to_regclass('public.progress_event') is not null as ready");
+    if (!row?.ready) throw new Error("The database is not migrated to per-user progress yet. Run `npm run db:migrate` first.");
     return db;
   }
   const [{ PGlite }, { drizzle }, { migrate }] = await Promise.all([
