@@ -29,7 +29,7 @@ Other people can sign in and track their own AI-engineer or FDE journey. Each pe
   - `open` (no cap, later)
 
   The sign-in page copy switches on it. In `capped` mode: "New here? Continue with GitHub to start your own tracker. Places are limited; if they're full you'll join the waitlist."
-- **Providers:** GitHub in M4. Google is a small follow-up.
+- **Providers:** GitHub only in M4. Google sign-in comes later, after M4 (owner decision, 2026-11-26).
 - **Suspended users** (`status = suspended`, set by an admin) cannot sign in, and their sessions end at once.
 
 ## 3. Data model
@@ -88,7 +88,7 @@ Hidden sections leave the navigation for that user; their item ids stay the same
     - users active in the last 7 and 30 days
     - items completed this week across all users
   - **Users** (`users.view`):
-    - each user's GitHub name, avatar and username
+    - each user's GitHub name, avatar and username (never their email address)
     - status, sign-up date and last active date
     - counts of items done per section
   - **Waitlist** (`waitlist.manage`):
@@ -138,7 +138,7 @@ Two pull requests, each reviewed (code and UX) before merge:
 ## 9. Open questions for the owner
 1. (Decided: open up to 100 users, then the waitlist.)
 2. Section defaults for other users: does the table in section 5 look right?
-3. Google sign-in: in M4b or later?
-4a. Should the admin dashboard show users' email addresses? The default is no; GitHub username and avatar only.
+3. (Decided: Google sign-in later, not in M4.)
+4a. (Decided: admins never see email addresses. The dashboard shows GitHub username and avatar only.)
 4. Is a privacy page with you as the contact OK? The contact would be an address you choose, written into the page by you, not by Claude.
 5. Name: does it stay "FDE Journey" for everyone?
