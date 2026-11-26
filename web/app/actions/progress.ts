@@ -9,21 +9,37 @@
 //   if (!result.ok && result.error.code === "signed-out") showSignedOutBanner();
 import { revalidatePath } from "next/cache";
 import { type Db, getDb } from "@/db/client";
+import { touchActivity } from "@/lib/activity";
 import { JOURNAL_ID } from "@/lib/ids";
 import type { ProgressEntry } from "@/lib/progress";
 import { setDone, setLink, setNote } from "@/lib/progress-db";
+import { SCALER_LOCKED_MESSAGE, isScalerItemId } from "@/lib/sections";
+import { sectionSettingsFor } from "@/lib/settings";
 import { describeError } from "@/lib/safe-log";
 import { FAILED_ERROR, SIGNED_OUT_ERROR, type SaveResult } from "@/lib/save-result";
 import { SignedOutError, requireUser } from "@/lib/session";
 import { type Parsed, doneSchema, linkSchema, noteIdSchema, noteSchema, parseField, tickableIdSchema } from "@/lib/validation";
 
-async function save<T>(parse: () => Parsed<T>, write: (userId: string, db: Db, input: T) => Promise<ProgressEntry>): Promise<SaveResult> {
+async function save<T>(
+  parse: () => Parsed<T>,
+  itemIdOf: (input: T) => string,
+  write: (userId: string, db: Db, input: T) => Promise<ProgressEntry>,
+): Promise<SaveResult> {
   try {
     // The user comes from the session only, never from the action's arguments.
-    const userId = await requireUser({ onSignedOut: "throw" });
+    // Waitlisted users are refused here too (WaitlistedError is a SignedOutError).
+    const { userId, isSuperAdmin } = await requireUser({ onSignedOut: "throw" });
     const input = parse();
     if (!input.ok) return { ok: false, error: input.error };
-    const record = await write(userId, await getDb(), input.value);
+    const db = await getDb();
+    // Scaler items save only once the section is unlocked (the access code; always for the owner).
+    // The page itself is not found while locked, so only a crafted request gets this answer.
+    if (isScalerItemId(itemIdOf(input.value)) && !(await sectionSettingsFor(db, userId, isSuperAdmin)).scalerUnlocked) {
+      return { ok: false, error: { code: "invalid", field: "itemId", message: SCALER_LOCKED_MESSAGE } };
+    }
+    const record = await write(userId, db, input.value);
+    // Saving counts as being active (at most one write an hour; never fails the save).
+    await touchActivity(db, userId);
     // Every page shows done counts (sidebar, Home tiles), so refresh them all. The current page
     // re-renders in this response; other pages refresh when next visited.
     revalidatePath("/", "layout");
@@ -46,6 +62,7 @@ function both<A, B>(a: Parsed<A>, b: Parsed<B>): Parsed<[A, B]> {
 export async function toggleDone(itemId: string, done: boolean): Promise<SaveResult> {
   return save(
     () => both(parseField(tickableIdSchema, itemId, "itemId"), parseField(doneSchema, done, "done")),
+    ([id]) => id,
     (userId, db, [id, value]) => setDone(userId, db, id, value),
   );
 }
@@ -54,6 +71,7 @@ export async function toggleDone(itemId: string, done: boolean): Promise<SaveRes
 export async function saveNote(itemId: string, note: string): Promise<SaveResult> {
   return save(
     () => both(parseField(noteIdSchema, itemId, "itemId"), parseField(noteSchema, note, "note")),
+    ([id]) => id,
     (userId, db, [id, value]) => setNote(userId, db, id, value),
   );
 }
@@ -62,6 +80,7 @@ export async function saveNote(itemId: string, note: string): Promise<SaveResult
 export async function saveLink(itemId: string, link: string): Promise<SaveResult> {
   return save(
     () => both(parseField(tickableIdSchema, itemId, "itemId"), parseField(linkSchema, link, "link")),
+    ([id]) => id,
     (userId, db, [id, value]) => setLink(userId, db, id, value),
   );
 }
@@ -70,6 +89,7 @@ export async function saveLink(itemId: string, link: string): Promise<SaveResult
 export async function saveJournal(note: string): Promise<SaveResult> {
   return save(
     () => parseField(noteSchema, note, "note"),
+    () => JOURNAL_ID,
     (userId, db, value) => setNote(userId, db, JOURNAL_ID, value),
   );
 }

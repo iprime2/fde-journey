@@ -22,7 +22,21 @@ describe("e2e seed guard", () => {
       dataDir: path.join(WEB, ".data", "pglite-e2e"),
       token: good.E2E_SESSION_TOKEN,
       spareTokens: SPARES,
+      userTokens: [],
+      exportKeyHash: null,
       ownerId: good.OWNER_GITHUB_ID,
+    });
+  });
+
+  it("reads the M4b users' sessions and the export key's hash", () => {
+    const users = `waitlisted:${"w".repeat(43)},suspended:${"s".repeat(43)}`;
+    expect(checkE2eSeedEnv({ ...good, E2E_USER_SESSION_TOKENS: users, E2E_EXPORT_KEY_HASH: "a".repeat(64) }, WEB)).toMatchObject({
+      ok: true,
+      userTokens: [
+        { user: "waitlisted", token: "w".repeat(43) },
+        { user: "suspended", token: "s".repeat(43) },
+      ],
+      exportKeyHash: "a".repeat(64),
     });
   });
 
@@ -53,6 +67,13 @@ describe("e2e seed guard", () => {
     ["a spare token with other characters", { E2E_SPARE_SESSION_TOKENS: `${"x".repeat(40)}';--` }],
     ["a repeated spare token", { E2E_SPARE_SESSION_TOKENS: `${SPARES[0]},${SPARES[0]}` }],
     ["a spare token equal to the shared one", { E2E_SPARE_SESSION_TOKENS: "t".repeat(43) }],
+    ["an unknown test user", { E2E_USER_SESSION_TOKENS: `root:${"u".repeat(43)}` }],
+    ["a user token without a user", { E2E_USER_SESSION_TOKENS: "u".repeat(43) }],
+    ["a short user token", { E2E_USER_SESSION_TOKENS: "admin:short" }],
+    ["a user token equal to the shared one", { E2E_USER_SESSION_TOKENS: `admin:${"t".repeat(43)}` }],
+    ["a user token with extra parts", { E2E_USER_SESSION_TOKENS: `admin:${"u".repeat(43)}:x` }],
+    ["an export key hash that isn't one", { E2E_EXPORT_KEY_HASH: "fdej_plain-key" }],
+    ["a test user with the owner's GitHub id", { OWNER_GITHUB_ID: "900000000004" }],
     ["too many spare tokens", { E2E_SPARE_SESSION_TOKENS: Array.from({ length: 65 }, (_, i) => `${i}`.padStart(43, "s")).join(",") }],
   ])("refuses with %s", (_label, change) => {
     const result = checkE2eSeedEnv({ ...good, ...change }, WEB);
@@ -90,6 +111,8 @@ describe("no test sign-in in production code", () => {
       const text = readFileSync(file, "utf8");
       expect(text.includes("E2E_SESSION_TOKEN"), file).toBe(false);
       expect(text.includes("E2E_SPARE_SESSION_TOKENS"), file).toBe(false);
+      expect(text.includes("E2E_USER_SESSION_TOKENS"), file).toBe(false);
+      expect(text.includes("E2E_EXPORT_KEY_HASH"), file).toBe(false);
       if (!file.endsWith(path.join("db", "client.ts"))) expect(/E2E_AUTH/.test(text), file).toBe(false);
     }
   });

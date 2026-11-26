@@ -13,6 +13,8 @@ import { filterFromRecord } from "@/lib/filter";
 import { getProgress } from "@/lib/data";
 import { isReadOnly } from "@/lib/mode";
 import { JOURNAL_SUB, careerView, filterEntries, journalEntry } from "@/lib/views";
+import { Banner } from "@/components/Banner";
+import { hiddenSectionBanner } from "@/components/nav/navData";
 
 export const metadata: Metadata = { title: "Career" };
 
@@ -29,11 +31,18 @@ export default function CareerPage({ searchParams }: PageProps<"/career">) {
 }
 
 async function CareerContent({ searchParams }: Pick<PageProps<"/career">, "searchParams">) {
+  // Hidden by the user: an info banner; a locked Scaler: not found (design spec 5, v0.6).
+  const hidden = await hiddenSectionBanner("career");
   const [sp, progress, readOnly] = await Promise.all([searchParams, getProgress(), isReadOnly()]);
   const { milestones, journalNote } = careerView(trackerContent, progress);
   const entries = [...filterEntries([milestones]), journalEntry(journalNote)];
   return (
     <FilterProvider path="/career" entries={entries} initial={filterFromRecord(sp)}>
+      {hidden && (
+        <Banner tone={hidden.tone} action={hidden.action}>
+          {hidden.text}
+        </Banner>
+      )}
       <Toolbar placeholder={SEARCH_PLACEHOLDERS.career} />
       <div className="grid gap-3">
         <SectionCard card={milestones} readOnly={readOnly} />

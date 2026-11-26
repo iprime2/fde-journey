@@ -118,11 +118,12 @@ test.describe("signed in", () => {
 test.describe("sign-in page", () => {
   test.use({ signedIn: false });
 
-  test("a GitHub account that isn't the owner's gets the not-allowed message", async ({ page }) => {
+  // The test server runs in capped mode (read at request time), where nobody is turned away for
+  // not being the owner: a stray not_owner code reads as a sign-in that didn't finish (design
+  // spec 8). The owner-only wording is covered by tests/unit/login.test.ts.
+  test("a stray not-allowed code in capped mode says sign-in didn't finish", async ({ page }) => {
     await gotoReady(page, "/login?error=not_owner");
-    const alert = page.getByRole("alert").filter({
-      hasText: "This GitHub account can't sign in. FDE Journey is private to its owner for now.",
-    });
+    const alert = page.getByRole("alert").filter({ hasText: "Sign-in didn't finish. Try again." });
     await expect(alert).toBeVisible();
     await expect(page.getByRole("button", { name: SIGN_IN_BUTTON })).toBeEnabled();
     await expectAboveButton(page, alert);

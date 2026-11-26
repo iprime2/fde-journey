@@ -14,6 +14,8 @@ import { getProgress } from "@/lib/data";
 import { isReadOnly } from "@/lib/mode";
 import { getTodayIst } from "@/lib/today";
 import { filterEntries, readingView } from "@/lib/views";
+import { Banner } from "@/components/Banner";
+import { hiddenSectionBanner } from "@/components/nav/navData";
 
 export const metadata: Metadata = { title: "Reading" };
 
@@ -30,10 +32,17 @@ export default function ReadingPage({ searchParams }: PageProps<"/reading">) {
 }
 
 async function ReadingContent({ searchParams }: Pick<PageProps<"/reading">, "searchParams">) {
+  // Hidden by the user: an info banner; a locked Scaler: not found (design spec 5, v0.6).
+  const hidden = await hiddenSectionBanner("reading");
   const [sp, progress, today, readOnly] = await Promise.all([searchParams, getProgress(), getTodayIst(), isReadOnly()]);
   const cards = readingView(trackerContent, progress, today);
   return (
     <FilterProvider path="/reading" entries={filterEntries(cards)} initial={filterFromRecord(sp)}>
+      {hidden && (
+        <Banner tone={hidden.tone} action={hidden.action}>
+          {hidden.text}
+        </Banner>
+      )}
       <Toolbar placeholder={SEARCH_PLACEHOLDERS.reading} />
       <div className="grid gap-3">
         {cards.map((card) => (

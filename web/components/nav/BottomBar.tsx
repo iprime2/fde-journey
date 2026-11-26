@@ -1,17 +1,24 @@
 "use client";
 
-// Phone and tablet navigation, below 1024 px (design spec 3.1): five cells at the bottom of the
-// screen, the last one opening the "More" sheet with Certifications, Projects, Career and the
-// account row. On short screens (phone landscape) the bar is 48 px with icons beside the labels.
+// Phone and tablet navigation, below 1024 px (design spec 3.1 and 3.5): Home and the first three
+// visible sections at the bottom of the screen, then More, which opens a sheet with the other
+// visible sections, Settings, Admin (admins only) and the account row. On short screens (phone
+// landscape) the bar is 48 px with icons beside the labels.
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 import { cn } from "../cn";
 import { EllipsisIcon } from "../icons";
-import { SECTIONS, isCurrentSection } from "./sections";
+import { ADMIN_ITEM, SETTINGS_ITEM, type ExtraItem, isCurrentExtra, isCurrentSection, sectionFor } from "./sections";
 
-const BAR = SECTIONS.filter((s) => s.phone === "bar");
-const MORE = SECTIONS.filter((s) => s.phone === "more");
+/** What the bar shows. Null while the user's sections stream in: Home and Roadmap, two empty cells and More. */
+export interface PhoneNav {
+  bar: readonly string[];
+  more: readonly string[];
+  adminHref: string | null;
+}
+
+const LOADING: PhoneNav = { bar: ["/", "/roadmap", "", ""], more: [], adminHref: null };
 
 /** The current-page pill: above the icon, or on its left in the compact bar. */
 function Pill() {
@@ -29,7 +36,8 @@ const CELL =
 // 22 px icons; 20 px in the compact bar.
 const ICON = "short:size-5";
 
-export function BottomBar({ account }: { account?: React.ReactNode }) {
+export function BottomBar({ nav, account }: { nav: PhoneNav | null; account?: React.ReactNode }) {
+  const { bar, more, adminHref } = nav ?? LOADING;
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const sheetId = useId();
@@ -43,7 +51,28 @@ export function BottomBar({ account }: { account?: React.ReactNode }) {
     setOpen(false);
   }
 
-  const moreIsCurrent = MORE.some((s) => isCurrentSection(pathname, s.href));
+  const extras: { item: ExtraItem; href: string }[] = [
+    { item: "settings", href: "/settings" },
+    ...(adminHref ? [{ item: "admin" as const, href: adminHref }] : []),
+  ];
+  const moreIsCurrent = more.some((href) => isCurrentSection(pathname, href)) || extras.some((e) => isCurrentExtra(pathname, e.item));
+
+  const row = (key: string, href: string, label: string, Icon: (p: { size?: number; className?: string }) => React.ReactNode, current: boolean) => (
+    <li key={key}>
+      <Link
+        href={href}
+        aria-current={current ? "page" : undefined}
+        onClick={() => close(current)}
+        className={cn(
+          "flex min-h-[52px] items-center gap-3 rounded-md px-3 type-body-strong",
+          current ? "bg-accent-soft text-ink" : "text-ink hover:bg-hover",
+        )}
+      >
+        <Icon size={22} className={current ? "text-accent" : "text-muted"} />
+        {label}
+      </Link>
+    </li>
+  );
 
   function close(returnFocus: boolean) {
     setOpen(false);
@@ -78,33 +107,32 @@ export function BottomBar({ account }: { account?: React.ReactNode }) {
       >
         {/* On wider screens (tablets, phone landscape) the rows keep a readable width. */}
         <div className="md:mx-auto md:max-w-[560px]">
+          {more.length > 0 && (
+            <ul className="mb-2 border-b border-line pb-2">
+              {more.map((href) => {
+                const section = sectionFor(href);
+                return section ? row(href, href, section.label, section.Icon, isCurrentSection(pathname, href)) : null;
+              })}
+            </ul>
+          )}
           <ul>
-            {MORE.map((s) => {
-              const current = isCurrentSection(pathname, s.href);
-              return (
-                <li key={s.href}>
-                  <Link
-                    href={s.href}
-                    aria-current={current ? "page" : undefined}
-                    onClick={() => close(current)}
-                    className={cn(
-                      "flex min-h-[52px] items-center gap-3 rounded-md px-3 type-body-strong",
-                      current ? "bg-accent-soft text-ink" : "text-ink hover:bg-hover",
-                    )}
-                  >
-                    <s.Icon size={22} className={current ? "text-accent" : "text-muted"} />
-                    {s.label}
-                  </Link>
-                </li>
-              );
+            {extras.map(({ item, href }) => {
+              const entry = item === "settings" ? SETTINGS_ITEM : ADMIN_ITEM;
+              return row(item, href, entry.label, entry.Icon, isCurrentExtra(pathname, item));
             })}
           </ul>
           <div className="mt-2 border-t border-line pt-2">{account}</div>
         </div>
       </div>
       {/* The background runs to the screen edges; the cells stay clear of a side notch. */}
-      <ul className="fixed inset-x-0 bottom-0 z-40 grid h-[calc(64px+env(safe-area-inset-bottom))] grid-cols-5 border-t border-line bg-surface pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] short:h-[calc(48px+env(safe-area-inset-bottom))]">
-        {BAR.map((s) => {
+      <ul
+        style={{ gridTemplateColumns: `repeat(${bar.length + 1}, minmax(0, 1fr))` }}
+        className="fixed inset-x-0 bottom-0 z-40 grid h-[calc(64px+env(safe-area-inset-bottom))] border-t border-line bg-surface pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] short:h-[calc(48px+env(safe-area-inset-bottom))]"
+      >
+        {bar.map((href, i) => {
+          const s = sectionFor(href);
+          // A cell waiting for the user's sections.
+          if (!s) return <li key={`empty-${i}`} aria-hidden="true" />;
           const current = isCurrentSection(pathname, s.href);
           return (
             <li key={s.href} className="flex">

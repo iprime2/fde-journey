@@ -13,6 +13,8 @@ import { filterFromRecord } from "@/lib/filter";
 import { getProgress } from "@/lib/data";
 import { isReadOnly } from "@/lib/mode";
 import { certsView, filterEntries } from "@/lib/views";
+import { Banner } from "@/components/Banner";
+import { hiddenSectionBanner } from "@/components/nav/navData";
 
 export const metadata: Metadata = { title: "Certifications" };
 
@@ -29,10 +31,17 @@ export default function CertsPage({ searchParams }: PageProps<"/certs">) {
 }
 
 async function CertsContent({ searchParams }: Pick<PageProps<"/certs">, "searchParams">) {
+  // Hidden by the user: an info banner; a locked Scaler: not found (design spec 5, v0.6).
+  const hidden = await hiddenSectionBanner("certs");
   const [sp, progress, readOnly] = await Promise.all([searchParams, getProgress(), isReadOnly()]);
   const cards = certsView(trackerContent, progress);
   return (
     <FilterProvider path="/certs" entries={filterEntries(cards)} initial={filterFromRecord(sp)}>
+      {hidden && (
+        <Banner tone={hidden.tone} action={hidden.action}>
+          {hidden.text}
+        </Banner>
+      )}
       <Toolbar placeholder={SEARCH_PLACEHOLDERS.certs} />
       {/* Two columns only from 1280 px: at 768 and 1024 two columns gave cramped 350 px cards (design spec 3.4). */}
       <div className="grid gap-3 xl:grid-cols-2">

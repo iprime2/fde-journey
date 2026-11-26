@@ -7,7 +7,16 @@ export interface BannerSpec {
   tone: BannerTone;
   text: string;
   /** Optional action, shown as an underlined text link after the message. */
-  action?: { label: string; href: string };
+  action?: BannerAction;
+}
+
+export interface BannerAction {
+  label: string;
+  href: string;
+  /** Text right after the link, for example the sentence's full stop. */
+  after?: string;
+  /** Opens in a new tab with "↗" (an https link off the site). */
+  external?: boolean;
 }
 
 const RANK: Record<BannerTone, number> = { error: 0, warning: 1, info: 2 };
@@ -67,9 +76,18 @@ export const signedOutBanner = (signInHref: string, unsavedText = false): Banner
  * Banners a page starts with. The first-visit banner is for Home only, and not while the app is
  * a read-only preview: it asks the owner to tick items, which can't be done yet.
  */
-export function pageBanners(opts: { readOnly: boolean; isHome: boolean; hasProgress: boolean }): BannerSpec[] {
+export function pageBanners(opts: { readOnly: boolean; isHome: boolean; hasProgress: boolean; offPrompt?: string | null }): BannerSpec[] {
   return pickBanners([
     opts.readOnly && READ_ONLY_BANNER,
-    opts.isHome && !opts.readOnly && !opts.hasProgress && FIRST_VISIT_BANNER,
+    opts.isHome && !opts.readOnly && !opts.hasProgress && firstVisitBanner(opts.offPrompt ?? null),
   ]);
+}
+
+/**
+ * The first-visit banner. When any section is off it adds a sentence and a link to Settings
+ * (design spec 8): "… Want Scaler, Projects or Career too? Turn them on in Settings."
+ */
+export function firstVisitBanner(offPrompt: string | null): BannerSpec {
+  if (!offPrompt) return FIRST_VISIT_BANNER;
+  return { ...FIRST_VISIT_BANNER, text: `${FIRST_VISIT_BANNER.text} ${offPrompt}`, action: { label: "Settings", href: "/settings", after: "." } };
 }

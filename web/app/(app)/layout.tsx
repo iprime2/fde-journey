@@ -4,10 +4,12 @@ import { Suspense } from "react";
 import { AccountSkeleton, SheetAccount } from "@/components/account/Account";
 import { MidnightRefresh } from "@/components/MidnightRefresh";
 import { BottomBar } from "@/components/nav/BottomBar";
+import { getNavData } from "@/components/nav/navData";
 import { RouteFocus } from "@/components/nav/RouteFocus";
 import { Sidebar } from "@/components/nav/Sidebar";
 import { SaveStatusProvider } from "@/components/save/SaveStatusProvider";
 import { SessionKeeper } from "@/components/SessionKeeper";
+import { phoneSplit } from "@/lib/nav";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -25,16 +27,26 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       >
         <div className="mx-auto grid w-full max-w-[960px] gap-5 lg:gap-6">{children}</div>
       </main>
-      <BottomBar
-        account={
-          <Suspense fallback={<AccountSkeleton tall />}>
-            <SheetAccount />
-          </Suspense>
-        }
-      />
+      {/* The user's sections decide the cells, so the bar streams in (design spec 3.5). */}
+      <Suspense fallback={<BottomBar nav={null} account={<SheetAccountSlot />} />}>
+        <UserBottomBar />
+      </Suspense>
       <RouteFocus />
       <SessionKeeper />
       <MidnightRefresh />
     </SaveStatusProvider>
   );
+}
+
+function SheetAccountSlot() {
+  return (
+    <Suspense fallback={<AccountSkeleton tall />}>
+      <SheetAccount />
+    </Suspense>
+  );
+}
+
+async function UserBottomBar() {
+  const { sections, adminHref } = await getNavData();
+  return <BottomBar nav={{ ...phoneSplit(sections), adminHref }} account={<SheetAccountSlot />} />;
 }

@@ -23,11 +23,14 @@ export function PageHeader({
   title,
   description,
   facts,
+  factsSlot,
 }: {
   eyebrow?: React.ReactNode;
   title: string;
   description?: string;
   facts?: Fact[];
+  /** Facts that depend on the user, streamed in (rendered where `facts` would be). */
+  factsSlot?: React.ReactNode;
 }) {
   return (
     <header className="grid gap-1.5">
@@ -38,6 +41,7 @@ export function PageHeader({
       </h1>
       {description && <p className="type-small max-w-[34em] text-muted">{description}</p>}
       {facts && <Facts facts={facts} />}
+      {factsSlot}
     </header>
   );
 }

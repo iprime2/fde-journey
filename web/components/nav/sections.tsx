@@ -8,9 +8,13 @@ import {
   GraduationCapIcon,
   HouseIcon,
   MapIcon,
+  SettingsIcon,
+  ShieldIcon,
 } from "../icons";
+import { isAdminPath } from "@/lib/admin-tabs";
+import type { NavHref } from "@/lib/nav";
 
-export type SectionHref = "/" | "/roadmap" | "/reading" | "/scaler" | "/certs" | "/projects" | "/career";
+export type SectionHref = NavHref;
 
 export interface Section {
   href: SectionHref;
@@ -20,20 +24,29 @@ export interface Section {
   /** Key for the count beside it; Home has none. */
   countKey?: SectionKey;
   Icon: (p: { size?: number; className?: string }) => React.ReactNode;
-  /** On phones: in the bottom bar, or in the More sheet. */
-  phone: "bar" | "more";
 }
 
 export const SECTIONS: readonly Section[] = [
-  { href: "/", label: "Home", Icon: HouseIcon, phone: "bar" },
-  { href: "/roadmap", label: "Roadmap", countKey: "roadmap", Icon: MapIcon, phone: "bar" },
-  { href: "/reading", label: "Reading", countKey: "reading", Icon: BookOpenIcon, phone: "bar" },
-  { href: "/scaler", label: "Scaler course", shortLabel: "Scaler", countKey: "scaler", Icon: GraduationCapIcon, phone: "bar" },
-  { href: "/certs", label: "Certifications", countKey: "certs", Icon: AwardIcon, phone: "more" },
-  { href: "/projects", label: "Projects", countKey: "projects", Icon: FolderGitIcon, phone: "more" },
-  { href: "/career", label: "Career", countKey: "career", Icon: BriefcaseIcon, phone: "more" },
+  { href: "/", label: "Home", Icon: HouseIcon },
+  { href: "/roadmap", label: "Roadmap", countKey: "roadmap", Icon: MapIcon },
+  { href: "/reading", label: "Reading", countKey: "reading", Icon: BookOpenIcon },
+  { href: "/scaler", label: "Scaler course", shortLabel: "Scaler", countKey: "scaler", Icon: GraduationCapIcon },
+  { href: "/certs", label: "Certifications", countKey: "certs", Icon: AwardIcon },
+  { href: "/projects", label: "Projects", countKey: "projects", Icon: FolderGitIcon },
+  { href: "/career", label: "Career", countKey: "career", Icon: BriefcaseIcon },
 ];
 
 /** Whether `pathname` is the section at `href`. */
 export const isCurrentSection = (pathname: string, href: string) =>
   href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
+
+/** The second group (design spec 3.5): Settings for everyone, Admin for admins only. */
+export const SETTINGS_ITEM = { label: "Settings", Icon: SettingsIcon } as const;
+export const ADMIN_ITEM = { label: "Admin", Icon: ShieldIcon } as const;
+export type ExtraItem = "settings" | "admin";
+
+/** Whether `pathname` belongs to Settings or to any admin page. */
+export const isCurrentExtra = (pathname: string, item: ExtraItem) =>
+  item === "settings" ? pathname === "/settings" || pathname.startsWith("/settings/") : isAdminPath(pathname);
+
+export const sectionFor = (href: string) => SECTIONS.find((s) => s.href === href);

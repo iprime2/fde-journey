@@ -1,0 +1,41 @@
+name: Question about my data
+description: Ask about the data FDE Journey stores about you, or report a privacy problem.
+title: "Data question: "
+labels: ["data-question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **This issue is public.** Anyone can read it. Don't post your email address, notes, links, access keys or anything else private.
+
+        You can download or delete your own data yourself at any time: in the app, open **Settings → Your data**.
+  - type: dropdown
+    id: topic
+    attributes:
+      label: What is it about?
+      options:
+        - What data is stored about me
+        - Downloading my data
+        - Deleting my account
+        - Something looks wrong with my data
+        - A privacy or security problem
+        - Something else
+    validations:
+      required: true
+  - type: input
+    id: github-username
+    attributes:
+      label: Your GitHub username
+      description: So we can find your account. Don't include anything else that identifies you.
+      placeholder: your-github-username
+  - type: textarea
+    id: details
+    attributes:
+      label: Details
+      description: What do you need? Leave out anything private.
+    validations:
+      required: true
+  - type: markdown
+    attributes:
+      value: |
+        Found a security problem that shouldn't be public? Say so here without the details, and we'll arrange a private way to share them.

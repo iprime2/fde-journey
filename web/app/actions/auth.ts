@@ -7,15 +7,15 @@
 // Sign-out: <form action={signOut}>…</form>. Ends the session, then opens /login?status=signed-out.
 // Renewal: `await refreshSession()` from a client component, at most once a day. Returns { ok }.
 //
-// Sign-in and sign-out need no owner check: sign-in is how the owner proves who they are (the
-// owner rule runs inside Better Auth, see lib/auth.ts), and sign-out only ends the caller's own
-// session. refreshSession checks the owner first.
+// Sign-in and sign-out need no user check: sign-in is how a user proves who they are (the
+// sign-up rules run inside Better Auth, see lib/auth.ts), and sign-out only ends the caller's own
+// session. refreshSession checks the session first.
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getAuth } from "@/lib/auth";
 import { SIGNED_OUT_STATUS, loginHref, safeNextPath } from "@/lib/login";
 import { describeError, rethrowNextControl } from "@/lib/safe-log";
-import { getOwnerSession } from "@/lib/session";
+import { getIdentity } from "@/lib/session";
 
 export async function signInWithGitHub(formData: FormData): Promise<void> {
   const next = safeNextPath(formData.get("next"));
@@ -49,15 +49,16 @@ export async function signOut(): Promise<void> {
 }
 
 /**
- * Keeps the owner signed in while they use the app. Pages cannot set cookies, so they never renew
+ * Keeps the user signed in while they use the app. Pages cannot set cookies, so they never renew
  * the session; this Server Action can. When the session is due (a day after it was last renewed)
  * Better Auth extends it to 30 days from now in the database and in the cookie together; otherwise
- * nothing changes. Owner only: returns { ok: false } and does nothing when signed out or for any
- * other account (whose session getOwnerSession revokes).
+ * nothing changes. Returns { ok: false } and does nothing when signed out, suspended, or (in
+ * owner-only mode) for any account but the owner's (whose session getIdentity revokes). Waitlisted
+ * users stay signed in too: they may come back to see their place.
  */
 export async function refreshSession(): Promise<{ ok: boolean }> {
   try {
-    if (!(await getOwnerSession())) return { ok: false };
+    if (!(await getIdentity())) return { ok: false };
     const auth = await getAuth();
     const result = await auth.api.getSession({ headers: await headers(), query: { disableCookieCache: true } });
     return { ok: result !== null };

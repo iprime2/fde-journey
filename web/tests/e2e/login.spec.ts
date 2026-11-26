@@ -4,7 +4,8 @@ import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures";
 import { SIGN_IN_BUTTON, expectNoSidewaysScroll, gotoReady, isPhone, pageHeading } from "./helpers";
 
-const ACCESS_LINE = "Private for now: only the owner's GitHub account can sign in.";
+// The test server runs with SIGNUP_MODE=capped, read at request time (playwright.config.ts).
+const ACCESS_LINE = "New here? Continue with GitHub to start your own tracker. Places are limited; if they're full you'll join the waitlist.";
 const POINT = "A note and a link on every step";
 const TAGLINE = "From AI engineer to Forward Deployed Engineer, one milestone at a time.";
 
@@ -65,13 +66,32 @@ test.describe("sign-in page layout", () => {
     await expect(page.getByText("Example path")).toBeVisible();
   });
 
-  test("the button is described by the access line, and is the only control", async ({ page }) => {
+  test("the button is described by the access line, then comes the privacy link", async ({ page }) => {
     await gotoReady(page, "/login");
     await expect(page.getByText(ACCESS_LINE)).toBeVisible();
     await expect(signInButton(page)).toHaveAccessibleDescription(ACCESS_LINE);
     await page.keyboard.press("Tab");
     await expect(signInButton(page)).toBeFocused();
-    await expect(page.getByRole("link")).toHaveCount(0);
+    await page.keyboard.press("Tab");
+    const privacy = page.getByRole("link", { name: "Privacy: what's stored and who sees it" });
+    await expect(privacy).toBeFocused();
+    await expect(page.getByRole("link")).toHaveCount(1);
+    await privacy.click();
+    await expect(page).toHaveURL("/privacy");
+    await expect(pageHeading(page)).toHaveText("Privacy");
+  });
+
+  test("says why after deleting an account, leaving the waitlist or a suspension", async ({ page }) => {
+    await gotoReady(page, "/login?status=deleted");
+    await expect(page.getByRole("status").filter({ hasText: "Your account and data are deleted." })).toBeVisible();
+    await gotoReady(page, "/login?status=left-waitlist");
+    await expect(page.getByRole("status").filter({ hasText: "You've left the waitlist and your account is deleted." })).toBeVisible();
+    await gotoReady(page, "/login?error=suspended");
+    const alert = page.getByRole("alert").filter({ hasText: "This account is suspended, so it can't sign in." });
+    await expect(alert).toBeVisible();
+    const issue = alert.getByRole("link", { name: "Open an issue (opens in a new tab)" });
+    await expect(issue).toHaveAttribute("href", "https://github.com/iprime2/fde-journey/issues/new");
+    await expect(issue).toHaveAttribute("target", "_blank");
   });
 });
 

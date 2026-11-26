@@ -16,6 +16,7 @@ const SKIP = new Set(["node_modules", ".next", ".data", ".git", "test-results", 
 /** The only files that may touch the per-user tables. */
 const ALLOWED = new Set([
   "lib/progress-db.ts", // the app's data layer
+  "lib/settings-db.ts", // user_settings and export_token
   "scripts/lib/import-core.mjs", // npm run db:import, for the owner
   "scripts/e2e-seed.mjs", // end-to-end test data
 ]);
@@ -25,6 +26,28 @@ const SEED_FILES = new Set(["scripts/e2e-seed.mjs"]);
 const REVIEWED = new Map([
   // npm run db:migrate: before migration 0002, how many rows it will give to the owner.
   ["scripts/lib/migrate-check.mjs", ["select count(*)::int as n from progress"]],
+  // /api/export: a request carries a key, not a user, so the key's hash finds the user. Returns that
+  // user's id (and the rate-limit count) only, for an unrevoked key of an active user.
+  [
+    "lib/export-auth.ts",
+    [
+      `update "export_token" t set "last_used_at" = now(), "window_start" = case when t."window_start" is null or t."window_start" < now() - interval '1 hour' then now() else t."window_start" end, "window_count" = case when t."window_start" is null or t."window_start" < now() - interval '1 hour' then 1 else t."window_count" + 1 end from "user" u where t."token_hash" = \${tokenHash} and t."revoked_at" is null and u."id" = t."user_id" and u."status" = 'active' returning t."user_id", t."window_count"`,
+    ],
+  ],
+]);
+/**
+ * Admin modules (M4b): cross-user by design. Every exported function checks its permission first;
+ * only these functions may read the per-user tables, and only counts (never note or link columns).
+ * tests/unit/admin.test.ts proves each refuses without its permission.
+ */
+const ADMIN_FILES = new Map([
+  [
+    "lib/admin-db.ts",
+    [
+      "getAdminOverview", // items marked done this week, all users: one count
+      "listAdminUsers", // done counts per section for the people on the page
+    ],
+  ],
 ]);
 
 function sourceFiles(rel: string): string[] {
@@ -34,7 +57,7 @@ function sourceFiles(rel: string): string[] {
 }
 
 const files = sourceFiles("").filter((f) => f !== "db/schema.ts");
-const check = (rel: string, source: string) => checkSource(rel, source, { allowed: ALLOWED, seedFiles: SEED_FILES, reviewed: REVIEWED });
+const check = (rel: string, source: string) => checkSource(rel, source, { allowed: ALLOWED, seedFiles: SEED_FILES, reviewed: REVIEWED, adminFiles: ADMIN_FILES });
 const problems = (rel: string, source: string) => check(rel, source).map((f) => f.problem);
 
 describe("every query on progress and progress_event is scoped to a user", () => {
@@ -68,6 +91,27 @@ describe("every query on progress and progress_event is scoped to a user", () =>
     expect(tables).toEqual(expect.arrayContaining(["user", "session", "account", "verification"]));
     expect(tables).not.toContain("progress");
     expect(tables).not.toContain("progressEvent");
+    expect(tables).not.toContain("userSettings");
+    expect(tables).not.toContain("exportToken");
+  });
+
+  it("would object if a filter were removed from the settings layer, or a permission check from an admin function", () => {
+    const settings = readFileSync(path.join(WEB, "lib/settings-db.ts"), "utf8");
+    const broken = settings.replace(".where(eq(userSettings.userId, userId))\n    .limit(1);", ".limit(1);");
+    expect(broken).not.toBe(settings);
+    expect(problems("lib/settings-db.ts", broken)).toEqual(["from(userSettings) needs one where() with eq(userSettings.userId, userId) at its top level"]);
+    const admin = readFileSync(path.join(WEB, "lib/admin-db.ts"), "utf8");
+    const unchecked = admin.replace('export async function getAdminOverview(): Promise<AdminOverview> {\n  await requirePermission("metrics.view");', "export async function getAdminOverview(): Promise<AdminOverview> {");
+    expect(unchecked).not.toBe(admin);
+    expect(problems("lib/admin-db.ts", unchecked)).toEqual(["getAdminOverview must start with await requirePermission(…)"]);
+    const noted = admin.replace('from "progress" where "done" and "done_at"', 'from "progress" where "done" and "note" <> \'\' and "done_at"');
+    expect(noted).not.toBe(admin);
+    expect(problems("lib/admin-db.ts", noted)).toEqual(["admin SQL that names note, link, token_hash or email"]);
+  });
+
+  it("every reviewed admin function exists and is exported", () => {
+    const admin = readFileSync(path.join(WEB, "lib/admin-db.ts"), "utf8");
+    for (const name of ADMIN_FILES.get("lib/admin-db.ts") ?? []) expect(admin).toContain(`export async function ${name}(`);
   });
 });
 
@@ -120,10 +164,48 @@ describe("the checker catches", () => {
     expect(problems(file, source)).toContain(problem);
   });
 
+  // M4b: user_settings and export_token are per-user tables too.
+  it.each([
+    ["an unscoped settings read", DATA, fn(`return db.select().from(userSettings);`), "from(userSettings) needs one where() with eq(userSettings.userId, userId) at its top level"],
+    ["a settings update for everyone", DATA, fn(`await db.update(userSettings).set({ showScaler: true });`), "update(userSettings) needs one where() with eq(userSettings.userId, userId) at its top level"],
+    ["an export key lookup without a user", DATA, fn("return db.execute(sql`select user_id from export_token where token_hash = ${id}`);"), "from export_token without a top-level user_id = $n condition"],
+    ["raw SQL on user_settings outside the allowed files", "lib/settings.ts", "const q = `update user_settings set show_scaler = true where user_id = $1`;", "SQL that names a per-user table outside the allowed files"],
+    ["an upsert on user_settings on another key", DATA, fn("return db.execute(sql`insert into user_settings (user_id) values (${userId}) on conflict (show_scaler) do nothing`);"), "on conflict without user_id in its target"],
+    ["an upsert whose table is hidden in a placeholder", "lib/places.ts", "const q = sql`insert into ${t} (key) values ($1) on conflict (key) do nothing`;", "SQL that names a per-user table outside the allowed files"],
+  ])("%s", (_label, file, source, problem) => {
+    const withTables = source.replace('import { progress, progressEvent } from "@/db/schema";', 'import { progress, progressEvent, userSettings, exportToken } from "@/db/schema";');
+    expect(problems(file, withTables)).toContain(problem);
+  });
+
+  describe("in an admin module", () => {
+    const ADMIN = "lib/admin-db.ts";
+    const top = `import { sql } from "drizzle-orm";\n`;
+    it.each([
+      ["an exported function without the permission check", `${top}export async function getAdminOverview() { return 1; }`, "getAdminOverview must start with await requirePermission(…)"],
+      ["the check after other work", `${top}export async function getAdminOverview() { const db = await getDb(); await requirePermission("metrics.view"); }`, "getAdminOverview must start with await requirePermission(…)"],
+      ["the check not awaited", `${top}export async function getAdminOverview() { requirePermission("metrics.view"); }`, "getAdminOverview must start with await requirePermission(…)"],
+      ["an exported arrow function without it", `${top}export const f = async () => 1;`, "f must start with await requirePermission(…)"],
+      ["cross-user SQL in a function not reviewed", `${top}export async function listAuditLog() { await requirePermission("audit.view"); return sql\`select count(*) from progress\`; }`, "cross-user SQL outside the reviewed admin functions"],
+      ["cross-user SQL in a helper", `${top}async function helper() { return sql\`select count(*) from progress\`; }`, "cross-user SQL outside the reviewed admin functions"],
+      ["note text", `${top}export async function listAdminUsers() { await requirePermission("users.view"); return sql\`select note from progress\`; }`, "admin SQL that names note, link, token_hash or email"],
+      ["links", `${top}export async function listAdminUsers() { await requirePermission("users.view"); return sql\`select count(*) from progress where link <> ''\`; }`, "admin SQL that names note, link, token_hash or email"],
+      ["emails", `${top}export async function listAdminUsers() { await requirePermission("users.view"); return sql\`select count(*) from progress p join "user" u on u.id = p.user_id where u.email like '%x'\`; }`, "admin SQL that names note, link, token_hash or email"],
+      ["settings", `${top}export async function listAdminUsers() { await requirePermission("users.view"); return sql\`select * from user_settings\`; }`, "admin SQL that names user_settings or export_token"],
+      ["a table object", `import { progress } from "@/db/schema";\n`, "imports the progress table: admin modules use reviewed SQL only"],
+    ])("%s", (_label, source, problem) => {
+      expect(problems(ADMIN, source)).toContain(problem);
+    });
+
+    it("accepts a reviewed count behind the permission check", () => {
+      const ok = `${top}export async function listAdminUsers() {\n  const actor = await requirePermission("users.view");\n  return sql\`select count(*) from progress where done\`;\n}`;
+      expect(problems(ADMIN, ok)).toEqual([]);
+    });
+  });
+
   it("any other file that imports the tables or writes SQL naming them", () => {
     const page = `import { progress } from "@/db/schema";\nconst q = "select note from progress where user_id = $1";`;
     expect(problems("app/(app)/page.tsx", page)).toEqual([
-      "imports the progress table: only lib/progress-db.ts, scripts/lib/import-core.mjs, scripts/e2e-seed.mjs may query it",
+      "imports the progress table: only lib/progress-db.ts, lib/settings-db.ts, scripts/lib/import-core.mjs, scripts/e2e-seed.mjs may query it",
       "SQL that names a per-user table outside the allowed files",
     ]);
   });
@@ -160,5 +242,8 @@ export async function f(userId: string, db: Db, id: string) {
     // Mentions that are not table references.
     expect(checkSqlText(`select to_regclass('public.progress_event')`)).toEqual([]);
     expect(checkSqlText(`returning "progress".*`)).toEqual([]);
+    // Upserts on tables that aren't per-user (app_setting, user_permission) are not this check's business.
+    expect(checkSqlText(`insert into "app_setting" ("key", "value") values ('user_cap', $1) on conflict ("key") do update set "value" = excluded."value"`)).toEqual([]);
+    expect(problems("lib/places.ts", "const q = `insert into \"app_setting\" (\"key\") values ($1) on conflict (\"key\") do nothing`;")).toEqual([]);
   });
 });

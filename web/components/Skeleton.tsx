@@ -64,3 +64,25 @@ export function HomeSkeleton() {
     </Wrapper>
   );
 }
+
+/** Settings and admin pages: `cards` plain cards (no toolbar). */
+export function CardsSkeleton({ cards = 2, rows = 3 }: { cards?: number; rows?: number }) {
+  return (
+    <Wrapper>
+      {Array.from({ length: cards }, (_, c) => (
+        <div key={c} className="rounded-lg border border-line bg-surface">
+          <div className="grid gap-2 px-4 py-3.5">
+            <Block className="h-5 w-1/3" />
+            <Block className="h-3.5 w-2/3" />
+          </div>
+          {Array.from({ length: rows }, (_, i) => (
+            <div key={i} className="flex items-center gap-3 border-t border-line px-4 py-4">
+              <Block className="h-4 flex-1" />
+              <Block className="h-6 w-11 shrink-0" />
+            </div>
+          ))}
+        </div>
+      ))}
+    </Wrapper>
+  );
+}

@@ -146,10 +146,10 @@ describe("the user comes from the session only", () => {
 
   it("switches with the session: B saves to B, A saves to A", async () => {
     actAs(B);
-    expect(await requireUser()).toBe(B.userId);
+    expect((await requireUser()).userId).toBe(B.userId);
     await saveNote("l1-2", "B's second made-up note.");
     actAs(A);
-    expect(await requireUser()).toBe(A.userId);
+    expect((await requireUser()).userId).toBe(A.userId);
     await saveNote("l1-2", "A's made-up note.");
     expect((await readProgress(B.userId, db)).get("l1-2")?.note).toBe("B's second made-up note.");
     expect((await readProgress(A.userId, db)).get("l1-2")?.note).toBe("A's made-up note.");

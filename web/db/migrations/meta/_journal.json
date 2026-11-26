@@ -22,6 +22,13 @@
       "when": 1795673329674,
       "tag": "0002_progress_per_user",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1795680699243,
+      "tag": "0003_m4b_signup_admin",
+      "breakpoints": true
     }
   ]
 }

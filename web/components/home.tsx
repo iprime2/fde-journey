@@ -24,12 +24,22 @@ export function StatTile({ tile }: { tile: TileModel }) {
   );
 }
 
+/**
+ * Grids by tile count (design spec 5, Home with hidden sections): 5 or 6 tiles 2 columns, 3 from
+ * 768 px; 4 tiles 2 by 2, one row from 1280 px; 3 tiles one row from 768 px, and below it the
+ * third spans both columns.
+ */
+const TILE_GRID: Record<number, string> = {
+  3: "grid-cols-2 md:grid-cols-3",
+  4: "grid-cols-2 xl:grid-cols-4",
+};
+
 export function StatTiles({ tiles }: { tiles: TileModel[] }) {
   return (
     <section aria-label="Summary">
-      <ul className="grid grid-cols-2 gap-3 md:grid-cols-3">
-        {tiles.map((t) => (
-          <li key={t.key} className="grid">
+      <ul className={cn("grid gap-3", TILE_GRID[tiles.length] ?? "grid-cols-2 md:grid-cols-3")}>
+        {tiles.map((t, i) => (
+          <li key={t.key} className={cn("grid", tiles.length === 3 && i === 2 && "col-span-2 md:col-span-1")}>
             <StatTile tile={t} />
           </li>
         ))}
@@ -40,7 +50,8 @@ export function StatTiles({ tiles }: { tiles: TileModel[] }) {
 
 const KICKER = "type-label text-muted";
 
-export function NowPanel({ now }: { now: NowModel }) {
+/** `showScaler`: the Scaler part shows only while that section is on (design spec 5). */
+export function NowPanel({ now, showScaler = true }: { now: NowModel; showScaler?: boolean }) {
   const { phase, module, upNext } = now;
   const titleId = useId();
   return (
@@ -60,16 +71,20 @@ export function NowPanel({ now }: { now: NowModel }) {
           {phase.done}/{phase.total} tasks done
         </p>
         <ProgressBar percent={percent(phase)} />
-        <p className={cn(KICKER, "mt-2")}>Scaler · Module {module.n}</p>
-        <p>
-          {module.title}: {module.sub}
-        </p>
-        <p className="type-small text-muted">
-          <span className="type-num">
-            {module.done}/{module.total} classes
-          </span>
-          {module.nextClass && ` · next: ${module.nextClass}`}
-        </p>
+        {showScaler && (
+          <>
+            <p className={cn(KICKER, "mt-2")}>Scaler · Module {module.n}</p>
+            <p>
+              {module.title}: {module.sub}
+            </p>
+            <p className="type-small text-muted">
+              <span className="type-num">
+                {module.done}/{module.total} classes
+              </span>
+              {module.nextClass && ` · next: ${module.nextClass}`}
+            </p>
+          </>
+        )}
       </div>
       <div className="min-w-0">
         <h3 className={KICKER}>Up next this phase</h3>

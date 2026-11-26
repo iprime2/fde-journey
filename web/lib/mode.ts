@@ -2,9 +2,13 @@
 // the real session check. Server-only: read it in a Server Component inside <Suspense> and pass
 // the result down as a prop (client components cannot import this module).
 import "server-only";
-import { getOwnerSession } from "./session";
+import { getIdentity } from "./session";
 
-/** True unless the visitor is signed in as the owner. Memoised per request (via the session). */
+/**
+ * True unless the visitor is signed in with a place (an active user, or the owner). Waitlisted
+ * users never see these pages (they go to /waitlist), but nothing they see may offer a save.
+ * Memoised per request (via the session).
+ */
 export async function isReadOnly(): Promise<boolean> {
-  return (await getOwnerSession()) === null;
+  return (await getIdentity())?.status !== "active";
 }

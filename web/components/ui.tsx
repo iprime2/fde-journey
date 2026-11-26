@@ -23,6 +23,7 @@ const CHIP_STYLES: Record<ChipState["variant"], string> = {
   ok: "bg-accent-soft text-accent",
   now: "bg-accent text-accent-ink",
   warn: "bg-warn-soft text-warn",
+  danger: "bg-danger-soft text-danger",
 };
 
 export function StatusChip({ chip }: { chip: ChipState }) {
@@ -59,13 +60,30 @@ const BUTTON_BASE = cn(BUTTON_CORE, "min-h-11 gap-2");
 /** Size `lg`, the sign-in button only: 48 px tall, 10 px gap for a 20 px icon. */
 const BUTTON_LG = cn(BUTTON_CORE, "min-h-12 gap-2.5");
 
+/** Size `sm` (v0.5, row actions on admin pages): 36 px to see, 44 px to hit, 13 px text at 500. */
+const BUTTON_SM = cn(
+  BUTTON_CORE,
+  "relative min-h-9 gap-1.5 px-3 type-small font-medium before:absolute before:inset-x-0 before:-inset-y-1 before:content-['']",
+);
+
 const PRIMARY = "bg-accent text-accent-ink hover:bg-accent-hover disabled:bg-accent";
+const SECONDARY = "border border-line-strong bg-surface text-ink hover:bg-hover disabled:bg-surface";
+/** v0.5: only as the confirm button of a destructive Dialog. */
+const DANGER = "bg-danger text-danger-ink hover:bg-danger-hover disabled:bg-danger";
+/** v0.5: opens a destructive Dialog ("Delete my account", "Suspend", "Remove"). */
+const DANGER_SECONDARY = "border border-danger bg-surface text-danger hover:bg-danger-soft disabled:bg-surface";
 
 export const buttonStyles = {
   primary: cn(BUTTON_BASE, PRIMARY),
   primaryLg: cn(BUTTON_LG, PRIMARY),
-  secondary: cn(BUTTON_BASE, "border border-line-strong bg-surface text-ink hover:bg-hover disabled:bg-surface"),
+  secondary: cn(BUTTON_BASE, SECONDARY),
   ghost: cn(BUTTON_BASE, "text-muted hover:bg-hover hover:text-ink disabled:bg-transparent disabled:text-muted"),
+  danger: cn(BUTTON_BASE, DANGER),
+  dangerSecondary: cn(BUTTON_BASE, DANGER_SECONDARY),
+  primarySm: cn(BUTTON_SM, PRIMARY),
+  secondarySm: cn(BUTTON_SM, SECONDARY),
+  dangerSecondarySm: cn(BUTTON_SM, DANGER_SECONDARY),
+  ghostSm: cn(BUTTON_SM, "text-muted hover:bg-hover hover:text-ink disabled:bg-transparent disabled:text-muted"),
 };
 
 /**
