@@ -1,6 +1,6 @@
 # FDE Journey web app: design spec (v0.4)
 
-Status: for M1 and later. v0.1 written 2026-11-25 against `PLAN.md` v0.1, which the owner approved on 2026-11-25 (GitHub sign-in for the owner's account only; job applications are the first new section after go-live; four agents plus one skill). v0.2 written 2026-11-25 after the M1 screen review. v0.3 written 2026-11-26 after the M2 screen review. v0.4 written 2026-11-26 for D1 (design refresh), phase 1; the `/login` mockup waits for the owner's approval.
+Status: for M1 and later. v0.1 written 2026-11-25 against `PLAN.md` v0.1, which the owner approved on 2026-11-25 (GitHub sign-in for the owner's account only; job applications are the first new section after go-live; four agents plus one skill). v0.2 written 2026-11-25 after the M1 screen review. v0.3 written 2026-11-26 after the M2 screen review. v0.4 written 2026-11-26 for D1 (design refresh), phase 1; the `/login` mockup waits for the owner's approval. v0.4 updated 2026-11-26 after the D1 phase 1 build review, to record what was built and three rulings (see the last bullet below).
 Read with `.claude/skills/journey-app-dev/SKILL.md`. If this spec and the plan disagree, the plan wins; tell the lead.
 
 **Changes in v0.4** (D1 phase 1: logo, sign-in page, account menu, breakpoints)
@@ -11,6 +11,7 @@ Read with `.claude/skills/journey-app-dev/SKILL.md`. If this spec and the plan d
 - Account area with the GitHub avatar (new Avatar and AccountMenu components, sections 3 and 4). On desktop it replaces the bare Sign out at the foot of the sidebar. On phone it sits in the More sheet, above the Sign out button.
 - Responsive rules for 320 to 1920 px and phone landscape (new section 3.4). Line lengths are now capped in `em`, not `ch`: in Inter, `65ch` measured 86 characters per line and `75ch` measured 101. Certification cards go to two columns only from 1280 px. The bottom bar pads for left and right safe areas, and gets a compact form on short landscape screens.
 - Button: the loading state keeps full opacity (section 4).
+- After the build review (2026-11-26): the brand panel uses one left edge for the lockup, headline, points and example path (the build was better than the mockup, which offset the pitch about 20 px); not-found and the error page are top-aligned at every width, like `/login` below 1024 px; Avatar initials skip leading punctuation and words with no letter or number, and a missing name shows "GitHub user" with the user icon; new token `brand-chip`; card positions re-measured on the build (section 5).
 
 **Changes in v0.3** (from the M2 screen review)
 - Closing the note editor always closes it; anything not saved stays visible in the collapsed row with its own action (NoteEditor, "Closing with unsaved changes"). The preview shows what was typed.
@@ -89,8 +90,9 @@ Dark mode follows the system setting (`prefers-color-scheme`). Set `color-scheme
 | `brand-accent` | `#3fcfb3` | Logo mark, walked part of the path, check icons, chip text (same as dark `accent`) |
 | `brand-faint` | `#5d7c74` | Route not walked yet (dashed), upcoming node ring |
 | `brand-line` | `#2a4a42` | Example-card border (decorative) |
+| `brand-chip` (as built) | `#143a32` | Background of the "Example" chip (the dark `accent-soft` value, fixed so it stays the same in light mode) |
 
-The "Example" chip on the panel uses `brand-accent` text on `#143a32` (dark `accent-soft`).
+The "Example" chip on the panel uses `brand-accent` text on `brand-chip`.
 
 ### 2.2 Contrast
 Computed with the WCAG 2.x formula (relative luminance with sRGB linearisation, ratio = (L1 + 0.05) / (L2 + 0.05)) on 2026-11-25. Text needs 4.5:1. Field borders, tick boxes, focus rings and the progress fill need 3:1 (WCAG 1.4.11).
@@ -162,7 +164,7 @@ Tokens live as CSS variables, so components never need `dark:` variants for colo
   --raised-shadow: 0 1px 2px rgb(16 40 34 / 0.05), 0 12px 32px rgb(16 40 34 / 0.08);   /* v0.4, sign-in card only */
   /* v0.4 brand panel: same in both schemes, so not repeated in the dark block */
   --brand-panel:#0c1f1a; --brand-card:#12302a; --brand-ink:#e8f0ed; --brand-muted:#a3b8b1;
-  --brand-accent:#3fcfb3; --brand-faint:#5d7c74; --brand-line:#2a4a42;
+  --brand-accent:#3fcfb3; --brand-faint:#5d7c74; --brand-line:#2a4a42; --brand-chip:#143a32;
 }
 @media (prefers-color-scheme: dark) { :root {
   --page:#0e1412; --surface:#151d1a; --sunk:#1b2521; --hover:#1f2a26;
@@ -416,6 +418,7 @@ Shared rules:
 
 **Avatar** (v0.4). A circle, 32 px, `full` radius, `accent-soft` background, a 1 px inset `line` ring (`box-shadow: inset 0 0 0 1px var(--line)`, so light photos keep an edge), `overflow: hidden`. Always `aria-hidden` with `alt=""`: wherever it appears, the name is next to it as text.
 - **Initials, always rendered underneath:** first letter of the first and last words of the name, uppercased (`toLocaleUpperCase`); one word gives one letter. Split by grapheme (`Intl.Segmenter` or `Array.from`) so accented letters and non-Latin names work. If the name has no letter or number, show a 18 px line "user" icon instead. Type: Inter 600, 13 px, `accent` on `accent-soft` (4.61 light, 6.42 dark).
+  - As built and approved (2026-11-26, `lib/account.ts`): in each word, the first letter or digit counts, so leading punctuation is skipped ("(Sam) Example" gives "SE", "@sam" gives "S"). Words with no letter or digit (an emoji, a dash) are dropped before picking the first and last, so "Sam Example" followed by an emoji still gives "SE". A missing or blank name shows the text "GitHub user" and the user icon, not "GU": made-up initials would look like someone's real ones. Known and accepted: "Sam (she/her)" gives "SS".
 - **Photo, on top:** a plain `<img>` (decision below), `position: absolute; inset: 0; object-fit: cover`, `width` and `height` 32, `alt=""`, `decoding="async"`, `referrerPolicy="no-referrer"`. While it loads, the initials show, so there is no blank circle and no layout shift. On `error`, remove the `<img>` (client state); the initials stay.
 - **Which URL:** the `user.image` column, used only if it parses as a URL with protocol `https:` and host `avatars.githubusercontent.com`; anything else (null, another host) shows initials. Set the size with `url.searchParams.set("s", "64")` (64 = 32 px at 2x), which keeps GitHub's existing `v=4` parameter. Build the URL on the server, where the session is read.
 - **`<img>`, not `next/image` (recommended).** GitHub's avatar service already resizes (`s=64`) and caches the image, so `next/image` would add nothing but cost: it would fetch the photo through the app's own server, use the host's image-optimisation allowance, and keep a copy of a personal photo in the server's image cache. No `next.config.ts` change is needed. ESLint's `@next/next/no-img-element` rule will warn: disable it on that one line with the reason ("tiny external avatar, already sized by GitHub"). If `next/image` is ever wanted, it needs `images.remotePatterns` for hostname `avatars.githubusercontent.com`, pathname `/u/**`.
@@ -557,8 +560,9 @@ One DOM for every size; CSS changes how the brand part looks. No text is duplica
   1. BrandLockup (mark 32 px, `wordmark` 20 px, `brand-ink`, mark `brand-accent`).
   2. Pitch (`margin-top: auto`): the statement in `hero` (`brand-ink`), then 20 px below, three points (`body`, `brand-muted`, 10 px apart, each with an 18 px check icon in `brand-accent`): "Roadmap, classes and certifications in one place", "A note and a link on every step", "Made for your phone and your laptop".
   3. JourneyPreview (`margin-bottom: auto`), so the pitch and the preview sit together in the middle of the panel, under the lockup.
+  - **One left edge** (decided 2026-11-26 in the build review): the lockup, the headline, the points and the JourneyPreview all start at the column's left edge. The headline fills the column (no extra max width; it sets in three lines at 1280 and 1920 px). The JourneyPreview is capped at 30 rem and stays left-aligned, so it is narrower than the headline on wide panels. The mockup centred the pitch and preview about 20 px right of the lockup; that offset read as a mistake, and one edge is calmer.
 - **Sign-in side (right):** `page` background. `position: sticky; top: 0; height: 100dvh; display: grid; place-items: center; padding: 48px 32px`, so the card stays centred in the window even if the panel is taller than the screen (for example 1024×600).
-- Measured in the mockup: card top at 201 px (1024×768), 267 px (1440×900) and 357 px (1920×1080); the panel content fits in 768 px of height.
+- Measured in the mockup: card top at 201 px (1024×768), 267 px (1440×900) and 357 px (1920×1080); the panel content fits in 768 px of height. Measured on the build (2026-11-26 screenshots): card top at 276 px (1280×900) and 365 px (1920×1080). The build's card is 16 px shorter than the mockup's because it renders no empty message cell (the mockup doubled the gap above the button), so it sits 8 px lower; that is correct.
 
 *SignInCard.* `surface`, 1 px `line` border, `xl` radius, `shadow-raised` (light only), padding 24 px below 1024 px and 32 px from 1024 px, full width up to 400 px, grid with 16 px gaps.
 1. `h1` "Sign in" (`title-lg`).
@@ -573,7 +577,7 @@ One DOM for every size; CSS changes how the brand part looks. No text is duplica
 *Focus.* Tab order: the GitHub button, then nothing else (the panel has no controls). Focus ring: the shared 2 px `accent` ring (5.25:1 on light `surface`, 8.82:1 on dark). No focus is moved on load, even with an error: the error banner is `role="alert"`, and it is the first thing after the access line.
 
 **Not found** (`not-found.tsx`; no sidebar or bottom bar; `<title>` "Page not found · FDE Journey")
-- One centred column, max 400 px (the phone layout of `/login`, at every width; no brand panel).
+- One centred column, max 400 px (the phone layout of `/login`, at every width; no brand panel). Top-aligned, not centred vertically (decided 2026-11-26): top padding `max(32px, env(safe-area-inset-top))`, 64 px from `md`, gap 24 px between the lockup and the card. The lockup then sits where it sits on `/login` below 1024 px, and a short card floating mid-screen on a laptop added nothing. The top-level error page (`app/error.tsx`) uses the same frame (`CenteredPage`).
 - BrandLockup (mark 28 px, wordmark 18 px; v0.4, replacing the eyebrow and app name), so the owner can tell they are still in the app. The top-level error page uses the same header.
 - A card with `h1` "This page doesn't exist." (`title` size) and a primary "Go to Home" button.
 
