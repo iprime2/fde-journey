@@ -3,7 +3,7 @@
 // The <li> of an item row. It hides itself when the page filter leaves it out, and holds the
 // row's tick: optimistic (it changes at once), saved through toggleDone, and on failure back to
 // the saved value with "Couldn't save this tick." and Try again (design spec 4, ItemRow).
-import { createContext, startTransition, use, useOptimistic, useState } from "react";
+import { createContext, startTransition, use, useOptimistic, useRef, useState } from "react";
 import { toggleDone } from "@/app/actions/progress";
 import { useFilter } from "../filter/FilterProvider";
 import { safeCall } from "../save/safeCall";
@@ -16,6 +16,8 @@ interface RowState {
   /** Set after a failed tick: the value it tried to save. */
   failedTarget: boolean | null;
   retry(): void;
+  /** The tick box, so Try again can move focus to it. */
+  tickRef: React.RefObject<HTMLInputElement | null>;
 }
 
 const RowContext = createContext<RowState | null>(null);
@@ -39,6 +41,7 @@ export function RowShell({
   const canWrite = useCanWrite(readOnly);
   const [shownDone, setShownDone] = useOptimistic(done);
   const [failedTarget, setFailedTarget] = useState<boolean | null>(null);
+  const tickRef = useRef<HTMLInputElement>(null);
   const failureKey = `tick:${id}`;
 
   function toggle(next: boolean) {
@@ -65,8 +68,12 @@ export function RowShell({
     toggle,
     failedTarget,
     retry: () => {
-      if (failedTarget !== null) toggle(failedTarget);
+      if (failedTarget === null) return;
+      // The message and its Try again go once the tick saves, so focus moves to the box first.
+      tickRef.current?.focus();
+      toggle(failedTarget);
     },
+    tickRef,
   };
 
   return (
