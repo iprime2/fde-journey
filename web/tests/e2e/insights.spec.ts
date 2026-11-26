@@ -177,7 +177,7 @@ test.describe("a user with history", () => {
     await expect(activity.getByText(/^Days before 26 Nov 2026 are estimated/)).toHaveCount(windowStart < E2E_EVENT_HISTORY_START ? 1 : 0);
 
     // This month: one item with notes saved twice counts once.
-    await expect(card(page, "This month").getByText("item with a note or link saved", { exact: true }).locator("xpath=following-sibling::dd")).toHaveText("1");
+    await expect(card(page, "This month").getByText("item with a note saved", { exact: true }).locator("xpath=following-sibling::dd")).toHaveText("1");
     // Certifications: the first in rank order has 2 of its 3 prep steps done.
     const certRows = card(page, "Certifications").getByRole("listitem");
     await expect(certRows).toHaveCount(7);

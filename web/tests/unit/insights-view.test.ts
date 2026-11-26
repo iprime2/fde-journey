@@ -330,7 +330,7 @@ describe("this month and certifications (spec 10.2 E and F)", () => {
     });
     expect(monthText({ monthStart: "2026-12-01", notesSaved: 1, resourcesDone: 1 })).toEqual({
       since: "Since 1 Dec",
-      notesLabel: "item with a note or link saved",
+      notesLabel: "item with a note saved",
       resourcesLabel: "learning resource finished",
       historyLine: null,
       emptyLine: null,
