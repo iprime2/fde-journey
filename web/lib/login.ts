@@ -72,16 +72,14 @@ export function parseLoginParams(params: Params): { next: string; notice: LoginN
   return { next, notice: (status && Object.hasOwn(STATUS_NOTICES, status) ? STATUS_NOTICES[status] : null) ?? null };
 }
 
-/** Who may sign in (design spec 8). Only the access line and the not-allowed error depend on it. */
-export type AccessMode = "owner-only" | "capped" | "open";
-
 /**
- * The sign-up mode the sign-in page describes. This changes the wording only; it does not decide
- * who can sign in. The real gate is SIGNUP_MODE on the server (lib/signup-mode.ts): ownerGate and
- * isOwnerUser in owner-only mode, the cap and the user's status in capped mode (lib/auth.ts,
- * lib/places.ts, lib/session.ts). Change this line when SIGNUP_MODE changes.
+ * Who may sign in (design spec 8). Only the access line and the not-allowed error depend on it.
+ * The sign-in page reads the mode at request time from SIGNUP_MODE (lib/signup-mode.ts, which
+ * returns "owner-only" or "capped"), the same setting that decides who really gets in: ownerGate
+ * and isOwnerUser in owner-only mode, the cap and the user's status in capped mode (lib/auth.ts,
+ * lib/places.ts, lib/session.ts). "open" has copy but no server mode yet.
  */
-export const ACCESS_MODE: AccessMode = "owner-only";
+export type AccessMode = "owner-only" | "capped" | "open";
 
 /** Everything on the sign-in page that depends on the access mode. */
 export const ACCESS_COPY: Record<AccessMode, { access: string; notAllowed: string | null }> = {
@@ -102,11 +100,11 @@ export const ACCESS_COPY: Record<AccessMode, { access: string; notAllowed: strin
 /** The suspended notice (design spec 8). The front end adds the "Open an issue" link after it. */
 export const SUSPENDED_MESSAGE = "This account is suspended, so it can't sign in. If you think this is a mistake, open an issue on GitHub.";
 
-/** The banner above the sign-in button for a notice, or null for none (design spec 5 and 8). */
-export function loginMessage(
-  notice: LoginNotice,
-  mode: AccessMode = ACCESS_MODE,
-): { tone: "error" | "info"; text: string } | null {
+/**
+ * The banner above the sign-in button for a notice, or null for none (design spec 5 and 8). `mode`
+ * is the sign-up mode now (signupMode()); only the not-allowed error depends on it.
+ */
+export function loginMessage(notice: LoginNotice, mode: AccessMode): { tone: "error" | "info"; text: string } | null {
   switch (notice) {
     case "not-owner": {
       // With open sign-up nobody is turned away; if the code still arrives, treat it as a failure.

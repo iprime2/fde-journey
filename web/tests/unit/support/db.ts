@@ -93,3 +93,35 @@ export async function seedUser(db: Db, { githubId, userId, email, name = "Test U
 
 export const seedOwner = (db: Db) => seedUser(db, { githubId: OWNER_ID, userId: "owner", email: "owner@example.com" });
 export const seedOtherUser = (db: Db) => seedUser(db, { githubId: OTHER_ID, userId: "other", email: "someone@example.com" });
+
+type Runner = { query: (...args: unknown[]) => Promise<unknown> };
+type Client = Runner & { transaction: (fn: (tx: Runner) => Promise<unknown>, ...rest: unknown[]) => Promise<unknown> };
+const recorded = new WeakMap<object, string[]>();
+
+/**
+ * Every SQL statement the in-memory database runs from now on, statements inside transactions
+ * included (PGlite runs those on a separate handle). Patches the database's client once; clear the
+ * returned array (`length = 0`) to start again.
+ */
+export function recordStatements(db: Db): string[] {
+  const client = (db as unknown as { $client: Client }).$client;
+  const existing = recorded.get(client);
+  if (existing) return existing;
+  const statements: string[] = [];
+  const record = (runner: Runner) => {
+    const real = runner.query.bind(runner);
+    runner.query = (...args: unknown[]) => {
+      if (typeof args[0] === "string") statements.push(args[0]);
+      return real(...args);
+    };
+  };
+  record(client);
+  const realTransaction = client.transaction.bind(client);
+  client.transaction = (fn, ...rest) =>
+    realTransaction((tx: Runner) => {
+      record(tx);
+      return fn(tx);
+    }, ...rest);
+  recorded.set(client, statements);
+  return statements;
+}

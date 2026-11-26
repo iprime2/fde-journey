@@ -40,8 +40,10 @@ export async function setSectionVisible(section: SwitchableSection, on: boolean)
     if (!isSwitchable(section)) return invalid("Roadmap is always on.", "section");
     if (typeof on !== "boolean") return invalid("Couldn't save this change.", "on");
     const db = await getDb();
+    // The owner's row starts with every section on (and Scaler unlocked), not the new-user
+    // defaults, so make it before the first change.
+    if (me.isSuperAdmin) await ensureOwnerSettings(me.userId, db);
     if (section === "scaler") {
-      if (on && me.isSuperAdmin) await ensureOwnerSettings(me.userId, db);
       if (!(await setScaler(me.userId, db, on))) return invalid("Enter the Scaler access code first.", "section");
     } else {
       await setSection(me.userId, db, section, on);

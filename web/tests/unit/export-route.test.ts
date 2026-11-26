@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { eq, sql } from "drizzle-orm";
 import { GET } from "@/app/api/export/route";
 import type { Db } from "@/db/client";
-import { exportToken, user } from "@/db/schema";
+import { exportToken, user, userSettings } from "@/db/schema";
 import { EXPORT_REQUESTS_PER_HOUR } from "@/lib/export-auth";
 import { hashExportKey, newExportKey } from "@/lib/export-token";
 import { setDone, setLink, setNote } from "@/lib/progress-db";
@@ -59,6 +59,18 @@ describe("GET /api/export", () => {
     expect(text).not.toContain(B_NOTE);
     expect(text).not.toContain("b-only");
     expect(text).not.toContain("@example.com");
+  });
+
+  it("leaves Scaler items out while Scaler is locked for the key's user; the owner always has them", async () => {
+    await setDone("a", db, "s1-1", true);
+    await setDone("owner", db, "s1-2", true);
+    const a = (await (await withKey("a")).json()) as { progress: { itemId: string }[] };
+    expect(a.progress.map((p) => p.itemId)).toEqual(["l1-1"]);
+    const owner = (await (await withKey("owner")).json()) as { progress: { itemId: string }[] };
+    expect(owner.progress.map((p) => p.itemId)).toEqual(["s1-2"]);
+    await db.insert(userSettings).values({ userId: "a", scalerUnlockedAt: new Date() }).onConflictDoUpdate({ target: userSettings.userId, set: { scalerUnlockedAt: new Date() } });
+    const unlocked = (await (await withKey("a")).json()) as { progress: { itemId: string }[] };
+    expect(unlocked.progress.map((p) => p.itemId)).toEqual(["l1-1", "s1-1"]);
   });
 
   it("B's key returns B's data, and the owner's key the owner's (with every section)", async () => {

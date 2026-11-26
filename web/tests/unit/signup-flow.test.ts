@@ -2,12 +2,16 @@
 // by a fake `fetch` that knows several made-up accounts. New accounts get a place while there is
 // one, then join the waitlist; suspended accounts are refused before any session is written; the
 // owner always gets in; and a crowd signing up at once never takes the places past the cap.
+//
+// PGlite is one connection, so the "crowd" below is handled one transaction at a time, never truly
+// interleaved: it proves the counting and that each sign-up takes the places lock (asserted), not
+// the lock's behaviour under real concurrency (see lib/places.ts and the Neon branch rehearsal).
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { asc, eq, sql } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { account, session, user, userSettings } from "@/db/schema";
 import { createAuth } from "@/lib/auth";
-import { OWNER_ID, TEST_SECRET, emptyDb } from "./support/db";
+import { OWNER_ID, TEST_SECRET, emptyDb, recordStatements } from "./support/db";
 
 const BASE = "http://localhost:3000";
 const env = {
@@ -161,6 +165,8 @@ describe("capped sign-up", () => {
 
   it("a crowd signing up at the same moment never takes the places past the cap", async () => {
     await setCap(3);
+    const statements = recordStatements(db);
+    statements.length = 0;
     const crowd = Array.from({ length: 10 }, (_, i) => person(i + 1));
     const results = await Promise.all(crowd.map((p) => signIn(auth, p)));
     expect(results.every((r) => r.signedIn)).toBe(true);
@@ -168,6 +174,8 @@ describe("capped sign-up", () => {
     expect(statuses.filter((s) => s.status === "active")).toHaveLength(3);
     expect(statuses.filter((s) => s.status === "waitlisted")).toHaveLength(7);
     expect(await db.select().from(account)).toHaveLength(10);
+    // Each new account took the places lock before counting.
+    expect(statements.filter((q) => q === "select pg_advisory_xact_lock(7243100001)")).toHaveLength(10);
   });
 });
 

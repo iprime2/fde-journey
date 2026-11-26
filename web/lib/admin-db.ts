@@ -468,27 +468,41 @@ export async function listAdmins(): Promise<AdminList> {
   });
 }
 
-export type FoundPerson = (AdminPerson & { status: UserStatus; isOwner: boolean; permissions: Permission[] }) | null;
+export type FoundPerson = AdminPerson & { status: UserStatus; isOwner: boolean; permissions: Permission[]; createdAt: string };
 
-/** "Add an admin" → Find: an exact GitHub username (any case). Null when nobody has it. */
-export async function findUserByGithubLogin(login: unknown): Promise<FoundPerson> {
+/**
+ * "Add an admin" → Find: everyone with this GitHub username (any case), newest sign-up first. Two
+ * people can share one: usernames are refreshed only at sign-in, so someone who renamed and hasn't
+ * signed in since keeps the old one. Empty when nobody has it.
+ */
+export async function findUserByGithubLogin(login: unknown): Promise<FoundPerson[]> {
   await requirePermission("admins.manage");
-  if (typeof login !== "string") return null;
+  if (typeof login !== "string") return [];
   const clean = login.trim().replace(/^@/, "");
-  if (!/^[A-Za-z0-9-]{1,39}$/.test(clean)) return null;
+  if (!/^[A-Za-z0-9-]{1,39}$/.test(clean)) return [];
   return withSafeErrors("Finding a user", async () => {
     const db = await getDb();
-    const [row] = await run<PersonRow & { status: UserStatus }>(
+    const rows = await run<PersonRow & { status: UserStatus; created_ms: number | string }>(
       db,
-      sql`select u."id", u."name", u."github_login", u."image", u."status" from "user" u
-        where lower(u."github_login") = lower(${clean}) order by u."created_at" desc limit 1`,
+      sql`select u."id", u."name", u."github_login", u."image", u."status",
+          (extract(epoch from u."created_at") * 1000)::float8 as created_ms
+        from "user" u
+        where lower(u."github_login") = lower(${clean}) order by u."created_at" desc, u."id" limit 20`,
     );
-    if (!row) return null;
-    const access = await targetAccess(db, row.id);
-    return { ...person(row), status: row.status, isOwner: access?.isOwner ?? false, permissions: access?.isOwner ? [...PERMISSIONS] : (access?.permissions ?? []) };
+    const out: FoundPerson[] = [];
+    for (const row of rows) {
+      const access = await targetAccess(db, row.id);
+      out.push({
+        ...person(row),
+        status: row.status,
+        isOwner: access?.isOwner ?? false,
+        permissions: access?.isOwner ? [...PERMISSIONS] : (access?.permissions ?? []),
+        createdAt: fromMs(row.created_ms) ?? "",
+      });
+    }
+    return out;
   });
 }
-
 
 /**
  * Gives a person exactly these permissions (an empty list removes them as an admin). Audited as

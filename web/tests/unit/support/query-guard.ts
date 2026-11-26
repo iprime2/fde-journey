@@ -30,7 +30,7 @@
 //      initializer of its first `const`), so nothing in the module runs before the permission check;
 //    - SQL naming a per-user table sits inside one of the module's reviewed functions (listed by
 //      name with the file), and names only progress or progress_event, never their note or link
-//      columns: counts and dates only;
+//      columns (nor email or token_hash anywhere): counts and dates only;
 //    - the module imports no table object for a per-user table (raw SQL only, so all of it is seen).
 import ts from "typescript";
 
@@ -536,7 +536,7 @@ export function checkSource(rel: string, source: string, { allowed, seedFiles = 
     if (!fn?.exported || !fn.name || !adminReviewed?.includes(fn.name)) {
       add(node, "cross-user SQL outside the reviewed admin functions");
     }
-    if (/\b(note|link|token_hash)\b/i.test(text)) add(node, "admin SQL that names note, link or token_hash");
+    if (/\b(note|link|token_hash|email)\b/i.test(text)) add(node, "admin SQL that names note, link, token_hash or email");
     if (/\b(user_settings|export_token)\b/i.test(text)) add(node, "admin SQL that names user_settings or export_token");
   }
 

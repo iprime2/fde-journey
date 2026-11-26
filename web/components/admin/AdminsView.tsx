@@ -6,7 +6,7 @@ import { useId, useRef, useState } from "react";
 import { findUserForAdmin, removeAdmin, saveAdminPermissions } from "@/app/actions/admin";
 import { PERMISSIONS, type Permission, SUPER_ADMIN_ONLY, withImpliedPermissions } from "@/lib/access-types";
 import type { AdminEntry, AdminList, AdminPerson, FoundPerson } from "@/lib/admin-db";
-import { IMPLIED_DESCRIPTION, PERMISSION_COPY, permissionDiff, permissionDiffText, permissionLabels } from "@/lib/admin-format";
+import { IMPLIED_DESCRIPTION, PERMISSION_COPY, formatIstDateTime, permissionDiff, permissionDiffText, permissionLabels } from "@/lib/admin-format";
 import { CARD_STYLES } from "../Card";
 import { cn } from "../cn";
 import { type ConfirmOutcome, ConfirmDialog } from "../Dialog";
@@ -228,6 +228,8 @@ function AddAdmin({
   const [finding, setFinding] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [found, setFound] = useState<AdminPerson | null>(null);
+  // Several eligible people share the username (one renamed and hasn't signed in since): pick one.
+  const [choices, setChoices] = useState<FoundPerson[]>([]);
   const [picked, setPicked] = useState<Permission[]>([]);
   const [asking, setAsking] = useState(false);
 
@@ -240,6 +242,7 @@ function AddAdmin({
     setFinding(true);
     setError(null);
     setFound(null);
+    setChoices([]);
     setPicked([]);
     const result = await callAction(() => findUserForAdmin(login));
     setFinding(false);
@@ -249,18 +252,24 @@ function AddAdmin({
       else setError(result.error.message);
       return;
     }
-    const person: FoundPerson = result.value;
-    let problem: string | null = null;
-    if (!person) problem = NOT_FOUND;
-    else if (person.status !== "active") problem = "Only people with a place can be admins.";
-    else if (person.isOwner) problem = "That's the owner, who has every permission already.";
-    else if (person.permissions.length > 0) problem = `${person.name} is already an admin. Change their permissions below.`;
-    if (problem || !person) {
-      setError(problem ?? NOT_FOUND);
-      field.current?.focus();
+    const matches: FoundPerson[] = result.value;
+    const eligible = matches.filter((p) => p.status === "active" && !p.isOwner && p.permissions.length === 0);
+    if (eligible.length > 1) {
+      setChoices(eligible);
       return;
     }
-    setFound(person);
+    if (eligible.length === 1) {
+      setFound(eligible[0]);
+      return;
+    }
+    // Nobody eligible: explain using the newest match.
+    const person = matches[0];
+    let problem = NOT_FOUND;
+    if (person && person.status !== "active") problem = "Only people with a place can be admins.";
+    else if (person?.isOwner) problem = "That's the owner, who has every permission already.";
+    else if (person && person.permissions.length > 0) problem = `${person.name} is already an admin. Change their permissions below.`;
+    setError(problem);
+    field.current?.focus();
   }
 
   async function make(): Promise<ConfirmOutcome> {
@@ -317,6 +326,29 @@ function AddAdmin({
           </p>
         )}
       </form>
+      {choices.length > 1 && !found && (
+        <div className="grid gap-2 border-t border-line pt-3">
+          <p className="type-small text-muted">Several people have this username. Choose one:</p>
+          <ul className="grid gap-2">
+            {choices.map((c) => (
+              <li key={c.id} className="flex flex-wrap items-center justify-between gap-2">
+                <PersonCell person={c} />
+                <span className="type-small text-muted">Signed up {formatIstDateTime(c.createdAt)}</span>
+                <button
+                  type="button"
+                  className={buttonStyles.secondary}
+                  onClick={() => {
+                    setFound(c);
+                    setChoices([]);
+                  }}
+                >
+                  Choose <span className="sr-only">{c.name}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {found && (
         <div className="grid gap-3 border-t border-line pt-3">
           <PersonCell person={found} heading />

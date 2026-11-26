@@ -27,7 +27,7 @@ import type { Db } from "@/db/client";
 import type { UserStatus } from "./access-types";
 
 /** One fixed key for the whole app: there is one cap. */
-const PLACES_LOCK = sql.raw("select pg_advisory_xact_lock(7243100001)");
+export const PLACES_LOCK = sql.raw("select pg_advisory_xact_lock(7243100001)");
 
 type Rows<T> = { rows: T[] };
 
@@ -37,19 +37,23 @@ interface BatchDb {
 }
 const isBatchDb = (db: Db): db is Db & BatchDb => typeof (db as unknown as Partial<BatchDb>).batch === "function";
 
-/** Runs `statement` while holding the places lock, in one READ COMMITTED transaction. Returns its rows. */
-export async function runLocked<T>(db: Db, statement: SQL): Promise<T[]> {
+/**
+ * Runs `statement` while holding an advisory lock (the places lock unless another is given), in
+ * one READ COMMITTED transaction. Returns its rows. `lock` must be a single
+ * `select pg_advisory_xact_lock(…)` statement.
+ */
+export async function runLocked<T>(db: Db, statement: SQL, lock: SQL = PLACES_LOCK): Promise<T[]> {
   if (isBatchDb(db)) {
     const results = await db.batch([
       db.execute(sql.raw("set transaction isolation level read committed")),
-      db.execute(PLACES_LOCK),
+      db.execute(lock),
       db.execute(statement),
     ]);
     return (results[2] as Rows<T>).rows;
   }
   return db.transaction(
     async (tx) => {
-      await tx.execute(PLACES_LOCK);
+      await tx.execute(lock);
       return ((await tx.execute(statement)) as unknown as Rows<T>).rows;
     },
     { isolationLevel: "read committed" },
@@ -102,7 +106,7 @@ export async function placeNewUser(db: Db, userId: string, ownerId: string | nul
       select "id", "waitlisted_at", "created_at" from "user" where "id" = ${userId} and "status" = 'waitlisted'
     ), upd as (
       update "user" set "status" = 'active', "activated_at" = now(), "waitlisted_at" = null
-      where "id" = (select "id" from me)
+      where "id" = (select "id" from me) and "status" = 'waitlisted'
         and (select count(*) from "user" w, me
              where w."status" = 'waitlisted' and w."id" <> me."id" and ${queueKey("w")} < ${queueKey("me")}) < ${freeSql(ownerId)}
       returning "status"
@@ -123,23 +127,33 @@ export async function activateOwner(db: Db, userId: string): Promise<void> {
 
 export type LetInResult = "let-in" | "no-place" | "not-waiting";
 
-/** "Let in": one waitlisted person gets a place if one is free. Audited as `let_in`. */
+/**
+ * "Let in": one waitlisted person gets a place if one is free. Audited as `let_in`.
+ *
+ * Suspending and removing don't take the places lock, so they can land while this waits for it.
+ * The update re-checks `status = 'waitlisted'` on the row as it is then (Postgres re-reads a row an
+ * update had to wait for), so a person suspended a moment ago is never revived, and a deleted one
+ * is simply not found. The answer is "not-waiting" in both cases; "no-place" only when the places
+ * really are full.
+ */
 export async function letInOne(db: Db, targetId: string, actorId: string, ownerId: string | null): Promise<LetInResult> {
   const rows = await runLocked<{ outcome: LetInResult }>(
     db,
     sql`
     with target as (
       select "id" from "user" where "id" = ${targetId} and "status" = 'waitlisted'
+    ), room as (
+      select ${freeSql(ownerId)} > 0 as has_place
     ), upd as (
       update "user" set "status" = 'active', "activated_at" = now()
-      where "id" = (select "id" from target) and ${freeSql(ownerId)} > 0
+      where "id" = (select "id" from target) and "status" = 'waitlisted' and (select has_place from room)
       returning "id"
     ), aud as (
       insert into "admin_audit" ("actor_user_id", "action", "target_user_id", "details")
       select ${actorId}, 'let_in', "id", '{}'::jsonb from upd
     )
     select case when exists (select 1 from upd) then 'let-in'
-                when exists (select 1 from target) then 'no-place'
+                when exists (select 1 from target) and not (select has_place from room) then 'no-place'
                 else 'not-waiting' end as outcome`,
   );
   return rows[0]?.outcome ?? "not-waiting";

@@ -10,6 +10,7 @@ import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { exportToken, userSettings } from "@/db/schema";
 import type { SwitchableSection } from "./access-types";
+import { runLocked } from "./places";
 
 /** A user id from the session: a non-empty string. Anything else is a bug, so it throws. */
 function checkUserId(userId: string): void {
@@ -145,15 +146,24 @@ export async function listExportKeys(userId: string, db: Db): Promise<ExportKeyR
     .orderBy(asc(exportToken.createdAt));
 }
 
-/** Stores a new key's hash, unless the user already has EXPORT_KEYS_MAX working keys (then null). */
+/**
+ * Stores a new key's hash, unless the user already has EXPORT_KEYS_MAX working keys (then null).
+ * Exact even when two keys are made at once: the count and the insert run under a lock for this
+ * user (a transaction-scoped advisory lock; lib/places.ts runLocked explains why a single statement
+ * isn't enough).
+ */
 export async function addExportKey(userId: string, db: Db, tokenHash: string): Promise<ExportKeyRow | null> {
   checkUserId(userId);
-  const result = (await db.execute(sql`
+  const rows = await runLocked<{ id: string; created_ms: number | string }>(
+    db,
+    sql`
     insert into "export_token" ("user_id", "token_hash")
     select ${userId}, ${tokenHash}
     where (select count(*) from "export_token" where "user_id" = ${userId} and "revoked_at" is null) < ${EXPORT_KEYS_MAX}
-    returning "id", (extract(epoch from "created_at") * 1000)::float8 as created_ms`)) as unknown as { rows: { id: string; created_ms: number | string }[] };
-  const row = result.rows[0];
+    returning "id", (extract(epoch from "created_at") * 1000)::float8 as created_ms`,
+    sql`select pg_advisory_xact_lock(7243, hashtext(${userId}))`,
+  );
+  const row = rows[0];
   return row ? { id: row.id, createdAt: new Date(Number(row.created_ms)), lastUsedAt: null } : null;
 }
 

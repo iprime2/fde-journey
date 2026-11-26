@@ -26,3 +26,9 @@ export function effectiveSections(stored: StoredSections | null, isSuperAdmin: b
   const base = stored ? { roadmap: true, reading: stored.reading, scaler: stored.scaler, certs: stored.certs, projects: stored.projects, career: stored.career } : isSuperAdmin ? OWNER_SECTIONS : DEFAULT_SECTIONS;
   return { sections: { ...base, roadmap: true, scaler: base.scaler && scalerUnlocked }, scalerUnlocked };
 }
+
+/** Scaler class ids are `s{module}-{class}` (lib/ids.ts); no other item id starts with "s". */
+export const isScalerItemId = (itemId: string) => /^s[0-9]/.test(itemId);
+
+/** Message when a Scaler item is saved while the section is locked (only a crafted request gets here). */
+export const SCALER_LOCKED_MESSAGE = "The Scaler course is locked. Enter its access code in Settings first.";

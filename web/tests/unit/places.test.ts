@@ -2,6 +2,13 @@
 // takes the places past the cap, even when many changes arrive at once. Runs on PGlite (the
 // transaction path) and through the real Neon HTTP driver against a fake endpoint (the batch path
 // production uses). Made-up users only.
+//
+// A limit to keep in mind: PGlite is one connection, so the "at the same moment" tests below run
+// their transactions one at a time, never truly interleaved. They prove the counting and the
+// order are right and that every change takes the lock (asserted below); that the lock makes
+// interleaved transactions on Neon safe rests on how Postgres locks and snapshots work (the
+// comment at the top of lib/places.ts). The Neon branch rehearsal in docs/M4b-ROLLOUT.md is the
+// check against a real server.
 import type { PGlite } from "@electric-sql/pglite";
 import { neonConfig } from "@neondatabase/serverless";
 import { asc, eq, sql } from "drizzle-orm";
@@ -10,16 +17,29 @@ import { type Db, openDb } from "@/db/client";
 import { adminAudit, user } from "@/db/schema";
 import type { UserStatus } from "@/lib/access-types";
 import { letInNext, letInOne, placeNewUser, placesSummary, reactivateUser, runLocked, setCapAndAdmit, waitlistPosition } from "@/lib/places";
-import { emptyDb, seedUser, setTestEnv } from "./support/db";
+import { emptyDb, recordStatements, seedUser, setTestEnv } from "./support/db";
 import { type NeonRequest, fakeNeon } from "./support/fake-neon";
 
 setTestEnv();
 const OWNER = "900000000001";
 
 let db: Db;
+/** Every statement PGlite ran, transactions included. */
+let statements: string[] = [];
 beforeEach(async () => {
   db = await emptyDb();
+  statements = recordStatements(db);
+  statements.length = 0;
 });
+
+/** The statements sent inside transactions that took the places lock, as [lock, change] pairs. */
+const lockedChanges = () => {
+  const out: string[] = [];
+  statements.forEach((s, i) => {
+    if (s === "select pg_advisory_xact_lock(7243100001)") out.push(statements[i + 1] ?? "");
+  });
+  return out;
+};
 
 let n = 0;
 /** A made-up user. Waitlisted users join one second apart, in the order they are added. */
@@ -108,7 +128,48 @@ describe("a new sign-up (placeNewUser)", () => {
   });
 });
 
+describe("every change that gives out a place takes the lock first (PGlite's transaction path too)", () => {
+  it("sign-up, let in, let in the next N, reactivate and the cap", async () => {
+    const admin = await addOwner();
+    const w = await addUser("waitlisted");
+    const s = await addUser("suspended");
+    await placeNewUser(db, w, OWNER);
+    await letInOne(db, w, admin, OWNER);
+    await letInNext(db, 1, admin, OWNER);
+    await reactivateUser(db, s, admin, OWNER);
+    await setCapAndAdmit(db, 50, admin, OWNER);
+    const changes = lockedChanges();
+    expect(changes).toHaveLength(5);
+    expect(changes.every((c) => /update "user" set\s+"status"/.test(c) || /insert into "app_setting"/.test(c))).toBe(true);
+  });
+});
+
 describe("let in (letInOne, letInNext)", () => {
+  it("only ever updates someone who is still waitlisted when the update runs", async () => {
+    const admin = await addOwner();
+    const w = await addUser("waitlisted");
+    await letInOne(db, w, admin, OWNER);
+    await placeNewUser(db, w, OWNER);
+    // The guard sits on the update itself, where Postgres re-checks a row that changed while the
+    // statement waited (a suspension landing at that moment), not only in the CTE's snapshot.
+    for (const change of lockedChanges()) {
+      expect(change).toMatch(/update "user" set "status" = 'active'[^]*?where "id" = \(select "id" from (target|me)\) and "status" = 'waitlisted'/);
+    }
+  });
+
+  it("never revives a suspended or deleted person: they are not waiting, whatever the free places", async () => {
+    const admin = await addOwner();
+    await setCap(5);
+    const suspended = await addUser("waitlisted");
+    const removed = await addUser("waitlisted");
+    await db.update(user).set({ status: "suspended" }).where(eq(user.id, suspended));
+    await db.delete(user).where(eq(user.id, removed));
+    expect(await letInOne(db, suspended, admin, OWNER)).toBe("not-waiting");
+    expect(await letInOne(db, removed, admin, OWNER)).toBe("not-waiting");
+    expect(await statusOf(suspended)).toBe("suspended");
+    expect(await audit()).toEqual([]);
+  });
+
   it("lets one person in when a place is free, and audits it", async () => {
     const admin = await addOwner();
     await setCap(1);

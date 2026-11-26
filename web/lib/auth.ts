@@ -194,7 +194,7 @@ export function createAuth({ db, env, writeCookies = true }: { db: Db; env: Env;
     // Without GitHub credentials the app still runs (tests, previews); sign-in then fails cleanly.
     socialProviders:
       clientId && clientSecret
-        ? { github: { clientId, clientSecret, mapProfileToUser: (profile) => ({ githubLogin: cleanGithubLogin(profile.login) }) } }
+        ? { github: { clientId, clientSecret } }
         : {},
     account: {
       accountLinking: { enabled: false },
@@ -207,12 +207,18 @@ export function createAuth({ db, env, writeCookies = true }: { db: Db; env: Env;
         if (refused) return refused;
         // An existing user signing in: keep their GitHub username current (it can be renamed).
         if (data.source.action === "sign-in") await refreshGithubLogin(db, data.user?.id, data.source.oauth?.profile?.login);
+        // A new user: hand GitHub's username to user.create.before. Better Auth passes this same
+        // `user` object on to the create (lib/db internal-adapter createUser), and githubLogin is
+        // `input: false`, so nothing else can fill it. If that ever stops reaching the row, the
+        // username is filled at the user's next sign-in instead (refreshGithubLogin).
+        if (data.source.action === "create-user" && data.user) data.user.githubLogin = cleanGithubLogin(data.source.oauth?.profile?.login);
         return undefined;
       },
-      // M4b columns on "user" (db/schema.ts). Only githubLogin comes from GitHub (mapProfileToUser);
-      // nothing a browser sends can set any of them (the endpoints that take user input are disabled).
+      // M4b columns on "user" (db/schema.ts). Only githubLogin comes from GitHub (set above, from
+      // the profile GitHub just sent); `input: false` on all of them, so nothing a browser sends can
+      // set any (and the endpoints that take user input are disabled anyway).
       additionalFields: {
-        githubLogin: { type: "string", required: false },
+        githubLogin: { type: "string", required: false, input: false },
         status: { type: "string", required: false, input: false },
         activatedAt: { type: "date", required: false, input: false },
         waitlistedAt: { type: "date", required: false, input: false },

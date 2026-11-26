@@ -21,6 +21,7 @@ vi.mock("next/navigation", async (importOriginal) => ({
 
 import { asc, eq } from "drizzle-orm";
 import { deleteMyAccount, leaveWaitlist } from "@/app/actions/account";
+import { saveLink, saveNote, toggleDone } from "@/app/actions/progress";
 import { createExportKey, downloadMyData, revokeExportKey, setSectionVisible, unlockScalerSection } from "@/app/actions/settings";
 import { setScalerAccessCode } from "@/lib/admin-db";
 import type { Db } from "@/db/client";
@@ -28,7 +29,7 @@ import { account, adminAudit, exportToken, progress, progressEvent, session, use
 import { DEFAULT_SECTIONS, OWNER_SECTIONS } from "@/lib/access-types";
 import { setDone, setLink, setNote } from "@/lib/progress-db";
 import { getMyExportKeys, getMySettings, getMyWaitlistPlace } from "@/lib/settings";
-import { OWNER_ID, emptyDb, seedUser, setTestEnv } from "./support/db";
+import { OWNER_ID, emptyDb, recordStatements, seedUser, setTestEnv } from "./support/db";
 
 setTestEnv();
 
@@ -114,6 +115,13 @@ describe("sections", () => {
     }
   });
 
+  it("the owner's first change keeps every other section on (their row starts all on, not with the defaults)", async () => {
+    as("owner");
+    expect(await settingsOf("owner")).toBeUndefined();
+    expect(await setSectionVisible("career", false)).toEqual({ ok: true, value: { ...OWNER_SECTIONS, career: false } });
+    expect(await settingsOf("owner")).toMatchObject({ showScaler: true, showProjects: true, showCareer: false, scalerUnlockedAt: expect.any(Date) });
+  });
+
   it("Scaler can only be switched on once it's unlocked; the owner always can", async () => {
     as("a");
     expect(await setSectionVisible("scaler", true)).toMatchObject({ ok: false, error: { code: "invalid", message: "Enter the Scaler access code first." } });
@@ -183,6 +191,48 @@ describe("the Scaler access code", () => {
   });
 });
 
+describe("the Scaler lock on the server", () => {
+  const scalerSaves = [() => toggleDone("s1-1", true), () => saveNote("s1-1", "A made-up note."), () => saveLink("s1-1", "https://example.com/s")];
+
+  it("refuses Scaler saves while the section is locked, and allows them once it's unlocked", async () => {
+    as("a");
+    for (const save of scalerSaves) {
+      expect(await save()).toEqual({ ok: false, error: { code: "invalid", field: "itemId", message: "The Scaler course is locked. Enter its access code in Settings first." } });
+    }
+    expect(await db.select().from(progress).where(eq(progress.userId, "a"))).toEqual([]);
+    // Other sections save as usual.
+    expect((await toggleDone("l2-1", true)).ok).toBe(true);
+    as("owner");
+    await setScalerAccessCode(CODE);
+    as("a");
+    expect((await unlockScalerSection(CODE)).ok).toBe(true);
+    for (const save of scalerSaves) expect((await save()).ok).toBe(true);
+  });
+
+  it("the owner can always save Scaler items", async () => {
+    as("owner");
+    for (const save of scalerSaves) expect((await save()).ok).toBe(true);
+  });
+
+  it("leaves Scaler items out of Download my data while locked", async () => {
+    await setDone("a", db, "s1-1", true);
+    await setDone("a", db, "l1-1", true);
+    as("a");
+    const locked = await downloadMyData();
+    if (!locked.ok) throw new Error("expected data");
+    const data = JSON.parse(locked.value.json) as { progress: { itemId: string }[]; events: { itemId: string }[] };
+    expect(data.progress.map((p) => p.itemId)).toEqual(["l1-1"]);
+    expect(data.events.map((e) => e.itemId)).toEqual(["l1-1"]);
+    as("owner");
+    await setScalerAccessCode(CODE);
+    as("a");
+    await unlockScalerSection(CODE);
+    const unlocked = await downloadMyData();
+    if (!unlocked.ok) throw new Error("expected data");
+    expect((JSON.parse(unlocked.value.json) as { progress: { itemId: string }[] }).progress.map((p) => p.itemId)).toEqual(["l1-1", "s1-1"]);
+  });
+});
+
 describe("Claude export keys", () => {
   it("creates a key shown once, lists it without the key, and revokes it", async () => {
     as("a");
@@ -212,10 +262,21 @@ describe("Claude export keys", () => {
     expect(await getMyExportKeys()).toHaveLength(1);
   });
 
-  it("allows 5 working keys at a time", async () => {
+  it("allows 5 working keys at a time, exactly, even when asked for many at once", async () => {
     as("a");
-    for (let i = 0; i < 5; i++) expect((await createExportKey()).ok).toBe(true);
-    expect(await createExportKey()).toMatchObject({ ok: false, error: { code: "invalid" } });
+    const statements = recordStatements(db);
+    statements.length = 0;
+    const results = await Promise.all(Array.from({ length: 8 }, () => createExportKey()));
+    expect(results.filter((r) => r.ok)).toHaveLength(5);
+    expect(results.filter((r) => !r.ok).every((r) => !r.ok && r.error.code === "invalid")).toBe(true);
+    expect(await db.select().from(exportToken).where(eq(exportToken.userId, "a"))).toHaveLength(5);
+    // Each count-and-insert ran under the user's own lock (PGlite runs them one at a time anyway).
+    expect(statements.filter((q) => /^select pg_advisory_xact_lock\(7243, hashtext\(\$1\)\)$/.test(q))).toHaveLength(8);
+    // Revoking one frees a slot.
+    const first = results.find((r) => r.ok);
+    if (!first?.ok) throw new Error("expected a key");
+    await revokeExportKey(first.value.id);
+    expect((await createExportKey()).ok).toBe(true);
   });
 });
 

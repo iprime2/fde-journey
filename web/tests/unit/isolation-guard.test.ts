@@ -106,7 +106,7 @@ describe("every query on progress and progress_event is scoped to a user", () =>
     expect(problems("lib/admin-db.ts", unchecked)).toEqual(["getAdminOverview must start with await requirePermission(…)"]);
     const noted = admin.replace('from "progress" where "done" and "done_at"', 'from "progress" where "done" and "note" <> \'\' and "done_at"');
     expect(noted).not.toBe(admin);
-    expect(problems("lib/admin-db.ts", noted)).toEqual(["admin SQL that names note, link or token_hash"]);
+    expect(problems("lib/admin-db.ts", noted)).toEqual(["admin SQL that names note, link, token_hash or email"]);
   });
 
   it("every reviewed admin function exists and is exported", () => {
@@ -187,8 +187,9 @@ describe("the checker catches", () => {
       ["an exported arrow function without it", `${top}export const f = async () => 1;`, "f must start with await requirePermission(…)"],
       ["cross-user SQL in a function not reviewed", `${top}export async function listAuditLog() { await requirePermission("audit.view"); return sql\`select count(*) from progress\`; }`, "cross-user SQL outside the reviewed admin functions"],
       ["cross-user SQL in a helper", `${top}async function helper() { return sql\`select count(*) from progress\`; }`, "cross-user SQL outside the reviewed admin functions"],
-      ["note text", `${top}export async function listAdminUsers() { await requirePermission("users.view"); return sql\`select note from progress\`; }`, "admin SQL that names note, link or token_hash"],
-      ["links", `${top}export async function listAdminUsers() { await requirePermission("users.view"); return sql\`select count(*) from progress where link <> ''\`; }`, "admin SQL that names note, link or token_hash"],
+      ["note text", `${top}export async function listAdminUsers() { await requirePermission("users.view"); return sql\`select note from progress\`; }`, "admin SQL that names note, link, token_hash or email"],
+      ["links", `${top}export async function listAdminUsers() { await requirePermission("users.view"); return sql\`select count(*) from progress where link <> ''\`; }`, "admin SQL that names note, link, token_hash or email"],
+      ["emails", `${top}export async function listAdminUsers() { await requirePermission("users.view"); return sql\`select count(*) from progress p join "user" u on u.id = p.user_id where u.email like '%x'\`; }`, "admin SQL that names note, link, token_hash or email"],
       ["settings", `${top}export async function listAdminUsers() { await requirePermission("users.view"); return sql\`select * from user_settings\`; }`, "admin SQL that names user_settings or export_token"],
       ["a table object", `import { progress } from "@/db/schema";\n`, "imports the progress table: admin modules use reviewed SQL only"],
     ])("%s", (_label, source, problem) => {

@@ -12,7 +12,7 @@ import { istDate } from "./dates";
 import { waitlistPosition } from "./places";
 import { readEvents, readProgress } from "./progress-db";
 import { withSafeErrors } from "./safe-log";
-import { type SectionSettings, effectiveSections } from "./sections";
+import { type SectionSettings, effectiveSections, isScalerItemId } from "./sections";
 import { requireUser } from "./session";
 import { listExportKeys, readSettingsRow } from "./settings-db";
 
@@ -100,35 +100,45 @@ export interface MyData {
   events: { itemId: string; kind: string; at: string }[];
 }
 
-async function progressList(db: Db, userId: string): Promise<ProgressItemExport[]> {
+/** The user's saved items, by id. Scaler items only once Scaler is unlocked for them. */
+async function progressList(db: Db, userId: string, scalerUnlocked: boolean): Promise<ProgressItemExport[]> {
   const progress = await readProgress(userId, db);
-  return [...progress.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([itemId, r]) => ({ itemId, ...r }));
+  return [...progress.entries()]
+    .filter(([itemId]) => scalerUnlocked || !isScalerItemId(itemId))
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([itemId, r]) => ({ itemId, ...r }));
 }
 
-/** "Download my data" for one user. The caller takes `userId` from the session. */
+/**
+ * "Download my data" for one user. The caller takes `userId` from the session. Scaler items (and
+ * their history) are left out while Scaler is locked for the user, as everywhere else.
+ */
 export async function buildMyData(db: Db, userId: string, isSuperAdmin: boolean, now = new Date()): Promise<MyData> {
-  const [profileRows, settingsRow, progress, events] = await Promise.all([
+  const [profileRows, settingsRow] = await Promise.all([
     db.select({ name: user.name, githubLogin: user.githubLogin }).from(user).where(eq(user.id, userId)).limit(1),
     readSettingsRow(userId, db),
-    progressList(db, userId),
-    readEvents(userId, db),
   ]);
+  const settings = effectiveSections(settingsRow, isSuperAdmin);
+  const [progress, events] = await Promise.all([progressList(db, userId, settings.scalerUnlocked), readEvents(userId, db)]);
   const profile = profileRows[0] ?? { name: "", githubLogin: null };
   return {
     format: "fde-journey-data",
     version: 1,
     exportedAt: now.toISOString(),
     profile: { name: profile.name, githubLogin: profile.githubLogin },
-    settings: { ...effectiveSections(settingsRow, isSuperAdmin), scalerUnlockedAt: settingsRow?.scalerUnlockedAt?.toISOString() ?? null },
+    settings: { ...settings, scalerUnlockedAt: settingsRow?.scalerUnlockedAt?.toISOString() ?? null },
     progress,
-    events,
+    events: events.filter((e) => settings.scalerUnlocked || !isScalerItemId(e.itemId)),
   };
 }
 
 /** The download's file name: `fde-journey-data-{YYYY-MM-DD}.json`, date in IST (design spec 5). */
 export const myDataFileName = (now = new Date()) => `fde-journey-data-${istDate(now.getTime())}.json`;
 
-/** What `/api/export` returns to a Claude session: the user's sections and progress, nothing else. */
+/**
+ * What `/api/export` returns to a Claude session: the user's sections and progress, nothing else
+ * (Scaler items only once Scaler is unlocked for the user).
+ */
 export interface ClaudeExport {
   format: "fde-journey-export";
   version: 1;
@@ -139,7 +149,8 @@ export interface ClaudeExport {
 
 /** The Claude export for the key's user (the caller looked the key up; lib/export-auth.ts). */
 export async function buildClaudeExport(db: Db, userId: string, isSuperAdmin: boolean, now = new Date()): Promise<ClaudeExport> {
-  const [settings, progress] = await Promise.all([sectionSettingsFor(db, userId, isSuperAdmin), progressList(db, userId)]);
+  const settings = await sectionSettingsFor(db, userId, isSuperAdmin);
+  const progress = await progressList(db, userId, settings.scalerUnlocked);
   return { format: "fde-journey-export", version: 1, exportedAt: now.toISOString(), sections: settings.sections, progress };
 }
 

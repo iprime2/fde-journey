@@ -324,10 +324,19 @@ describe("admins (admins.manage)", () => {
     expect(list.owner).toMatchObject({ id: "owner", name: "Sam Example", githubLogin: "owner" });
     expect(list.admins.find((a) => a.id === holder("users.manage"))?.permissions).toEqual(["users.view", "users.manage"]);
     expect(list.admins.some((a) => a.id === "alex")).toBe(false);
-    expect(await adminDb.findUserByGithubLogin("@ALEX")).toMatchObject({ id: "alex", status: "active", isOwner: false, permissions: [] });
-    expect(await adminDb.findUserByGithubLogin("w1")).toMatchObject({ status: "waitlisted" });
-    expect(await adminDb.findUserByGithubLogin("nobody-here")).toBeNull();
-    expect(await adminDb.findUserByGithubLogin("not a login")).toBeNull();
+    expect(await adminDb.findUserByGithubLogin("@ALEX")).toMatchObject([{ id: "alex", status: "active", isOwner: false, permissions: [], createdAt: expect.any(String) }]);
+    expect(await adminDb.findUserByGithubLogin("w1")).toMatchObject([{ status: "waitlisted" }]);
+    expect(await adminDb.findUserByGithubLogin("nobody-here")).toEqual([]);
+    expect(await adminDb.findUserByGithubLogin("not a login")).toEqual([]);
+  });
+
+  it("lists everyone who shares a username (someone renamed and hasn't signed in since), newest first", async () => {
+    await add("alex-old", "active", [], { name: "Alex Renamed", createdAt: new Date("2026-10-01T00:00:00Z") });
+    await db.update(user).set({ githubLogin: "alex" }).where(eq(user.id, "alex-old"));
+    as("owner");
+    const found = await adminDb.findUserByGithubLogin("alex");
+    expect(found.map((f) => f.id)).toEqual(["alex", "alex-old"]);
+    expect(JSON.stringify(found)).not.toContain("@example.com");
   });
 });
 

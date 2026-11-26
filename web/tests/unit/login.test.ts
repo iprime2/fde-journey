@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   ACCESS_COPY,
-  ACCESS_MODE,
   isPublicPath,
   loginHref,
   loginMessage,
   parseLoginParams,
   safeNextPath,
 } from "@/lib/login";
+import { signupMode } from "@/lib/signup-mode";
 
 describe("safeNextPath (the ?next= redirect after sign-in)", () => {
   it("keeps paths on this site, with their query and hash", () => {
@@ -115,10 +115,11 @@ describe("isPublicPath", () => {
 });
 
 describe("access mode copy (design spec 8)", () => {
-  it("is owner only for now, with the owner-only wording", () => {
-    expect(ACCESS_MODE).toBe("owner-only");
-    expect(ACCESS_COPY[ACCESS_MODE].access).toBe("Private for now: only the owner's GitHub account can sign in.");
-    expect(loginMessage("not-owner")).toEqual({
+  it("is owner only unless SIGNUP_MODE says capped, with the owner-only wording", () => {
+    expect(signupMode({})).toBe("owner-only");
+    expect(ACCESS_COPY[signupMode({})].access).toBe("Private for now: only the owner's GitHub account can sign in.");
+    expect(ACCESS_COPY[signupMode({ SIGNUP_MODE: "capped" })].access).toMatch(/^New here\? .*join the waitlist\.$/);
+    expect(loginMessage("not-owner", "owner-only")).toEqual({
       tone: "error",
       text: "This GitHub account can't sign in. FDE Journey is private to its owner for now.",
     });
@@ -148,18 +149,18 @@ describe("access mode copy (design spec 8)", () => {
     expect(parseLoginParams({ status: "left-waitlist" }).notice).toBe("left-waitlist");
     expect(parseLoginParams({ status: "toString" }).notice).toBeNull();
     expect(parseLoginParams({ status: "__proto__" }).notice).toBeNull();
-    expect(loginMessage("suspended")).toEqual({
+    expect(loginMessage("suspended", "owner-only")).toEqual({
       tone: "error",
       text: "This account is suspended, so it can't sign in. If you think this is a mistake, open an issue on GitHub.",
     });
-    expect(loginMessage("deleted")).toEqual({ tone: "info", text: "Your account and data are deleted." });
-    expect(loginMessage("left-waitlist")).toEqual({ tone: "info", text: "You've left the waitlist and your account is deleted." });
+    expect(loginMessage("deleted", "owner-only")).toEqual({ tone: "info", text: "Your account and data are deleted." });
+    expect(loginMessage("left-waitlist", "owner-only")).toEqual({ tone: "info", text: "You've left the waitlist and your account is deleted." });
   });
 
   it("maps the query to the right banner", () => {
-    expect(loginMessage(parseLoginParams({ error: "not_owner" }).notice)?.tone).toBe("error");
-    expect(loginMessage(parseLoginParams({ error: "unavailable" }).notice)?.text).toBe("Sign-in didn't finish. Try again.");
-    expect(loginMessage(parseLoginParams({ status: "signed-out" }).notice)?.tone).toBe("info");
-    expect(loginMessage(parseLoginParams({}).notice)).toBeNull();
+    expect(loginMessage(parseLoginParams({ error: "not_owner" }).notice, "owner-only")?.tone).toBe("error");
+    expect(loginMessage(parseLoginParams({ error: "unavailable" }).notice, "owner-only")?.text).toBe("Sign-in didn't finish. Try again.");
+    expect(loginMessage(parseLoginParams({ status: "signed-out" }).notice, "owner-only")?.tone).toBe("info");
+    expect(loginMessage(parseLoginParams({}).notice, "owner-only")).toBeNull();
   });
 });

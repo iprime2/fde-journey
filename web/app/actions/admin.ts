@@ -55,8 +55,8 @@ export async function saveScalerAccessCode(code: string): Promise<ActionResult<{
   return refreshed(await guarded("Saving the Scaler access code", () => adminDb.setScalerAccessCode(code)));
 }
 
-/** admins.manage. "Add an admin" → Find. `value` is null when nobody has that GitHub username. */
-export async function findUserForAdmin(githubLogin: string): Promise<ActionResult<adminDb.FoundPerson>> {
+/** admins.manage. "Add an admin" → Find. Everyone with that GitHub username (empty: nobody), newest first. */
+export async function findUserForAdmin(githubLogin: string): Promise<ActionResult<adminDb.FoundPerson[]>> {
   return read("Finding a user", () => adminDb.findUserByGithubLogin(githubLogin));
 }
 
