@@ -1,7 +1,8 @@
 "use client";
 
-// Admin Audit log (design spec 5): a "Show" filter, then the actions, newest first, 50 at a time.
-// One plain sentence each, naming the person by @username. Never a note, link or email.
+// Admin Audit log (design spec 5): a "Show" filter, then the actions, newest first, 50 at a time:
+// admin actions and what people did to their own account (a wrong Scaler code, deleting it). One
+// plain sentence each, naming the person by @username. Never a note, link, email or code.
 import { useState } from "react";
 import { loadMoreAudit } from "@/app/actions/admin";
 import type { AuditEntry, AuditPage } from "@/lib/admin-db";
@@ -21,6 +22,8 @@ const FILTER_OPTIONS = [
   { value: "reactivated", label: "Reactivated" },
   { value: "cap-changed", label: "Cap changed" },
   { value: "permissions-changed", label: "Permissions changed" },
+  { value: "scaler-code", label: "Scaler access code" },
+  { value: "accounts-deleted", label: "Accounts deleted" },
 ] as const;
 
 function Sentence({ parts }: { parts: SentencePart[] }) {
@@ -99,10 +102,10 @@ export function AuditView({ page, filter }: { page: AuditPage; filter: string })
         onChange={(next) => setShow(next.show)}
       />
       {rows.length === 0 ? (
-        <EmptyBox>No admin actions yet.</EmptyBox>
+        <EmptyBox>Nothing recorded yet.</EmptyBox>
       ) : (
         <ResponsiveTable
-          caption="Admin actions, newest first."
+          caption="Actions, newest first."
           columns={columns}
           rows={rows}
           rowKey={(e) => String(e.id)}

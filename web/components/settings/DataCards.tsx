@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
 import { deleteMyAccount } from "@/app/actions/account";
 import { createExportKey, downloadMyData, revokeExportKey } from "@/app/actions/settings";
-import { formatIstDate, lastActiveLabel, usernameProblem } from "@/lib/admin-format";
+import { formatIstDateTime, lastActiveLabel, usernameProblem } from "@/lib/admin-format";
 import { CARD_STYLES, CardHead } from "../Card";
 import { cn } from "../cn";
 import { type ConfirmOutcome, ConfirmDialog } from "../Dialog";
@@ -110,7 +110,7 @@ export interface ExportKey {
   lastUsedAt: string | null;
 }
 
-export function ExportKeysCard({ initial, nowMs }: { initial: ExportKey[]; nowMs: number }) {
+export function ExportKeysCard({ initial, nowMs, address }: { initial: ExportKey[]; nowMs: number; address: string }) {
   const titleId = useId();
   const createErrorId = useId();
   const heading = useRef<HTMLHeadingElement>(null);
@@ -171,17 +171,18 @@ export function ExportKeysCard({ initial, nowMs }: { initial: ExportKey[]; nowMs
       </div>
       <div className={BODY}>
         <p className={TEXT}>
-          A key lets a Claude session read your progress (ticks, notes, links and section choices) from the export
-          address, and nothing else. Each key is shown once, so copy it when you create it. Revoke a key you no longer
-          use.
+          An export key lets Claude (the AI assistant) read your progress: ticks, notes, links and section choices. It
+          can&apos;t change anything. Give Claude the key and the export address below. Each key is shown once, so copy
+          it when you create it, and revoke any key you no longer use.
         </p>
+        <ExportAddress address={address} />
         {keys.length > 0 ? (
           <ul className="grid w-full">
             {keys.map((k) => (
               <li key={k.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-line py-2 first:border-t-0">
                 <KeyIcon size={18} className="flex-none text-muted" />
                 <div className="min-w-0 flex-[1_1_180px]">
-                  <p className="type-body-strong">Key created {formatIstDate(k.createdAt)}</p>
+                  <p className="type-body-strong">Key created {formatIstDateTime(k.createdAt)}</p>
                   <p className="type-small text-muted">
                     {k.lastUsedAt ? `Last used ${lastUsedLabel(k.lastUsedAt, nowMs)}` : "Never used"}
                   </p>
@@ -193,7 +194,7 @@ export function ExportKeysCard({ initial, nowMs }: { initial: ExportKey[]; nowMs
                   onClick={() => setRevoking(k)}
                   className={buttonStyles.dangerSecondarySm}
                 >
-                  Revoke<span className="sr-only"> the key created {formatIstDate(k.createdAt)}</span>
+                  Revoke<span className="sr-only"> the key created {formatIstDateTime(k.createdAt)}</span>
                 </button>
               </li>
             ))}
@@ -235,7 +236,7 @@ export function ExportKeysCard({ initial, nowMs }: { initial: ExportKey[]; nowMs
         <ConfirmDialog
           tone="danger"
           title="Revoke this key?"
-          body={`The key created ${formatIstDate(revoking.createdAt)} stops working at once, so any Claude session using it can't read your data any more. This can't be undone.`}
+          body={`The key created ${formatIstDateTime(revoking.createdAt)} stops working at once, so any Claude session using it can't read your data any more. This can't be undone.`}
           confirmLabel="Revoke"
           pendingLabel="Revoking…"
           onConfirm={() => revoke(revoking)}
@@ -243,6 +244,54 @@ export function ExportKeysCard({ initial, nowMs }: { initial: ExportKey[]; nowMs
         />
       )}
     </section>
+  );
+}
+
+/** The export address with Copy (design spec 5, 4a). Built on the server from the app's address. */
+function ExportAddress({ address }: { address: string }) {
+  const labelId = useId();
+  const text = useRef<HTMLParagraphElement>(null);
+  const [copied, setCopied] = useState<"yes" | "failed" | null>(null);
+  const timer = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(timer.current), []);
+
+  async function copy() {
+    window.clearTimeout(timer.current);
+    try {
+      await navigator.clipboard.writeText(address);
+      setCopied("yes");
+      timer.current = window.setTimeout(() => setCopied(null), 2000);
+    } catch {
+      // Select the address, so it can be copied by hand.
+      const selection = window.getSelection();
+      if (text.current && selection) {
+        const range = document.createRange();
+        range.selectNodeContents(text.current);
+        selection.removeAllRanges();
+        selection.addRange(range);
+      }
+      setCopied("failed");
+    }
+  }
+
+  return (
+    <div className="grid w-full gap-1">
+      <p id={labelId} className="type-small text-muted">
+        Export address
+      </p>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <p ref={text} aria-labelledby={labelId} className="type-num min-w-0 text-ink [overflow-wrap:anywhere]">
+          {address}
+        </p>
+        <button type="button" aria-label="Copy the export address" onClick={() => void copy()} className={buttonStyles.secondarySm}>
+          <CopyIcon size={16} className="flex-none" />
+          {copied === "yes" ? "Copied" : "Copy"}
+        </button>
+      </div>
+      <p role="status" className="type-small text-muted empty:hidden">
+        {copied === "failed" ? "Couldn't copy. The address is selected: copy it yourself." : ""}
+      </p>
+    </div>
   );
 }
 

@@ -3,7 +3,7 @@
 // E2E_TARGETS), so a retry never meets someone already let in or removed, and they keep the shared
 // state stable: Wren Waiting stays first in line, and the cap keeps free places.
 import type { Page, TestInfo } from "@playwright/test";
-import { e2eTarget } from "../../scripts/lib/e2e-data.mjs";
+import { E2E_SHARED_LOGIN, e2eTarget } from "../../scripts/lib/e2e-data.mjs";
 import { screenOf } from "./auth";
 import { expect, test } from "./fixtures";
 import { expectNoSidewaysScroll, gotoReady, isPhone, pageHeading } from "./helpers";
@@ -180,8 +180,50 @@ test.describe("admin actions (the owner)", () => {
     await page.getByRole("textbox", { name: "GitHub username" }).fill("nobody-here");
     await page.getByRole("button", { name: "Find" }).click();
     await expect(page.getByText("No active user has that username.")).toBeVisible();
+    // Waitlisted and suspended people are named, so the admin knows they typed the right username.
     await page.getByRole("textbox", { name: "GitHub username" }).fill("wren-waiting");
     await page.getByRole("button", { name: "Find" }).click();
-    await expect(page.getByText("Only people with a place can be admins.")).toBeVisible();
+    await expect(page.getByText("Wren Waiting is on the waitlist. Only people with a place can be admins.")).toBeVisible();
+    await page.getByRole("textbox", { name: "GitHub username" }).fill("sid-suspended");
+    await page.getByRole("button", { name: "Find" }).click();
+    await expect(page.getByText("Sid Suspended is suspended. Only people with a place can be admins.")).toBeVisible();
+    await page.getByRole("textbox", { name: "GitHub username" }).fill("sam-example");
+    await page.getByRole("button", { name: "Find" }).click();
+    await expect(page.getByText("That's the owner, who already has every permission.")).toBeVisible();
+  });
+
+  test("a username two people share: choose one, focus moves to their permissions", async ({ page }) => {
+    await gotoReady(page, "/admin/admins");
+    await page.getByRole("textbox", { name: "GitHub username" }).fill(E2E_SHARED_LOGIN);
+    await page.getByRole("button", { name: "Find" }).click();
+    await expect(page.getByText(/^2 people have this username\. One of them changed it on GitHub/)).toBeVisible();
+    const choose = page.getByRole("button", { name: /^Choose Pat Example, signed up \d{1,2} [A-Z][a-z]{2} \d{4}$/ });
+    await expect(choose).toHaveCount(2);
+    // The username is plain text here, not a profile link: the profile belongs to whoever holds it now.
+    await expect(page.getByRole("link", { name: new RegExp(`@${E2E_SHARED_LOGIN}`) })).toHaveCount(0);
+    await choose.first().click();
+    await expect(page.getByRole("checkbox", { name: "See the overview" }).first()).toBeFocused();
+    await expect(page.getByText(/^Signed up \d.+ · Last active /)).toBeVisible();
+    await page.getByRole("button", { name: "Choose someone else" }).click();
+    await expect(choose.first()).toBeFocused();
+  });
+
+  test("the audit log can show Scaler access code and account deletions", async ({ page }) => {
+    await gotoReady(page, "/admin/audit");
+    const show = page.getByRole("combobox", { name: "Show" });
+    await expect(show.locator("option")).toHaveText([
+      "All actions",
+      "Let in",
+      "Removed from waitlist",
+      "Suspended",
+      "Reactivated",
+      "Cap changed",
+      "Permissions changed",
+      "Scaler access code",
+      "Accounts deleted",
+    ]);
+    await show.selectOption("Scaler access code");
+    await expect(page).toHaveURL("/admin/audit?action=scaler-code");
+    await expect(pageHeading(page)).toHaveText("Audit log");
   });
 });

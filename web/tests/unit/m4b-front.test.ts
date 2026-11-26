@@ -1,7 +1,7 @@
 // M4b front-end helpers: navigation with chosen sections, admin tabs, and the admin, Settings and
 // waitlist wording (design spec 3.5, 5 and 8). Made-up names only.
 import { describe, expect, it } from "vitest";
-import { DEFAULT_SECTIONS, OWNER_SECTIONS, PERMISSIONS } from "@/lib/access-types";
+import { AUDIT_FILTERS, DEFAULT_SECTIONS, OWNER_SECTIONS, PERMISSIONS } from "@/lib/access-types";
 import {
   aheadLine,
   auditSentence,
@@ -14,6 +14,7 @@ import {
   letInMax,
   letInResult,
   parseWholeNumber,
+  PERMISSION_COPY,
   permissionDiff,
   permissionDiffText,
   sentenceText,
@@ -60,6 +61,13 @@ describe("navigation with chosen sections (design spec 3.5)", () => {
     const banner = firstVisitBanner(offSectionsPrompt(DEFAULT_SECTIONS));
     expect(banner.text).toBe(`${FIRST_VISIT_BANNER.text} Want Scaler, Projects or Career too? Turn them on in`);
     expect(banner.action).toEqual({ label: "Settings", href: "/settings", after: "." });
+  });
+});
+
+describe("audit log filters (design spec 5, v0.6)", () => {
+  it("can show Scaler access code entries and deleted accounts", () => {
+    expect(AUDIT_FILTERS["scaler-code"]).toEqual(["scaler_code_set", "scaler_code_failed"]);
+    expect(AUDIT_FILTERS["accounts-deleted"]).toEqual(["account_deleted"]);
   });
 });
 
@@ -143,6 +151,14 @@ describe("admin wording (design spec 8)", () => {
     expect(capSavedMessage(1000, 1)).toBe("Cap saved: 1,000 places. 1 person was let in.");
   });
 
+  it("names the permissions as the Admins page does (v0.6)", () => {
+    expect(PERMISSION_COPY["settings.manage"]).toEqual({
+      label: "Change the user cap and Scaler code",
+      description: "Set how many people can have a place, and the Scaler access code.",
+    });
+    expect(PERMISSION_COPY["audit.view"].description).toBe("Every admin action and account change, newest first.");
+  });
+
   it("describes permission changes", () => {
     expect(permissionDiff(["users.view", "audit.view"], ["users.view", "waitlist.manage"])).toEqual({ give: ["waitlist.manage"], take: ["audit.view"] });
     expect(permissionDiffText(["audit.view"], ["waitlist.manage", "users.view", "audit.view"])).toBe("Give: See users, Manage the waitlist.");
@@ -171,6 +187,11 @@ describe("admin wording (design spec 8)", () => {
       "Changed @sam-example's permissions. Gave: See the audit log. Took away: Manage the waitlist.",
     );
     expect(entry("admin_removed")).toBe("Removed @sam-example as an admin.");
+    // v0.6 wording for what people do to their own account.
+    expect(entry("scaler_code_failed", { tryInHour: 2 }, null)).toBe("Entered a wrong Scaler access code (try 2 of 5 this hour).");
+    expect(entry("account_deleted", { status: "active" }, null)).toBe("Deleted their account.");
+    expect(entry("account_deleted", { status: "waitlisted" }, null)).toBe("Left the waitlist, which deleted their account.");
+    expect(entry("reactivated_to_waitlist")).toBe("Reactivated @sam-example. No place was free, so they joined the waitlist.");
     // Usernames stay separate parts, so the page can keep them on one line.
     expect(auditSentence({ action: "suspended", target: sam, targetDeleted: false, details: {} })).toEqual(["Suspended ", { login: "sam-example" }, "."]);
   });

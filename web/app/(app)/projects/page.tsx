@@ -13,7 +13,8 @@ import { filterFromRecord } from "@/lib/filter";
 import { getProgress } from "@/lib/data";
 import { isReadOnly } from "@/lib/mode";
 import { filterEntries, projectsView } from "@/lib/views";
-import { requireSection } from "@/components/nav/navData";
+import { Banner } from "@/components/Banner";
+import { hiddenSectionBanner } from "@/components/nav/navData";
 
 export const metadata: Metadata = { title: "Projects" };
 
@@ -30,11 +31,17 @@ export default function ProjectsPage({ searchParams }: PageProps<"/projects">) {
 }
 
 async function ProjectsContent({ searchParams }: Pick<PageProps<"/projects">, "searchParams">) {
-  await requireSection("projects");
+  // Hidden by the user: an info banner; a locked Scaler: not found (design spec 5, v0.6).
+  const hidden = await hiddenSectionBanner("projects");
   const [sp, progress, readOnly] = await Promise.all([searchParams, getProgress(), isReadOnly()]);
   const cards = projectsView(trackerContent, progress);
   return (
     <FilterProvider path="/projects" entries={filterEntries(cards)} initial={filterFromRecord(sp)}>
+      {hidden && (
+        <Banner tone={hidden.tone} action={hidden.action}>
+          {hidden.text}
+        </Banner>
+      )}
       <Toolbar placeholder={SEARCH_PLACEHOLDERS.projects} />
       <div className="grid gap-3">
         {cards.map((card) => (

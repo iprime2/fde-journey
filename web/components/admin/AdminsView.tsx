@@ -5,9 +5,10 @@
 import { useId, useRef, useState } from "react";
 import { findUserForAdmin, removeAdmin, saveAdminPermissions } from "@/app/actions/admin";
 import { PERMISSIONS, type Permission, SUPER_ADMIN_ONLY, withImpliedPermissions } from "@/lib/access-types";
-import type { AdminEntry, AdminList, AdminPerson, FoundPerson } from "@/lib/admin-db";
-import { IMPLIED_DESCRIPTION, PERMISSION_COPY, formatIstDateTime, permissionDiff, permissionDiffText, permissionLabels } from "@/lib/admin-format";
+import type { AdminEntry, AdminList, FoundPerson } from "@/lib/admin-db";
+import { IMPLIED_DESCRIPTION, PERMISSION_COPY, formatIstDate, lastActiveLabel, permissionDiff, permissionDiffText, permissionLabels } from "@/lib/admin-format";
 import { CARD_STYLES } from "../Card";
+import { Avatar } from "../account/Avatar";
 import { cn } from "../cn";
 import { type ConfirmOutcome, ConfirmDialog } from "../Dialog";
 import { CheckIcon, LockIcon } from "../icons";
@@ -207,6 +208,24 @@ function AdminCard({ admin, shown, isMe, onRemoved }: { admin: AdminEntry; shown
 
 const NOT_FOUND = "No active user has that username.";
 
+/** "Signed up 26 Aug 2026 · Last active 3 Dec": tells apart people who share a username. */
+const datesLine = (p: FoundPerson, nowMs: number) => `Signed up ${formatIstDate(p.createdAt)} · Last active ${lastActiveLabel(p.lastActiveAt, nowMs)}`;
+
+/** Most recently active first (never active last), then newest sign-up. */
+const byLastActive = (a: FoundPerson, b: FoundPerson) =>
+  (b.lastActiveAt ? Date.parse(b.lastActiveAt) : -Infinity) - (a.lastActiveAt ? Date.parse(a.lastActiveAt) : -Infinity) ||
+  Date.parse(b.createdAt) - Date.parse(a.createdAt);
+
+/** Why someone found can't be made an admin (design spec 8, "other Find answers"). */
+function findProblem(person: FoundPerson | undefined): string {
+  if (!person) return NOT_FOUND;
+  if (person.isOwner) return "That's the owner, who already has every permission.";
+  if (person.status === "waitlisted") return `${person.name} is on the waitlist. Only people with a place can be admins.`;
+  if (person.status === "suspended") return `${person.name} is suspended. Only people with a place can be admins.`;
+  if (person.permissions.length > 0) return `${person.name} is already an admin. Change their permissions below.`;
+  return NOT_FOUND;
+}
+
 function AddAdmin({
   headingRef,
   shown,
@@ -220,6 +239,8 @@ function AddAdmin({
   const fieldId = useId();
   const errorId = useId();
   const field = useRef<HTMLInputElement>(null);
+  const chooser = useRef<HTMLUListElement>(null);
+  const foundArea = useRef<HTMLDivElement>(null);
   const notices = useNotices();
   const save = useSaveStatus();
   const failure = useActionFailure();
@@ -227,9 +248,11 @@ function AddAdmin({
   const [login, setLogin] = useState("");
   const [finding, setFinding] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [found, setFound] = useState<AdminPerson | null>(null);
-  // Several eligible people share the username (one renamed and hasn't signed in since): pick one.
+  const [found, setFound] = useState<FoundPerson | null>(null);
+  // Several eligible people share the username (one renamed on GitHub and hasn't signed in since):
+  // the admin chooses one. Kept after choosing, for "Choose someone else".
   const [choices, setChoices] = useState<FoundPerson[]>([]);
+  const [nowMs, setNowMs] = useState(0);
   const [picked, setPicked] = useState<Permission[]>([]);
   const [asking, setAsking] = useState(false);
 
@@ -252,10 +275,11 @@ function AddAdmin({
       else setError(result.error.message);
       return;
     }
+    setNowMs(Date.now());
     const matches: FoundPerson[] = result.value;
     const eligible = matches.filter((p) => p.status === "active" && !p.isOwner && p.permissions.length === 0);
     if (eligible.length > 1) {
-      setChoices(eligible);
+      setChoices([...eligible].sort(byLastActive));
       return;
     }
     if (eligible.length === 1) {
@@ -263,13 +287,21 @@ function AddAdmin({
       return;
     }
     // Nobody eligible: explain using the newest match.
-    const person = matches[0];
-    let problem = NOT_FOUND;
-    if (person && person.status !== "active") problem = "Only people with a place can be admins.";
-    else if (person?.isOwner) problem = "That's the owner, who has every permission already.";
-    else if (person && person.permissions.length > 0) problem = `${person.name} is already an admin. Change their permissions below.`;
-    setError(problem);
+    setError(findProblem(matches[0]));
     field.current?.focus();
+  }
+
+  function choose(person: FoundPerson) {
+    setFound(person);
+    setPicked([]);
+    // The Choose button goes with the list: focus moves to the first permission (design spec 5).
+    requestAnimationFrame(() => foundArea.current?.querySelector<HTMLElement>('input[type="checkbox"]:not(:disabled)')?.focus());
+  }
+
+  function chooseAgain() {
+    setFound(null);
+    setPicked([]);
+    requestAnimationFrame(() => chooser.current?.querySelector<HTMLElement>("button")?.focus());
   }
 
   async function make(): Promise<ConfirmOutcome> {
@@ -279,11 +311,14 @@ function AddAdmin({
     notices.info(`${found.name} is now an admin.`);
     onAdded({ ...found, permissions: result.value.permissions });
     setFound(null);
+    setChoices([]);
     setPicked([]);
     setLogin("");
     requestAnimationFrame(() => field.current?.focus());
     return null;
   }
+
+  const shared = choices.length > 1;
 
   return (
     <section aria-labelledby={titleId} className={cn(CARD_STYLES, "grid gap-3 px-4 py-3.5")}>
@@ -326,23 +361,30 @@ function AddAdmin({
           </p>
         )}
       </form>
-      {choices.length > 1 && !found && (
+      {shared && !found && (
         <div className="grid gap-2 border-t border-line pt-3">
-          <p className="type-small text-muted">Several people have this username. Choose one:</p>
-          <ul className="grid gap-2">
+          <p className="type-small max-w-[34em] text-muted">
+            {choices.length} people have this username. One of them changed it on GitHub and hasn&apos;t signed in since.
+            The one who was active most recently probably holds it now.
+          </p>
+          <ul ref={chooser} className="grid">
             {choices.map((c) => (
-              <li key={c.id} className="flex flex-wrap items-center justify-between gap-2">
-                <PersonCell person={c} />
-                <span className="type-small text-muted">Signed up {formatIstDateTime(c.createdAt)}</span>
+              <li key={c.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-line py-2.5 first:border-t-0">
+                <Avatar initials={c.initials} src={c.avatar} className="self-start" />
+                <div className="grid min-w-0 flex-[1_1_200px]">
+                  <span className="type-body-strong [overflow-wrap:anywhere]">{c.name}</span>
+                  {/* Plain text: the profile belongs to whoever holds the name today. */}
+                  {c.githubLogin && <span className="type-small text-muted [overflow-wrap:anywhere]">@{c.githubLogin}</span>}
+                  <span className="type-small text-muted">{datesLine(c, nowMs)}</span>
+                </div>
                 <button
                   type="button"
-                  className={buttonStyles.secondary}
-                  onClick={() => {
-                    setFound(c);
-                    setChoices([]);
-                  }}
+                  disabled={!canWrite}
+                  aria-label={`Choose ${c.name}, signed up ${formatIstDate(c.createdAt)}`}
+                  onClick={() => choose(c)}
+                  className={buttonStyles.secondarySm}
                 >
-                  Choose <span className="sr-only">{c.name}</span>
+                  Choose
                 </button>
               </li>
             ))}
@@ -350,8 +392,17 @@ function AddAdmin({
         </div>
       )}
       {found && (
-        <div className="grid gap-3 border-t border-line pt-3">
-          <PersonCell person={found} heading />
+        <div ref={foundArea} className="grid gap-3 border-t border-line pt-3">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <PersonCell person={found} heading>
+              {shared && <span className="type-small text-muted">{datesLine(found, nowMs)}</span>}
+            </PersonCell>
+            {shared && (
+              <button type="button" onClick={chooseAgain} className={buttonStyles.ghostSm}>
+                Choose someone else
+              </button>
+            )}
+          </div>
           <fieldset className="min-w-0">
             <legend className="sr-only">Permissions for {found.name}</legend>
             <PermissionBoxes shown={shown} value={picked} disabled={!canWrite} onChange={setPicked} />

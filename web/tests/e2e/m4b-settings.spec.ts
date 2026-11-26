@@ -1,5 +1,5 @@
-// /settings (design spec 5): section switches change the navigation; hidden sections are refused
-// on the server; the Scaler access code; Claude export keys; Download my data; deleting the
+// /settings (design spec 5): section switches change the navigation; a section the user hid opens
+// with a banner, a locked Scaler is not found; the Scaler access code; Claude export keys; Download my data; deleting the
 // account. Each screen size and each attempt uses its own made-up spare user (tests/e2e/auth.ts,
 // PER_PROJECT_USERS), so nothing here touches the shared users and a retry starts fresh.
 import type { Page } from "@playwright/test";
@@ -17,22 +17,38 @@ test.describe("settings", () => {
   test.use({ as: "settings" });
   test.describe.configure({ mode: "serial" });
 
-  test("hidden and locked sections are refused on the server", async ({ page }) => {
-    // A new user: Roadmap, Reading and Certifications on; Scaler locked.
+  test("a section hidden by the user opens with a banner; a locked Scaler is not found", async ({ page }, testInfo) => {
+    // A new user: Roadmap, Reading and Certifications on; Scaler locked (no access code).
     await gotoReady(page, "/scaler");
-    await expect(page.getByRole("heading", { name: NOT_FOUND })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: NOT_FOUND })).toBeVisible();
+    await expect(page).toHaveTitle("Page not found · FDE Journey");
+    // In the app frame: one <main>, no second lockup, the card at the top-left of the column.
+    await expect(page.locator("main")).toHaveCount(1);
+    await expect(page.getByText("FDE Journey", { exact: true }).filter({ visible: true })).toHaveCount(testInfo.project.name.startsWith("phone") ? 0 : 1);
+
     await gotoReady(page, "/settings");
     const reading = page.getByRole("switch", { name: "Reading" });
     await expect(reading).toBeChecked();
     await reading.click();
     await expect(navLinks(page, "/reading")).toHaveCount(0);
+
     await gotoReady(page, "/reading");
-    await expect(page.getByRole("heading", { name: NOT_FOUND })).toBeVisible();
-    await gotoReady(page, "/settings");
+    await expect(pageHeading(page)).toHaveText("Reading");
+    const banner = page.getByRole("status").filter({ hasText: "You've hidden Reading from your menu." });
+    await expect(banner).toBeVisible();
+    // Under the header, above the toolbar.
+    const search = page.getByRole("searchbox", { name: "Search this page" });
+    expect((await banner.boundingBox())!.y).toBeLessThan((await search.boundingBox())!.y);
+    // The page works as usual, and no navigation item is current.
+    await expect(page.getByRole("checkbox").first()).toBeEnabled();
+    await expect(page.locator('nav[aria-label="Sections"] [aria-current="page"]')).toHaveCount(0);
+
+    await banner.getByRole("link", { name: "Turn it back on in Settings" }).click();
+    await expect(page).toHaveURL("/settings");
     await page.getByRole("switch", { name: "Reading" }).click();
     await expect(navLinks(page, "/reading")).not.toHaveCount(0);
     await gotoReady(page, "/reading");
-    await expect(pageHeading(page)).toHaveText("Reading");
+    await expect(page.getByText("You've hidden Reading from your menu.")).toHaveCount(0);
   });
 
   test("section switches change the navigation at once", async ({ page }) => {
@@ -63,7 +79,11 @@ test.describe("settings", () => {
   test("the Scaler access code: a wrong code, then the right one", async ({ page }) => {
     await gotoReady(page, "/settings");
     const scaler = page.getByRole("switch", { name: "Scaler course" });
-    await expect(scaler).toBeDisabled();
+    // Locked by code: no switch, "Locked" and what to do instead.
+    await expect(scaler).toHaveCount(0);
+    await expect(page.getByText("Locked", { exact: true })).toBeVisible();
+    await expect(page.getByText("Enter your access code below to unlock it.")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Unlock Scaler course" })).toBeVisible();
     const code = page.getByRole("textbox", { name: "Access code" });
     await code.fill("NOT-THE-CODE");
     await page.getByRole("button", { name: "Unlock" }).click();
@@ -74,7 +94,8 @@ test.describe("settings", () => {
     await code.fill(E2E_SCALER_CODE.toLowerCase());
     await page.getByRole("button", { name: "Unlock" }).click();
     await expect(page.getByRole("status").filter({ hasText: "Scaler course is unlocked and on." })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Scaler course" })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Unlock Scaler course" })).toHaveCount(0);
+    await expect(page.getByText("Locked", { exact: true })).toHaveCount(0);
     await expect(scaler).toBeEnabled();
     await expect(scaler).toBeChecked();
     await expect(scaler).toBeFocused();
@@ -87,13 +108,18 @@ test.describe("settings", () => {
     await context.grantPermissions(["clipboard-read", "clipboard-write"]);
     await gotoReady(page, "/settings");
     await expect(page.getByText("No keys yet.")).toBeVisible();
+    // The export address, with its own Copy.
+    await expect(page.getByText("Export address", { exact: true })).toBeVisible();
+    await expect(page.getByText(/^https?:\/\/[^ ]+\/api\/export$/)).toBeVisible();
+    await page.getByRole("button", { name: "Copy the export address" }).click();
+    await expect(page.getByRole("button", { name: "Copy the export address" })).toHaveText("Copied");
     await page.getByRole("button", { name: "Create a key" }).click();
     const key = page.getByRole("textbox", { name: "Your new key" });
     await expect(key).toBeVisible();
     await expect(key).toBeFocused();
     const value = await key.inputValue();
     expect(value).toMatch(/^fdej_/);
-    await page.getByRole("button", { name: "Copy" }).click();
+    await page.getByRole("button", { name: "Copy", exact: true }).click();
     await expect(page.getByText("Copied to the clipboard.")).toBeVisible();
     await page.getByRole("button", { name: "Done" }).click();
     await expect(key).toHaveCount(0);
@@ -101,11 +127,13 @@ test.describe("settings", () => {
     // Shown once: after a reload the key is listed but never shown again.
     await gotoReady(page, "/settings");
     expect(await page.content()).not.toContain(value);
-    await expect(page.getByText(/^Key created \d/)).toBeVisible();
+    // With the time, so two keys made the same day can be told apart.
+    await expect(page.getByText(/^Key created \d{1,2} [A-Z][a-z]{2} \d{4}, \d{2}:\d{2} IST$/)).toBeVisible();
     await expect(page.getByText("Never used")).toBeVisible();
 
-    await page.getByRole("button", { name: /^Revoke the key created/ }).click();
+    await page.getByRole("button", { name: /^Revoke the key created \d.+, \d{2}:\d{2} IST$/ }).click();
     const dialog = page.getByRole("dialog", { name: "Revoke this key?" });
+    await expect(dialog).toHaveAccessibleDescription(/^The key created \d.+, \d{2}:\d{2} IST stops working at once/);
     await dialog.getByRole("button", { name: "Revoke" }).click();
     await expect(dialog).toBeHidden();
     await expect(page.getByRole("status").filter({ hasText: "Key revoked." })).toBeVisible();

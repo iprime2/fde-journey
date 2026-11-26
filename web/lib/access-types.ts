@@ -74,6 +74,8 @@ export const AUDIT_FILTERS = {
   reactivated: ["reactivated", "reactivated_to_waitlist"],
   "cap-changed": ["cap_changed"],
   "permissions-changed": ["admin_added", "permissions_changed", "admin_removed"],
+  "scaler-code": ["scaler_code_set", "scaler_code_failed"],
+  "accounts-deleted": ["account_deleted"],
 } as const satisfies Record<string, readonly AuditAction[]>;
 export type AuditFilter = keyof typeof AUDIT_FILTERS;
 
@@ -88,6 +90,9 @@ export type SectionChoices = Record<Section, boolean>;
 export const DEFAULT_SECTIONS: SectionChoices = { roadmap: true, reading: true, scaler: false, certs: true, projects: false, career: false };
 /** The owner keeps all six. */
 export const OWNER_SECTIONS: SectionChoices = { roadmap: true, reading: true, scaler: true, certs: true, projects: true, career: true };
+
+/** Wrong Scaler access codes a user may try per hour (M4-DESIGN 10.2). */
+export const SCALER_TRIES_PER_HOUR = 5;
 
 /** The user cap's limits (M4-DESIGN 10.4). */
 export const USER_CAP_MIN = 0;

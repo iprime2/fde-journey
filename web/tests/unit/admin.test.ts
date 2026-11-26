@@ -325,6 +325,8 @@ describe("admins (admins.manage)", () => {
     expect(list.admins.find((a) => a.id === holder("users.manage"))?.permissions).toEqual(["users.view", "users.manage"]);
     expect(list.admins.some((a) => a.id === "alex")).toBe(false);
     expect(await adminDb.findUserByGithubLogin("@ALEX")).toMatchObject([{ id: "alex", status: "active", isOwner: false, permissions: [], createdAt: expect.any(String) }]);
+    // Dates only: when they last signed in or saved, or null for never.
+    expect((await adminDb.findUserByGithubLogin("alex"))[0]).toHaveProperty("lastActiveAt");
     expect(await adminDb.findUserByGithubLogin("w1")).toMatchObject([{ status: "waitlisted" }]);
     expect(await adminDb.findUserByGithubLogin("nobody-here")).toEqual([]);
     expect(await adminDb.findUserByGithubLogin("not a login")).toEqual([]);

@@ -15,7 +15,8 @@ import { filterFromRecord } from "@/lib/filter";
 import { getProgress } from "@/lib/data";
 import { isReadOnly } from "@/lib/mode";
 import { filterEntries, scalerView } from "@/lib/views";
-import { requireSection } from "@/components/nav/navData";
+import { Banner } from "@/components/Banner";
+import { hiddenSectionBanner } from "@/components/nav/navData";
 
 export const metadata: Metadata = { title: "Scaler course" };
 
@@ -44,12 +45,18 @@ const GROUPS = [
 ] as const;
 
 async function ScalerContent({ searchParams }: Pick<PageProps<"/scaler">, "searchParams">) {
-  await requireSection("scaler");
+  // Hidden by the user: an info banner; a locked Scaler: not found (design spec 5, v0.6).
+  const hidden = await hiddenSectionBanner("scaler");
   const [sp, progress, readOnly] = await Promise.all([searchParams, getProgress(), isReadOnly()]);
   const cards = scalerView(trackerContent, progress);
   const current = cards.find((m) => m.isCurrent)?.n ?? cards[0].n;
   return (
     <FilterProvider path="/scaler" entries={filterEntries(cards)} initial={filterFromRecord(sp)}>
+      {hidden && (
+        <Banner tone={hidden.tone} action={hidden.action}>
+          {hidden.text}
+        </Banner>
+      )}
       <Toolbar placeholder={SEARCH_PLACEHOLDERS.scaler} />
       <div className="grid gap-3">
         {GROUPS.map((g) => (

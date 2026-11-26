@@ -159,10 +159,7 @@ export function WaitlistView({ queue, canChangeCap }: { queue: WaitlistPage; can
               <>
                 <div className="flex items-start justify-between gap-2">
                   {person(r, true)}
-                  <span className="type-num flex-none text-muted">
-                    <span className="sr-only">Place </span>
-                    {formatCount(r.place)}
-                  </span>
+                  <span className="type-num flex-none whitespace-nowrap text-muted">Place {formatCount(r.place)}</span>
                 </div>
                 <CardFacts facts={[{ term: "Joined", value: formatIstDateTime(r.joinedAt) }]} />
                 {actions(r)}

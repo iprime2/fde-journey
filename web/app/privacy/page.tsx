@@ -1,10 +1,11 @@
-// /privacy (design spec 5 and 8): public, no sign-in, the same page for everyone. Signed-out
-// visitors reach it from /login; waitlisted users from /waitlist; everyone else from Settings.
-// Static: nothing here reads the session or the database.
+// /privacy (design spec 5 and 8, v0.6 text): public, no sign-in, the same page for everyone.
+// Signed-out visitors reach it from /login; waitlisted users from /waitlist; everyone else from
+// Settings. Static: nothing here reads the session or the database.
 //
-// Before launch (M4-DESIGN 10.5, open questions in the design spec), the lead checks and fills in:
-// how long Vercel keeps its logs, how long Neon keeps restore history, and the owner's wording on
-// reaching stored data. Until then those sentences say what is true without a number.
+// Numbers here are checked facts tied to their source (design spec 5, "Numbers on the page"): the
+// 6-hour restore history is Neon's history_retention_seconds (21,600) on the production project.
+// Vercel publishes no log retention for Hobby, so the page gives none. The owner-access sentence
+// waits for the owner's approval before launch.
 import type { Metadata } from "next";
 import Link from "next/link";
 import { CenteredPage } from "@/components/CenteredPage";
@@ -13,7 +14,10 @@ import { GITHUB_NEW_ISSUE_URL } from "@/lib/links";
 
 export const metadata: Metadata = { title: "Privacy" };
 
-/** Change with the text. */
+/**
+ * The date the wording last changed, not the build date (design spec 5, "Last updated"). Change it
+ * in the same commit as any change to the text, and set it to the launch date when it goes live.
+ */
 const LAST_UPDATED = "2026-11-26";
 
 const LINK = "text-accent underline underline-offset-2 [overflow-wrap:anywhere]";
@@ -68,8 +72,17 @@ export default function PrivacyPage() {
               you signed in and help stop misuse. They&apos;re deleted when the sign-in ends or your account is deleted.
             </li>
             <li>
-              If you&apos;re on the waitlist: when you joined. If an admin lets you in, suspends you or reactivates you,
-              that action and its date are recorded.
+              Claude export keys, if you create any: a scrambled form of each key (the key itself can&apos;t be read back
+              from it), when it was created and when it was last used.
+            </li>
+            <li>
+              Scaler course: whether and when you unlocked it. If you type a wrong access code, that a wrong try happened
+              and when, never what you typed.
+            </li>
+            <li>If you&apos;re on the waitlist: when you joined.</li>
+            <li>
+              Admin actions about you: if an admin lets you in, suspends or reactivates you, or makes you an admin, that
+              action and its date are recorded.
             </li>
           </List>
         </Section>
@@ -78,8 +91,9 @@ export default function PrivacyPage() {
           <List>
             <li>The database is hosted by Neon, in Singapore.</li>
             <li>
-              The app runs on Vercel, in Singapore. Vercel keeps short-lived technical logs of visits. The app&apos;s own
-              logs never contain your notes or email address.
+              The app runs on Vercel, in Singapore. Vercel keeps server logs of requests to the app for a short time and
+              deletes them on its own schedule. The app never writes your notes, links, email address or keys to these
+              logs.
             </li>
             <li>Everything travels over encrypted connections (HTTPS).</li>
           </List>
@@ -90,12 +104,18 @@ export default function PrivacyPage() {
             <li>You.</li>
             <li>
               Admins, on the admin pages: your name, profile picture and username; whether your account is active,
-              waitlisted or suspended; when you signed up and were last active; and how many items you&apos;ve marked
-              done in each section. Never your notes, links, Weekly notes or email address.
+              waitlisted or suspended; when you signed up and were last active; how many items you&apos;ve marked done in
+              each section; and, in the audit log, the admin actions about you and any wrong Scaler access codes you
+              tried. Never your notes, links, Weekly notes or email address.
             </li>
             <li>
-              The owner runs the database, so, like the owner of any app, they could reach stored data directly, for
-              example to fix a problem. They don&apos;t read notes or links.
+              Anyone you give one of your Claude export keys to (for example a Claude session): your ticks, notes, links
+              and section choices, until you revoke the key in Settings.
+            </li>
+            <li>
+              The owner runs FDE Journey and its database, so they can reach everything stored, including notes. They
+              only do that to keep the app running or to fix a problem, and they don&apos;t read your notes, links or
+              Weekly notes.
             </li>
           </List>
         </Section>
@@ -111,12 +131,18 @@ export default function PrivacyPage() {
         <Section title="Download or delete your data">
           <List>
             <li>
-              Download: Settings → &ldquo;Download my data&rdquo; gives you everything listed above that&apos;s about you,
-              as a JSON file (a plain text format other apps can read).
+              Download: Settings → &ldquo;Download my data&rdquo; gives you your GitHub profile details, ticks, notes,
+              links, Weekly notes, section choices and activity history, as a JSON file (a plain text format other apps
+              can read).
             </li>
             <li>
-              Delete: Settings → &ldquo;Delete my account&rdquo; removes your account, progress, notes, activity and
-              sign-ins at once. Copies in the database&apos;s backup history are removed automatically after a while.
+              Delete: Settings → &ldquo;Delete my account&rdquo; removes your account, progress, notes, activity,
+              settings, export keys and sign-ins at once. The audit log keeps its entries, but they show &ldquo;a deleted
+              account&rdquo; instead of your name.
+            </li>
+            <li>
+              Neon keeps a restore history of the database for 6 hours, so for up to 6 hours after you delete your
+              account it could still be brought back from there. After that, it&apos;s gone.
             </li>
             <li>On the waitlist: &ldquo;Leave the waitlist&rdquo; deletes your account too.</li>
           </List>

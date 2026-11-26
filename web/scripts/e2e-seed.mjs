@@ -30,6 +30,7 @@ import {
   E2E_OTHER_NOTE,
   E2E_OTHER_USER,
   E2E_SCALER_CODE,
+  E2E_SHARED_LOGIN_PEOPLE,
   E2E_TARGETS,
   E2E_USERS,
 } from "./lib/e2e-data.mjs";
@@ -78,14 +79,14 @@ try {
 
   // M4b users. The waitlisted user joined a day ago; the owner's GitHub login is set as sign-in would.
   await db.query(`update "user" set github_login = 'sam-example' where id = 'e2e-owner'`);
-  for (const u of [...Object.values(E2E_USERS), ...Object.values(E2E_TARGETS)]) {
+  for (const u of [...Object.values(E2E_USERS), ...Object.values(E2E_TARGETS), ...E2E_SHARED_LOGIN_PEOPLE]) {
     // Wren Waiting joined a day ago; every spare waitlisted user an hour ago, so Wren stays first.
     const joined = u.id === E2E_USERS.waitlisted.id ? "1 day" : "1 hour";
     await db.query(
       `insert into "user" (id, name, email, email_verified, github_login, status, activated_at, waitlisted_at, created_at, updated_at)
        values ($1, $2, $3, true, $4, $5,
          case when $5 = 'active' then now() end, case when $5 = 'waitlisted' then now() - $6::interval end, now() - interval '2 days', now())`,
-      [u.id, u.name, `${u.login}@example.com`, u.login, u.status, joined],
+      [u.id, u.name, `${u.id}@example.com`, u.login, u.status, joined],
     );
     await db.query(
       `insert into account (id, account_id, provider_id, user_id, created_at, updated_at) values ($1, $2, 'github', $3, now(), now())`,

@@ -58,6 +58,8 @@
     --danger-soft: #3d1915;
     --danger-ink: #2a0a07;
     --danger-hover: #ffb1a8;
+    /* v0.6: at 0.3 a dark page behind a Dialog barely dims. */
+    --scrim: rgb(0 0 0 / 0.6);
     --overlay-shadow: 0 8px 24px rgb(0 0 0 / 0.5);
     --raised-shadow: none; /* the card's border is enough on dark */
   }

@@ -9,7 +9,7 @@ import "server-only";
 import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { exportToken, userSettings } from "@/db/schema";
-import type { SwitchableSection } from "./access-types";
+import { SCALER_TRIES_PER_HOUR, type SwitchableSection } from "./access-types";
 import { runLocked } from "./places";
 
 /** A user id from the session: a non-empty string. Anything else is a bug, so it throws. */
@@ -95,7 +95,8 @@ export async function ensureOwnerSettings(userId: string, db: Db, now = new Date
 }
 
 /** Wrong access-code tries allowed per user per hour (M4-DESIGN 10.2). */
-export const SCALER_TRIES_PER_HOUR = 5;
+/** Kept in lib/access-types.ts, so the audit log can say "try 2 of 5". */
+export { SCALER_TRIES_PER_HOUR };
 
 /**
  * Takes one access-code try from the user's allowance, atomically: returns the try's number in the

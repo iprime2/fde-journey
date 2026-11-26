@@ -1,7 +1,7 @@
 "use client";
 
 // Settings: the Sections card (design spec 5, /settings) and, until Scaler is unlocked, the
-// "Scaler course" access-code card (M4-DESIGN 10.2). They share one state: entering the code
+// "Unlock Scaler course" access-code card (M4-DESIGN 10.2). They share one state: entering the code
 // unlocks Scaler and turns it on, so its switch changes too.
 //
 // Switches save like ticks: they change at once; a failed save puts the switch back and shows
@@ -16,6 +16,7 @@ import { cn } from "../cn";
 import { callAction, useNotices } from "../notices";
 import { InlineButton } from "../save/SaveLines";
 import { useCanWrite, useSaveStatus } from "../save/SaveStatusProvider";
+import { LockIcon } from "../icons";
 import { Switch } from "../Switch";
 import { Spinner, buttonStyles } from "../ui";
 
@@ -28,7 +29,7 @@ const DESCRIPTIONS: Record<keyof SectionChoices, string> = {
   career: "Career milestones and your Weekly notes.",
 };
 
-const SCALER_LOCKED = "Needs the Scaler access code first (below).";
+const SCALER_LOCKED = "Enter your access code below to unlock it.";
 
 export function SectionSettings({ initial, scalerUnlocked: initialUnlocked }: { initial: SectionChoices; scalerUnlocked: boolean }) {
   const [sections, setSections] = useState(initial);
@@ -93,7 +94,6 @@ function SectionRow({
 }) {
   const inputId = useId();
   const descriptionId = useId();
-  const lockedId = useId();
   const failedId = useId();
   const ownRef = useRef<HTMLInputElement>(null);
   const ref = inputRef ?? ownRef;
@@ -123,6 +123,24 @@ function SectionRow({
     save.reportFailure(failureKey);
   }
 
+  // Locked by code (design spec 4, Switch, v0.6): no switch at all, not a disabled one; the right
+  // column says "Locked" and the line under the description says what to do.
+  if (locked) {
+    return (
+      <li className="grid min-h-16 grid-cols-[minmax(0,1fr)_auto] items-start gap-x-4 border-t border-line px-4 py-2.5">
+        <div className="grid gap-0.5 py-0.5">
+          <span className="type-body-strong">{SECTION_LABELS[section]}</span>
+          <span className="type-small max-w-[34em] text-muted">{DESCRIPTIONS[section]}</span>
+          <span className="type-small max-w-[34em] text-muted">{SCALER_LOCKED}</span>
+        </div>
+        <span className="type-small -my-2.5 flex min-h-11 items-center gap-1.5 text-muted">
+          <LockIcon size={16} className="flex-none" />
+          Locked
+        </span>
+      </li>
+    );
+  }
+
   return (
     <li className="grid min-h-16 grid-cols-[minmax(0,1fr)_auto] items-start gap-x-4 border-t border-line px-4 py-2.5">
       <div className="grid gap-0.5 py-0.5">
@@ -132,11 +150,6 @@ function SectionRow({
         <span id={descriptionId} className="type-small max-w-[34em] text-muted">
           {DESCRIPTIONS[section]}
         </span>
-        {locked && (
-          <span id={lockedId} className="type-small max-w-[34em] text-muted">
-            {SCALER_LOCKED}
-          </span>
-        )}
         {failedTarget !== null && (
           <p className="type-small text-danger">
             <span id={failedId}>Couldn&apos;t save this change.</span>{" "}
@@ -159,8 +172,8 @@ function SectionRow({
           id={inputId}
           inputRef={ref}
           checked={checked}
-          disabled={!canWrite || locked}
-          describedBy={cn(descriptionId, locked && lockedId) || undefined}
+          disabled={!canWrite}
+          describedBy={descriptionId}
           onChange={(next) => void change(next)}
         />
       </span>
@@ -210,7 +223,7 @@ function ScalerCodeCard({ onUnlocked }: { onUnlocked(next: SectionChoices): void
 
   return (
     <section aria-labelledby={titleId} className={CARD_STYLES}>
-      <CardHead titleId={titleId} title="Scaler course" />
+      <CardHead titleId={titleId} title="Unlock Scaler course" />
       <form
         className="grid gap-3 px-4 pb-4"
         onSubmit={(e) => {
@@ -219,8 +232,8 @@ function ScalerCodeCard({ onUnlocked }: { onUnlocked(next: SectionChoices): void
         }}
       >
         <p id={hintId} className="type-small max-w-[34em] text-muted">
-          The Scaler section is for people taking the Scaler course. Enter the access code you were given to unlock it.
-          You only need to do this once.
+          The Scaler course section is for people taking the Scaler course. If you were given an access code, enter it
+          here. You only need to do it once.
         </p>
         <div className="grid gap-1.5">
           <label htmlFor={fieldId} className="type-body-strong w-fit">
@@ -241,7 +254,7 @@ function ScalerCodeCard({ onUnlocked }: { onUnlocked(next: SectionChoices): void
               aria-invalid={error ? true : undefined}
               aria-describedby={cn(hintId, error && errorId) || undefined}
               className={cn(
-                "type-input h-11 min-w-0 flex-[1_1_200px] rounded-md border bg-surface px-3 text-ink",
+                "type-input h-11 min-w-0 max-w-[20em] flex-[1_1_200px] rounded-md border bg-surface px-3 text-ink",
                 error ? "border-danger" : "border-line-strong",
               )}
             />

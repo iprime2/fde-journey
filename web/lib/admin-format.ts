@@ -1,6 +1,6 @@
 // Wording and small rules for the admin pages, Settings and the waitlist (design spec 5 and 8).
 // Pure functions, safe to import anywhere. Dates are worked out in IST, like the rest of the app.
-import { type AuditAction, type DoneSection, DONE_SECTIONS, PERMISSIONS, type Permission } from "./access-types";
+import { type AuditAction, type DoneSection, DONE_SECTIONS, PERMISSIONS, type Permission, SCALER_TRIES_PER_HOUR } from "./access-types";
 import { formatDate, formatDayMonth, istClock, istDate } from "./dates";
 
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -116,8 +116,8 @@ export const PERMISSION_COPY: Record<Permission, { label: string; description: s
   "users.view": { label: "See users", description: "Names, usernames, status, dates and done counts." },
   "users.manage": { label: "Suspend and reactivate users", description: "Stop someone signing in, or let them back." },
   "waitlist.manage": { label: "Manage the waitlist", description: "Let people in or remove them from the queue." },
-  "settings.manage": { label: "Change the user cap", description: "Set how many people can have a place." },
-  "audit.view": { label: "See the audit log", description: "Every admin action, newest first." },
+  "settings.manage": { label: "Change the user cap and Scaler code", description: "Set how many people can have a place, and the Scaler access code." },
+  "audit.view": { label: "See the audit log", description: "Every admin action and account change, newest first." },
   "admins.manage": { label: "Manage admins", description: "Make people admins and change their permissions." },
 };
 
@@ -201,10 +201,10 @@ export function auditSentence(entry: AuditInput): SentencePart[] {
       return ["Set a new Scaler access code."];
     case "scaler_code_failed": {
       const n = num(d.tryInHour);
-      return [n ? `Entered a wrong Scaler access code (try ${n} this hour).` : "Entered a wrong Scaler access code."];
+      return [n ? `Entered a wrong Scaler access code (try ${n} of ${SCALER_TRIES_PER_HOUR} this hour).` : "Entered a wrong Scaler access code."];
     }
     case "account_deleted":
-      return [d.status === "waitlisted" ? "Left the waitlist, which deleted their account." : "Deleted their own account."];
+      return [d.status === "waitlisted" ? "Left the waitlist, which deleted their account." : "Deleted their account."];
     default:
       return ["Made a change."];
   }

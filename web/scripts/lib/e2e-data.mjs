@@ -86,6 +86,16 @@ export const e2eSpareUser = (role, screen, attempt) => E2E_USERS[`${role}-${scre
 /** The admin tests' target for a role ("letin", "remove", "suspend"), screen and attempt. */
 export const e2eTarget = (role, screen, attempt) => E2E_TARGETS[`${role}-${screen}-${attempt}`];
 
+/**
+ * Two made-up active people who share one GitHub username (one "renamed" and hasn't signed in
+ * since), for the Admins chooser. No sessions; tests only look and choose, never make them admins.
+ */
+export const E2E_SHARED_LOGIN = "pat-example";
+export const E2E_SHARED_LOGIN_PEOPLE = [
+  { id: "e2e-shared-1", name: "Pat Example", githubId: "900000000031", login: E2E_SHARED_LOGIN, status: "active", permissions: [] },
+  { id: "e2e-shared-2", name: "Pat Example", githubId: "900000000032", login: E2E_SHARED_LOGIN, status: "active", permissions: [] },
+];
+
 /** A made-up Scaler access code for the test database (the seed stores only its hash). */
 export const E2E_SCALER_CODE = "MADE-UP-CODE-2026";
 /** The active user's saved progress: what their export key returns. */

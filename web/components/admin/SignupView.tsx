@@ -215,7 +215,7 @@ function ScalerCodeCard({ set, updatedAt }: { set: boolean; updatedAt: string | 
             disabled={pending}
             aria-invalid={error ? true : undefined}
             aria-describedby={cn(hintId, error && errorId) || undefined}
-            className={cn(FIELD, "min-w-0 flex-[1_1_200px]", error ? "border-danger" : "border-line-strong")}
+            className={cn(FIELD, "min-w-0 max-w-[20em] flex-[1_1_200px]", error ? "border-danger" : "border-line-strong")}
           />
           <button type="submit" disabled={!canWrite || pending || value.trim() === ""} aria-busy={pending || undefined} className={buttonStyles.secondary}>
             {pending && <Spinner />}

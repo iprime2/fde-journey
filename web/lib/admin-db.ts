@@ -468,7 +468,14 @@ export async function listAdmins(): Promise<AdminList> {
   });
 }
 
-export type FoundPerson = AdminPerson & { status: UserStatus; isOwner: boolean; permissions: Permission[]; createdAt: string };
+export type FoundPerson = AdminPerson & {
+  status: UserStatus;
+  isOwner: boolean;
+  permissions: Permission[];
+  createdAt: string;
+  /** When they last signed in or saved (dates only), for telling apart people who share a username. */
+  lastActiveAt: string | null;
+};
 
 /**
  * "Add an admin" → Find: everyone with this GitHub username (any case), newest sign-up first. Two
@@ -482,10 +489,11 @@ export async function findUserByGithubLogin(login: unknown): Promise<FoundPerson
   if (!/^[A-Za-z0-9-]{1,39}$/.test(clean)) return [];
   return withSafeErrors("Finding a user", async () => {
     const db = await getDb();
-    const rows = await run<PersonRow & { status: UserStatus; created_ms: number | string }>(
+    const rows = await run<PersonRow & { status: UserStatus; created_ms: number | string; active_ms: number | string | null }>(
       db,
       sql`select u."id", u."name", u."github_login", u."image", u."status",
-          (extract(epoch from u."created_at") * 1000)::float8 as created_ms
+          (extract(epoch from u."created_at") * 1000)::float8 as created_ms,
+          (extract(epoch from u."last_active_at") * 1000)::float8 as active_ms
         from "user" u
         where lower(u."github_login") = lower(${clean}) order by u."created_at" desc, u."id" limit 20`,
     );
@@ -498,6 +506,7 @@ export async function findUserByGithubLogin(login: unknown): Promise<FoundPerson
         isOwner: access?.isOwner ?? false,
         permissions: access?.isOwner ? [...PERMISSIONS] : (access?.permissions ?? []),
         createdAt: fromMs(row.created_ms) ?? "",
+        lastActiveAt: fromMs(row.active_ms),
       });
     }
     return out;

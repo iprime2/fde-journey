@@ -83,6 +83,7 @@ export const buttonStyles = {
   primarySm: cn(BUTTON_SM, PRIMARY),
   secondarySm: cn(BUTTON_SM, SECONDARY),
   dangerSecondarySm: cn(BUTTON_SM, DANGER_SECONDARY),
+  ghostSm: cn(BUTTON_SM, "text-muted hover:bg-hover hover:text-ink disabled:bg-transparent disabled:text-muted"),
 };
 
 /**
