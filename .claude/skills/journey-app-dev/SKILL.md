@@ -23,6 +23,8 @@ Every agent working on `web/` follows this page. If it conflicts with `web/docs/
 
 Loop per milestone: design (if UI changes) → build → review → the lead fixes or sends work back → one pull request. Agents never commit, push, merge or deploy; the lead does that.
 
+Only one agent at a time may build, run or test the app (`next build`, `next start`, `next dev`, Playwright): they share `web/.next` and ports, and parallel runs break each other. Agents that only write docs or read code can run in parallel.
+
 ## Stack
 - Next.js 16 (App Router), React 19, TypeScript in strict mode, Tailwind CSS 4.
 - Postgres (Neon in production). Drizzle ORM with SQL migrations committed in `web/db/migrations/`.
@@ -31,6 +33,8 @@ Loop per milestone: design (if UI changes) → build → review → the lead fix
 - Vitest for logic, Playwright for end-to-end flows.
 - Pin exact versions in `web/package.json`. Check npm for current versions before adding a dependency, and say why it is needed.
 - Fonts: do not use `next/font/google`, because the cloud sandbox cannot reach Google Fonts. Use `@fontsource` packages from npm or a system font stack.
+- Next.js 16 changed many APIs. Before writing Next.js code, read the relevant guide in `web/node_modules/next/dist/docs/` (see `web/AGENTS.md`). The scaffold enables Cache Components.
+- With Cache Components, Next keeps recently visited pages mounted but hidden, and can render a page before the URL changes. In a hidden page, `useSearchParams()` and `usePathname()` follow the current URL, so per-page URL state (search, filters) must be tied to the page's own path (see `web/lib/filter.ts`, `syncFromUrl`). Several pages' DOM can coexist: use `useId` for element ids, and role-based locators in tests.
 
 ## Folder layout
 ```
@@ -57,6 +61,15 @@ web/
 - Every page except `/login` requires sign-in. Every Server Action checks the session and that the user is the owner.
 - Validate all input on the server. Links must be `https`.
 - Escape user text when rendering, and never use `dangerouslySetInnerHTML` on it.
+
+## Commands (run in `web/`)
+| Command | What it does |
+|---|---|
+| `npm run dev` | Local server at http://localhost:3000 |
+| `npm run lint` / `npm run typecheck` | ESLint; route types plus TypeScript |
+| `npm test` | Unit tests, including the id and content-sync checks |
+| `npm run build` then `npm run test:e2e` | Production build, then Playwright at phone and desktop width |
+| `npm run content:sync` | Regenerate `content/tracker-data.ts` after the tracker changes |
 
 ## Quality bar (definition of done)
 - `npm run lint`, `npm run typecheck`, `npm test` and `npm run build` pass in `web/`.

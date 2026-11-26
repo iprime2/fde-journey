@@ -89,6 +89,11 @@ Later tables arrive with their features (for example `applications`, `log_entrie
 | M3 | Go live: hosting, database and sign-in set up; export endpoint for Claude; cut-over | The owner uses the new app for a week with no gaps; then the artifact is frozen and `CLAUDE.md` is updated |
 | M4+ | New sections, one at a time | Each has its own short design note first |
 
+Carried into M2 from the M1 code review:
+- Make tick boxes and the weekly-notes field controlled components once they save (today they use default values).
+- Wrap `getProgress()` in React `cache()` before it reads the database (about seven calls per request).
+- Refresh the date-based chips ("This phase", "This week") when a tab stays open past midnight IST.
+
 Candidate new sections, in suggested order:
 1. Job applications tracker (companies, roles, status, next step).
 2. Weekly plan (classes, tasks due, revision due).

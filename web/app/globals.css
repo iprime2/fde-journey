@@ -1,0 +1,247 @@
+@import "tailwindcss";
+
+/* Design tokens: web/docs/DESIGN-SPEC.md section 2. Colours are CSS variables, so components
+   never need dark: variants; dark mode follows the system setting. */
+:root {
+  color-scheme: light dark;
+  --page: #f3f6f5;
+  --surface: #ffffff;
+  --sunk: #eaefed;
+  --hover: #eef3f1;
+  --ink: #14201c;
+  --muted: #5a6a64;
+  --line: #d9e1de;
+  --line-strong: #74847e;
+  --accent: #0b7a68;
+  --accent-hover: #096a5a;
+  --accent-ink: #ffffff;
+  --accent-soft: #e2f4ef;
+  --warn: #9a5600;
+  --warn-soft: #fbeed8;
+  --danger: #b42318;
+  --danger-soft: #fdeceb;
+  --scrim: rgb(0 0 0 / 0.3);
+  --overlay-shadow: 0 8px 24px rgb(0 0 0 / 0.14);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --page: #0e1412;
+    --surface: #151d1a;
+    --sunk: #1b2521;
+    --hover: #1f2a26;
+    --ink: #e4ece9;
+    --muted: #93a39d;
+    --line: #27332f;
+    --line-strong: #667872;
+    --accent: #3fcfb3;
+    --accent-hover: #5fdcc3;
+    --accent-ink: #06211b;
+    --accent-soft: #143a32;
+    --warn: #f0b35a;
+    --warn-soft: #3a2b13;
+    --danger: #ff958a;
+    --danger-soft: #3d1915;
+    --overlay-shadow: 0 8px 24px rgb(0 0 0 / 0.5);
+  }
+}
+
+@theme {
+  --color-*: initial; /* only the tokens below exist */
+  --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --animate-skeleton: skeleton 1.2s ease-in-out infinite alternate;
+  @keyframes skeleton {
+    from {
+      opacity: 1;
+    }
+    to {
+      opacity: 0.6;
+    }
+  }
+}
+
+@theme inline {
+  --color-page: var(--page);
+  --color-surface: var(--surface);
+  --color-sunk: var(--sunk);
+  --color-hover: var(--hover);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-soft: var(--accent-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-scrim: var(--scrim);
+  --shadow-overlay: var(--overlay-shadow);
+}
+
+/* Type scale: design spec 2.4. */
+@utility type-display {
+  font-family: var(--font-display);
+  font-size: clamp(1.75rem, 1.4rem + 1.2vw, 2.25rem);
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  font-weight: 600;
+  text-wrap: balance;
+}
+@utility type-title {
+  font-family: var(--font-display);
+  font-size: 18px;
+  line-height: 1.3;
+  font-weight: 600;
+  text-wrap: balance;
+}
+@utility type-body {
+  font-size: 15px;
+  line-height: 1.55;
+  font-weight: 400;
+}
+@utility type-body-strong {
+  font-size: 15px;
+  line-height: 1.55;
+  font-weight: 500;
+}
+@utility type-input {
+  font-size: 16px;
+  line-height: 1.5;
+  font-weight: 400;
+}
+@utility type-small {
+  font-size: 13px;
+  line-height: 1.45;
+}
+@utility type-tab-label {
+  font-size: 12px;
+  line-height: 1.2;
+  font-weight: 500;
+}
+@utility type-label {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.3;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+@utility type-num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  line-height: 1.4;
+  font-weight: 500;
+}
+@utility type-num-lg {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 26px;
+  line-height: 1.2;
+  font-weight: 600;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    background: var(--page);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: 15px;
+    line-height: 1.55;
+  }
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  summary {
+    list-style: none;
+    cursor: pointer;
+  }
+  summary::-webkit-details-marker {
+    display: none;
+  }
+  ::placeholder {
+    color: var(--muted);
+    opacity: 1;
+  }
+  /* The browser's clear button in search fields, drawn in the muted token instead of its own blue. */
+  input[type="search"]::-webkit-search-cancel-button {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    background: var(--muted);
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round'%3E%3Cpath d='M18 6 6 18M6 6l12 12'/%3E%3C/svg%3E")
+      center / contain no-repeat;
+    cursor: pointer;
+  }
+}
+
+/* Tick box: a real checkbox drawn with tokens (design spec 4, ItemRow). */
+@layer components {
+  .tick {
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    margin: 0;
+    border: 2px solid var(--line-strong);
+    border-radius: 5px;
+    background: transparent;
+    cursor: pointer;
+  }
+  .tick:checked {
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+  .tick:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  @media (forced-colors: active) {
+    .tick {
+      appearance: auto;
+    }
+  }
+
+  /* Collapsible card head: the h2's button stretches over the whole head (the tap target), and
+     the focus ring is drawn around the head instead of the button. */
+  .card-head {
+    position: relative;
+  }
+  .card-head button {
+    cursor: pointer;
+  }
+  .card-head button::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+  }
+  .card-head button:focus-visible {
+    outline: none;
+  }
+  .card-head:has(button:focus-visible) {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    transition-duration: 0s !important;
+    animation: none !important;
+  }
+}
