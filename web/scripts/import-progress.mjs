@@ -1,0 +1,68 @@
+// Imports progress records exported from the tracker artifact into the app's database.
+//
+//   npm run db:import -- <file-or-folder> [--dry-run]
+//
+// Input: a folder of JSON files (one record each, named by item id, e.g. l1-1.json) or one JSON
+// file (a record, or an array of records with an `id` field). A record is
+// {done, note, link, doneAt, updatedAt}, optionally wrapped as {data: {...}, version}.
+//
+// - Ids are checked against the app's content (lib/ids.ts). Unknown ids are counted, not imported.
+// - A record only replaces a saved row when it is newer, so running it twice changes nothing and
+//   changes made in the app are never overwritten.
+// - Prints counts only, never note text or links. Keep exported files outside this repository.
+// - Uses DATABASE_URL (Neon, migrated first) or else the local PGlite folder. Stop `npm run dev`
+//   first when importing into the local folder: two processes must not open it at once.
+import path from "node:path";
+import { applyImport, collectRecords, planImport, readExisting, summaryLines } from "./lib/import-core.mjs";
+import { WEB_DIR, openScriptDb, scriptDbConfig } from "./lib/db.mjs";
+
+const args = process.argv.slice(2);
+const dryRun = args.includes("--dry-run");
+const inputArg = args.find((a) => !a.startsWith("--"));
+if (!inputArg) {
+  console.error("Usage: npm run db:import -- <file-or-folder> [--dry-run]");
+  process.exit(2);
+}
+const input = path.resolve(process.cwd(), inputArg);
+
+const repoRoot = path.resolve(WEB_DIR, "..");
+const dataDir = path.join(WEB_DIR, ".data");
+if ((input === repoRoot || input.startsWith(repoRoot + path.sep)) && !input.startsWith(dataDir + path.sep)) {
+  console.warn("Warning: the input is inside this repository. Keep exported records out of git (this repo is public).");
+}
+
+// The app's own content and id rules, loaded with Node's TypeScript support (see package.json).
+const [{ listItems, JOURNAL_ID }, { trackerContent }, { linkProblem }] = await Promise.all([
+  import("../lib/ids.ts"),
+  import("../content/tracker-data.ts"),
+  import("../lib/notes.ts"),
+]);
+const knownIds = new Set([...listItems(trackerContent).map((i) => i.id), JOURNAL_ID]);
+
+let collected;
+try {
+  collected = collectRecords(input);
+} catch {
+  console.error("Could not read the input. Check that the path exists.");
+  process.exit(2);
+}
+
+let db;
+try {
+  db = await openScriptDb(scriptDbConfig(process.env));
+  const ids = [...new Set(collected.entries.map((e) => e.id).filter((id) => id && knownIds.has(id)))];
+  const plan = planImport(collected.entries, await readExisting(db, ids), knownIds, linkProblem);
+  const applied = dryRun
+    ? { inserted: plan.writes.filter((w) => w.isNew).length, updated: plan.writes.filter((w) => !w.isNew).length, skipped: 0 }
+    : await applyImport(db, plan.writes);
+  for (const line of summaryLines({ files: collected.files, unreadable: collected.unreadable, counts: plan.counts, applied, dryRun })) {
+    console.log(line);
+  }
+} catch (error) {
+  // Database messages can quote the row (and so a note): print the error code only.
+  const code = error && typeof error === "object" && "code" in error ? String(error.code) : error instanceof Error ? error.name : "unknown";
+  console.error(`Import failed (${code}).${error instanceof Error && /db:migrate|DATABASE_URL|Vercel/.test(error.message) ? ` ${error.message}` : ""}`);
+  process.exitCode = 1;
+} finally {
+  await db?.close();
+}

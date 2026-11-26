@@ -1,13 +1,29 @@
 import { expect, test as base } from "@playwright/test";
+import { SESSION_COOKIE, signedSessionCookie } from "./auth";
 
 /**
+ * Every e2e test runs signed in as the (made-up) owner unless it opts out with
+ * `test.use({ signedIn: false })`.
+ *
  * Every e2e test fails if the page throws or logs a console error, so hydration
  * mismatches and runtime errors cannot pass silently.
  *
  * One exception: a 404 for the page document itself (a test that visits a missing
  * address on purpose). A 404 for any asset (script, style, image, font) still fails.
  */
-export const test = base.extend<{ failOnPageErrors: void }>({
+export const test = base.extend<{ signedIn: boolean; ownerSession: void; failOnPageErrors: void }>({
+  signedIn: [true, { option: true }],
+  ownerSession: [
+    async ({ context, signedIn, baseURL }, use) => {
+      if (signedIn) {
+        await context.addCookies([
+          { name: SESSION_COOKIE, value: signedSessionCookie(), url: baseURL ?? "", httpOnly: true, sameSite: "Lax" },
+        ]);
+      }
+      await use();
+    },
+    { auto: true },
+  ],
   failOnPageErrors: [
     async ({ page }, use) => {
       const errors: string[] = [];

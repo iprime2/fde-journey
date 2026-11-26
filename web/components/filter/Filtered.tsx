@@ -3,7 +3,6 @@
 // Thin wrappers that hide themselves when the page filter leaves nothing to show inside.
 // The content inside them is rendered on the server.
 import { emptyKind } from "@/lib/filter";
-import { READ_ONLY_PREVIEW } from "@/lib/mode";
 import { GroupLabel, buttonStyles } from "../ui";
 import { useFilter } from "./FilterProvider";
 
@@ -41,8 +40,8 @@ export function FilterEmpty() {
   return (
     <div className="type-small grid justify-items-center gap-3 rounded-lg border border-dashed border-line bg-surface p-7 text-center text-muted">
       {kind === "no-notes" && (
-        // In the read-only preview there is no Add note button to point at yet.
-        <p>{READ_ONLY_PREVIEW ? "No notes yet." : "No notes yet. Use Add note on any item."}</p>
+        // M2 copy (design spec 8). The Add note button arrives with the note editor in M2 part B.
+        <p>No notes yet. Use Add note on any item.</p>
       )}
       {kind === "no-done" && <p>Nothing marked done yet.</p>}
       {kind === "no-match" && (

@@ -1,0 +1,5 @@
+[
+  {"id":"k1","done":true,"note":"","link":"","doneAt":"2026-11-20T08:00:00.000Z","updatedAt":"2026-11-20T08:00:00.000Z"},
+  {"id":"pp1","data":{"done":true,"note":"","link":"","doneAt":null,"updatedAt":null},"version":1},
+  {"done":true,"note":"No id at all."}
+]

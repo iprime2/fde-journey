@@ -10,8 +10,8 @@ import { ListSkeleton } from "@/components/Skeleton";
 import { SEARCH_PLACEHOLDERS } from "@/content/page-copy";
 import { trackerContent } from "@/content/tracker-data";
 import { filterFromRecord } from "@/lib/filter";
-import { READ_ONLY_PREVIEW } from "@/lib/mode";
-import { getProgress } from "@/lib/progress";
+import { getProgress } from "@/lib/data";
+import { isReadOnly } from "@/lib/mode";
 import { JOURNAL_SUB, careerView, filterEntries, journalEntry } from "@/lib/views";
 
 export const metadata: Metadata = { title: "Career" };
@@ -29,15 +29,15 @@ export default function CareerPage({ searchParams }: PageProps<"/career">) {
 }
 
 async function CareerContent({ searchParams }: Pick<PageProps<"/career">, "searchParams">) {
-  const [sp, progress] = await Promise.all([searchParams, getProgress()]);
+  const [sp, progress, readOnly] = await Promise.all([searchParams, getProgress(), isReadOnly()]);
   const { milestones, journalNote } = careerView(trackerContent, progress);
   const entries = [...filterEntries([milestones]), journalEntry(journalNote)];
   return (
     <FilterProvider path="/career" entries={entries} initial={filterFromRecord(sp)}>
       <Toolbar placeholder={SEARCH_PLACEHOLDERS.career} />
       <div className="grid gap-3">
-        <SectionCard card={milestones} readOnly={READ_ONLY_PREVIEW} />
-        <JournalCard note={journalNote} sub={JOURNAL_SUB} readOnly={READ_ONLY_PREVIEW} />
+        <SectionCard card={milestones} readOnly={readOnly} />
+        <JournalCard note={journalNote} sub={JOURNAL_SUB} readOnly={readOnly} />
         <FilterEmpty />
       </div>
     </FilterProvider>

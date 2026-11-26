@@ -45,3 +45,6 @@ next-env.d.ts
 # playwright
 /test-results/
 /playwright-report/
+
+# local database (PGlite) for development and end-to-end tests
+/.data/
