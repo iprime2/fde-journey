@@ -15,6 +15,7 @@ import {
   noteButtonLabel,
   parseTimestamp,
   saveLines,
+  saveOnLeave,
   shownStatus,
   statusAfterStep,
 } from "@/lib/save-state";
@@ -100,6 +101,12 @@ describe("when a text field saves", () => {
   it("sends nothing when the text is what was saved", () => {
     expect(nextSaveStep({ ...base, value: "old" })).toBe("unchanged");
     expect(nextSaveStep({ ...base, value: "old", mode: "offline" })).toBe("unchanged");
+  });
+
+  it("doesn't save on leaving a field whose exact text just failed (Try again does)", () => {
+    expect(saveOnLeave("draft", "draft")).toBe(false);
+    expect(saveOnLeave("draft, edited", "draft")).toBe(true);
+    expect(saveOnLeave("draft", null)).toBe(true);
   });
 
   it("waits for the connection when offline", () => {

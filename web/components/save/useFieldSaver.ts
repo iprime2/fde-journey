@@ -16,6 +16,7 @@ import {
   afterSaveFailed,
   afterSaveSucceeded,
   nextSaveStep,
+  saveOnLeave,
   shownStatus,
   statusAfterStep,
 } from "@/lib/save-state";
@@ -104,6 +105,8 @@ export function useFieldSaver({
   const queued = useRef<boolean | null>(null);
   /** The connection came back while a save was on its way: if that save fails, try once more. */
   const reconnected = useRef(false);
+  /** The text whose last save failed ("Not saved." with Try again), or null. */
+  const lastFailed = useRef<string | null>(null);
 
   function cancelTypingTimer() {
     window.clearTimeout(typingTimer.current);
@@ -139,10 +142,12 @@ export function useFieldSaver({
     if (step !== "save") {
       if (step === "problem") setError((shown) => (showProblem || shown !== null ? issue : shown));
       if (step === "unchanged") {
-        // Back to the saved text: nothing on this field is failed any more.
         setError(null);
-        page.clearFailure(failureKey);
+        lastFailed.current = null;
       }
+      // Back to the saved text, or now breaking a rule (its own line says so, not Try again):
+      // either way the field no longer counts as a failed save.
+      if (step === "unchanged" || step === "problem") page.clearFailure(failureKey);
       setStored((s) => statusAfterStep(step, s));
       return;
     }
@@ -160,6 +165,7 @@ export function useFieldSaver({
     reconnected.current = false;
 
     if (result.ok) {
+      lastFailed.current = null;
       latest.current = { ...latest.current, saved: current };
       setSaved(current);
       setError(null);
@@ -189,6 +195,7 @@ export function useFieldSaver({
         setStored("waiting");
         return;
       default:
+        lastFailed.current = current;
         setStored("error");
         page.reportFailure(failureKey);
     }
@@ -235,7 +242,9 @@ export function useFieldSaver({
       window.clearTimeout(typingTimer.current);
       typingTimer.current = window.setTimeout(() => void persist(false), AUTOSAVE_DELAY_MS);
     },
-    flush: () => void persist(true),
+    flush() {
+      if (saveOnLeave(latest.current.value, lastFailed.current)) void persist(true);
+    },
     hold: cancelTypingTimer,
     retry: () => void persist(true),
   };

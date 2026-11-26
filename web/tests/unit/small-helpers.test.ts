@@ -17,7 +17,8 @@ import {
   pickBanners,
 } from "@/lib/banners";
 import { formatDate } from "@/lib/dates";
-import { LINK_ERROR, NOTE_PREVIEW_LENGTH, hasNoteOrLink, isHttpsUrl, linkError, notePreview } from "@/lib/notes";
+import { LINK_ERROR, NOTE_MAX, NOTE_PREVIEW_LENGTH, NOTE_TOO_LONG, hasNoteOrLink, isHttpsUrl, linkError, notePreview, noteProblem } from "@/lib/notes";
+import { noteSchema } from "@/lib/validation";
 import { isStoredOpen, parseStoredList, withMember } from "@/lib/open-state";
 
 describe("banners", () => {
@@ -42,6 +43,17 @@ describe("banners", () => {
 });
 
 describe("notes", () => {
+  it("checks the note limit in the browser with the server's rule and words", () => {
+    expect(noteProblem("")).toBeNull();
+    expect(noteProblem("a".repeat(NOTE_MAX))).toBeNull();
+    expect(noteProblem("a".repeat(NOTE_MAX + 1))).toBe("Notes can be up to 10,000 characters.");
+    // The server says the same for the same note.
+    const server = noteSchema.safeParse("a".repeat(NOTE_MAX + 1));
+    expect(server.success).toBe(false);
+    expect(server.error?.issues[0]?.message).toBe(NOTE_TOO_LONG);
+    expect(noteSchema.safeParse("a".repeat(NOTE_MAX)).success).toBe(true);
+  });
+
   it("preview the first 220 characters", () => {
     const long = "a".repeat(NOTE_PREVIEW_LENGTH + 5);
     expect(notePreview(long)).toBe(`${"a".repeat(NOTE_PREVIEW_LENGTH)}…`);

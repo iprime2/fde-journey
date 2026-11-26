@@ -9,12 +9,12 @@
 // Try again, Fix link or Fix note.
 import { useEffect, useId, useRef, useState } from "react";
 import { saveLink, saveNote } from "@/app/actions/progress";
-import { linkProblem } from "@/lib/notes";
+import { linkProblem, noteProblem } from "@/lib/notes";
 import { CLOSED_SAVING_DELAY_MS, type LineAction, combineStatus, noteButtonLabel, saveLines } from "@/lib/save-state";
 import { cn } from "../cn";
 import { SaveLines, describedByIds } from "../save/SaveLines";
 import { useFieldMode, useSaveStatus } from "../save/SaveStatusProvider";
-import { useFieldSaver } from "../save/useFieldSaver";
+import { type FieldSaver, useFieldSaver } from "../save/useFieldSaver";
 import { FIELD_STYLES } from "../save/fieldStyles";
 import { NotePreview } from "./NotePreview";
 
@@ -42,6 +42,8 @@ export function NoteArea({
   /** Which field opening the editor focuses: the note, or the link after "Fix link". */
   const [focusField, setFocusField] = useState<"note" | "link">("note");
   const button = useRef<HTMLButtonElement>(null);
+  /** The status lines (they hold Try again while the editor is open). */
+  const linesArea = useRef<HTMLDivElement>(null);
   const editorId = useId();
   const noteErrorId = useId();
   const linkErrorId = useId();
@@ -50,6 +52,7 @@ export function NoteArea({
   const noteField = useFieldSaver({
     serverValue: note,
     save: (value) => saveNote(itemId, value),
+    check: noteProblem,
     failureKey: `note:${itemId}`,
     mode,
   });
@@ -116,6 +119,15 @@ export function NoteArea({
     else openEditor(action === "fix-link" ? "link" : "note");
   }
 
+  /**
+   * Leaving a field saves it, except when focus moves to Try again (Tab after a failed save): Try
+   * again saves both fields, and a save started by the blur would remove it as focus arrives.
+   */
+  function onFieldBlur(field: FieldSaver, e: React.FocusEvent) {
+    if (e.relatedTarget instanceof Node && linesArea.current?.contains(e.relatedTarget)) field.hold();
+    else field.flush();
+  }
+
   function onEscape(e: React.KeyboardEvent) {
     if (e.key !== "Escape") return;
     e.stopPropagation();
@@ -164,7 +176,7 @@ export function NoteArea({
             autoFocus={focusField === "note"}
             value={noteField.value}
             onChange={(e) => noteField.onChange(e.target.value)}
-            onBlur={noteField.flush}
+            onBlur={(e) => onFieldBlur(noteField, e)}
             readOnly={mode === "read-only"}
             placeholder={placeholder}
             aria-invalid={noteField.error ? true : undefined}
@@ -187,7 +199,7 @@ export function NoteArea({
             autoFocus={focusField === "link"}
             value={linkField.value}
             onChange={(e) => linkField.onChange(e.target.value)}
-            onBlur={linkField.flush}
+            onBlur={(e) => onFieldBlur(linkField, e)}
             readOnly={mode === "read-only"}
             placeholder="https://…"
             aria-invalid={linkField.error ? true : undefined}
@@ -204,6 +216,7 @@ export function NoteArea({
 
       {/* Always rendered: it holds the note's live region, open or closed. */}
       <div
+        ref={linesArea}
         className={cn(
           UNDER_TEXT,
           open ? "type-num flex min-h-11 flex-wrap items-center gap-x-2 pb-2" : "type-small max-w-[75ch] [overflow-wrap:anywhere]",
@@ -211,7 +224,7 @@ export function NoteArea({
         )}
         onKeyDown={open ? onEscape : undefined}
       >
-        <SaveLines lines={lines} editing={open} ids={ids} onAction={onAction} />
+        <SaveLines lines={lines} editing={open} ids={ids} onAction={onAction} fallbackFocus={() => button.current?.focus()} />
       </div>
     </>
   );

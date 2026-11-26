@@ -76,6 +76,16 @@ export function statusAfterStep(step: Exclude<SaveStep, "save" | "queue" | "bloc
   }
 }
 
+/**
+ * Whether leaving a field (blur, Hide note, Escape) should save it. Not when its text is exactly
+ * the text whose save just failed: "Not saved." with Try again already says so, and a save started
+ * by leaving would remove Try again just as keyboard focus moves to it. Try again, the typing pause
+ * and the connection coming back still save it.
+ */
+export function saveOnLeave(value: string, lastFailed: string | null): boolean {
+  return value !== lastFailed;
+}
+
 /** After a save succeeded: save again if the text changed while it ran, else show "Saved". */
 export function afterSaveSucceeded(sent: string, latest: string): "again" | "saved" {
   return latest === sent ? "saved" : "again";

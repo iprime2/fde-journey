@@ -87,6 +87,9 @@ test.describe("signed in", () => {
     await expect(page).toHaveURL("/");
     await page.goto("/login?status=signed-out&next=https%3A%2F%2Fevil.example%2Froadmap");
     await expect(page).toHaveURL("/");
+    // Dot segments that would collapse to "//evil.example" once parsed.
+    await page.goto(`/login?next=${encodeURIComponent("/.//evil.example")}`);
+    await expect(page).toHaveURL("/");
   });
 });
 

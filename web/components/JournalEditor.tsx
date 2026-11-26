@@ -6,6 +6,7 @@
 import { useId, useRef } from "react";
 import { saveJournal } from "@/app/actions/progress";
 import { JOURNAL_ID } from "@/lib/ids";
+import { noteProblem } from "@/lib/notes";
 import { saveLines } from "@/lib/save-state";
 import { cn } from "./cn";
 import { FIELD_STYLES } from "./save/fieldStyles";
@@ -17,9 +18,11 @@ export function JournalEditor({ note, labelledBy, readOnly }: { note: string; la
   const mode = useFieldMode(readOnly);
   const page = useSaveStatus();
   const textarea = useRef<HTMLTextAreaElement>(null);
+  /** The status line (it holds Try again after a failed save). */
+  const linesArea = useRef<HTMLDivElement>(null);
   const errorId = useId();
   const ids = { saving: useId(), save: useId(), field: useId() };
-  const field = useFieldSaver({ serverValue: note, save: saveJournal, failureKey: `note:${JOURNAL_ID}`, mode });
+  const field = useFieldSaver({ serverValue: note, save: saveJournal, check: noteProblem, failureKey: `note:${JOURNAL_ID}`, mode });
   const lines = saveLines({
     fields: [{ kind: "journal", status: field.status, error: field.error }],
     signedOut: page.signedOut,
@@ -39,7 +42,11 @@ export function JournalEditor({ note, labelledBy, readOnly }: { note: string; la
         aria-labelledby={labelledBy}
         value={field.value}
         onChange={(e) => field.onChange(e.target.value)}
-        onBlur={field.flush}
+        // Tab to Try again after a failed save: Try again saves; a save started by the blur would
+        // remove it as focus arrives.
+        onBlur={(e) =>
+          e.relatedTarget instanceof Node && linesArea.current?.contains(e.relatedTarget) ? field.hold() : field.flush()
+        }
         readOnly={mode === "read-only"}
         placeholder="What did you complete this week? What is blocking you?"
         aria-invalid={field.error ? true : undefined}
@@ -52,8 +59,8 @@ export function JournalEditor({ note, labelledBy, readOnly }: { note: string; la
         </p>
       )}
       {/* In the page from the first render: it holds the live region. */}
-      <div className="type-num flex min-h-11 flex-wrap items-center gap-x-2">
-        <SaveLines lines={lines} editing ids={ids} onAction={retry} />
+      <div ref={linesArea} className="type-num flex min-h-11 flex-wrap items-center gap-x-2">
+        <SaveLines lines={lines} editing ids={ids} onAction={retry} fallbackFocus={() => textarea.current?.focus()} />
       </div>
     </div>
   );

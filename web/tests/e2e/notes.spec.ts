@@ -3,7 +3,19 @@
 // writes them.
 import type { Locator, Page, Request } from "@playwright/test";
 import { expect, test } from "./fixtures";
-import { EXAMPLE_LINK, EXAMPLE_NOTE, SAVE_FAILED_TEXT, WAITING_TEXT, failSaves, forProject, gotoReady, isPhone } from "./helpers";
+import {
+  EXAMPLE_LINK,
+  EXAMPLE_NOTE,
+  SAVE_FAILED_TEXT,
+  WAITING_TEXT,
+  announced,
+  failSaves,
+  forProject,
+  gotoReady,
+  isPhone,
+  pageHeading,
+  shownLine,
+} from "./helpers";
 
 const isSaveRequest = (request: Request) => request.method() === "POST" && !!request.headers()["next-action"];
 
@@ -19,7 +31,7 @@ async function clearNote(page: Page, row: Locator, title: string) {
     await field.fill("");
     await field.blur();
     await saved;
-    await expect(row.getByText("Saved", { exact: true })).toBeVisible();
+    await expect(announced(row)).toHaveText("Saved");
   }
   await row.getByRole("button", { name: "Hide note" }).click();
   await expect(row.getByRole("button", { name: "Add note" })).toBeVisible();
@@ -61,7 +73,8 @@ test.describe("notes", () => {
 
     // Saves after typing stops, while the field still has focus.
     await note.pressSequentially(EXAMPLE_NOTE);
-    await expect(row.getByText("Saved", { exact: true })).toBeVisible();
+    await expect(shownLine(row, "Saved")).toBeVisible();
+    await expect(announced(row)).toHaveText("Saved");
     await expect(note).toBeFocused();
 
     // The page's clock is controlled from here on (it runs normally until paused).
@@ -80,7 +93,7 @@ test.describe("notes", () => {
     const saveRequest = page.waitForRequest(isSaveRequest);
     await note.blur();
     await saveRequest;
-    await expect(row.getByText("Saved", { exact: true })).toBeVisible();
+    await expect(announced(row)).toHaveText("Saved");
     await page.clock.resume();
 
     // Escape closes the editor and returns focus to the button.
@@ -91,6 +104,9 @@ test.describe("notes", () => {
     await expect(edit).toHaveAttribute("aria-expanded", "false");
     await expect(note).toBeHidden();
     await expect(row.getByText(`${EXAMPLE_NOTE} Edited.`)).toBeVisible();
+    // A saved note's row shows no line and the button has no description.
+    await expect(shownLine(row, "Saved")).toHaveCount(0);
+    await expect(edit).toHaveAccessibleDescription("");
 
     // Hide note closes it too.
     await edit.click();
@@ -120,9 +136,11 @@ test.describe("notes", () => {
     // The save after the 800 ms pause is held; leave the field while it is.
     await hold.firstArrived;
     await expect(row.getByText("Saving…")).toBeVisible();
+    // "Saving…" is shown, never announced.
+    await expect(announced(row)).toHaveText("");
     await note.blur();
     hold.release();
-    await expect(row.getByText("Saved", { exact: true })).toBeVisible();
+    await expect(announced(row)).toHaveText("Saved");
     await expect(row.getByText("Saving…")).toBeHidden();
     await hold.stop();
 
@@ -139,7 +157,7 @@ test.describe("notes", () => {
     await expect(edit).toHaveAccessibleDescription("Saving…");
     slow.release();
     await expect(row.getByText("Saving…")).toBeHidden();
-    await expect(row.getByText("Not saved.")).toHaveCount(0);
+    await expect(announced(row)).not.toContainText("Not saved");
     await expect(edit).toHaveAccessibleDescription("");
     await slow.stop();
 
@@ -156,35 +174,39 @@ test.describe("notes", () => {
       { id: "p2-5", title: "Test failure scenarios and document results" },
     );
     const text = `Offline draft for ${item.id}.`;
+    await page.clock.install();
     await gotoReady(page, "/projects");
     const row = page.locator(`#item-${item.id}`);
     await clearNote(page, row, item.title);
 
     await row.getByRole("button", { name: "Add note" }).click();
     const note = row.getByRole("textbox", { name: `Note for ${item.title}` });
-    // Offline well within the 800 ms pause after typing.
+    // The clock is paused, so the connection is gone before the 800 ms pause after typing ends.
+    await page.clock.pauseAt(Date.now() + 1_000);
     await note.fill("Offline draft");
     await context.setOffline(true);
-    await expect(row.getByText(WAITING_TEXT)).toBeVisible();
+    await expect(shownLine(row, WAITING_TEXT)).toBeVisible();
+    await expect(announced(row)).toHaveText(WAITING_TEXT);
+    await page.clock.resume();
     // The field stays editable offline; more typing waits too.
     await expect(note).toBeEditable();
     await note.fill(text);
-    await expect(row.getByText(WAITING_TEXT)).toBeVisible();
+    await expect(shownLine(row, WAITING_TEXT)).toBeVisible();
 
     // Closed, the row keeps saying so, and the note button reads it.
     await page.keyboard.press("Escape");
     const edit = row.getByRole("button", { name: "Edit note" });
     await expect(edit).toBeFocused();
     await expect(row.getByText(text)).toBeVisible();
-    await expect(row.getByText(WAITING_TEXT)).toBeVisible();
+    await expect(shownLine(row, WAITING_TEXT)).toBeVisible();
     await expect(edit).toHaveAccessibleDescription(WAITING_TEXT);
     await expect(page.getByRole("alert").filter({ hasText: SAVE_FAILED_TEXT })).toHaveCount(0);
 
     const saved = page.waitForResponse((r) => isSaveRequest(r.request()));
     await context.setOffline(false);
     expect((await saved).ok()).toBe(true);
-    await expect(row.getByText(WAITING_TEXT)).toBeHidden();
-    await expect(row.getByText("Not saved.")).toHaveCount(0);
+    await expect(shownLine(row, WAITING_TEXT)).toHaveCount(0);
+    await expect(announced(row)).not.toContainText("Not saved");
 
     // Another page sees it.
     const other = await context.newPage();
@@ -213,24 +235,57 @@ test.describe("notes", () => {
       await row.getByRole("textbox", { name: `Note for ${item.title}` }).fill(text);
       await hold.firstArrived;
       await context.setOffline(true);
-      await expect(row.getByText(WAITING_TEXT)).toBeVisible();
+      await expect(shownLine(row, WAITING_TEXT)).toBeVisible();
       // The held save now fails; it still only waits, with no failure banner.
       hold.release();
       await hold.stop();
-      await expect(row.getByText(WAITING_TEXT)).toBeVisible();
-      await expect(row.getByText("Not saved.", { exact: true })).toHaveCount(0);
+      await expect(shownLine(row, WAITING_TEXT)).toBeVisible();
+      await expect(announced(row)).not.toContainText("Not saved.");
       await expect(page.getByRole("alert").filter({ hasText: SAVE_FAILED_TEXT })).toHaveCount(0);
 
       const saved = page.waitForResponse((r) => isSaveRequest(r.request()));
       await context.setOffline(false);
       expect((await saved).ok()).toBe(true);
-      await expect(row.getByText("Saved", { exact: true })).toBeVisible();
+      await expect(announced(row)).toHaveText("Saved");
 
       await page.reload();
       await page.waitForLoadState("networkidle");
       await expect(row.getByText(text)).toBeVisible();
       await clearNote(page, row, item.title);
     });
+  });
+
+  test("a change typed just before going Back saves, though the field was never left", async ({ page }, testInfo) => {
+    const item = forProject(
+      testInfo,
+      { id: "c1-1", title: "Review official exam guide and domains" },
+      { id: "c1-2", title: "Complete practice questions and review weak areas" },
+    );
+    const text = `Draft for ${item.id}: typed just before going back.`;
+    await page.clock.install();
+    await gotoReady(page, "/");
+    // A visit inside the app, so Back keeps the page mounted but hidden (React Activity).
+    await page.getByRole("link", { name: /Certifications passed/ }).click();
+    await expect(pageHeading(page)).toHaveText("Certifications");
+    await page.waitForLoadState("networkidle");
+    const row = page.locator(`#item-${item.id}`);
+    await clearNote(page, row, item.title);
+
+    await row.getByRole("button", { name: "Add note" }).click();
+    const note = row.getByRole("textbox", { name: `Note for ${item.title}` });
+    // The clock is paused, so the 800 ms pause after typing can't end: only hiding the page can
+    // start this save.
+    await page.clock.pauseAt(Date.now() + 1_000);
+    await note.fill(text);
+    const saved = page.waitForResponse((r) => isSaveRequest(r.request()));
+    await page.goBack();
+    await expect(pageHeading(page)).toHaveText("FDE Journey");
+    expect((await saved).ok()).toBe(true);
+    await page.clock.resume();
+
+    await gotoReady(page, "/certs");
+    await expect(row.getByText(text)).toBeVisible();
+    await clearNote(page, row, item.title);
   });
 
   test("a link must be https: bad links show the error and aren't saved; a good one becomes a link", async ({ page }, testInfo) => {
@@ -252,6 +307,7 @@ test.describe("notes", () => {
       await expect(error).toBeVisible();
       await expect(link).toHaveAttribute("aria-invalid", "true");
       await expect(link).toHaveAttribute("aria-describedby", (await error.getAttribute("id")) ?? "");
+      await expect(announced(row)).toHaveText("Link not saved. Links must start with https://");
     }
     await page.reload();
     await page.waitForLoadState("networkidle");
@@ -260,7 +316,7 @@ test.describe("notes", () => {
     await row.getByRole("button", { name: "Add note" }).click();
     await link.fill(EXAMPLE_LINK);
     await link.blur();
-    await expect(row.getByText("Saved", { exact: true })).toBeVisible();
+    await expect(announced(row)).toHaveText("Saved");
     await expect(link).not.toHaveAttribute("aria-invalid", "true");
 
     await page.reload();
@@ -295,8 +351,11 @@ test.describe("notes", () => {
     await expect(row.getByText(bad, { exact: true })).toBeVisible();
     await expect(row.getByRole("link", { name: /www\.example\.com/ })).toHaveCount(0);
     const message = "Link not saved. Links must start with https://";
-    await expect(row.getByText(message)).toBeVisible();
+    await expect(shownLine(row, message)).toBeVisible();
     await expect(edit).toHaveAccessibleDescription(message);
+    // The announcement is the words only; Fix link stays outside it.
+    await expect(announced(row)).toHaveText(message);
+    await expect(announced(row).getByRole("button")).toHaveCount(0);
     const fix = row.getByRole("button", { name: "Fix link" });
     await expect(fix).toHaveAccessibleDescription(message);
     expect((await fix.boundingBox())?.height).toBeGreaterThanOrEqual(44);
@@ -312,12 +371,59 @@ test.describe("notes", () => {
     await link.fill("");
     await row.getByRole("button", { name: "Hide note" }).click();
     await expect(row.getByRole("button", { name: "Add note" })).toBeVisible();
-    await expect(row.getByText(message)).toHaveCount(0);
+    await expect(shownLine(row, message)).toHaveCount(0);
+    await expect(announced(row)).toHaveText("");
+  });
+
+  test("a note over 10,000 characters isn't saved: the closed row says so, and Fix note opens the note", async ({ page }, testInfo) => {
+    const item = forProject(
+      testInfo,
+      { id: "c4-2", title: "Complete Microsoft Learn modules and labs" },
+      { id: "c5-2", title: "Study LLM and GenAI application concepts" },
+    );
+    const tooLong = "Long made-up draft. ".repeat(501); // 10,020 characters
+    await gotoReady(page, "/certs");
+    const row = page.locator(`#item-${item.id}`);
+    await clearNote(page, row, item.title);
+    let sent = 0;
+    page.on("request", (r) => {
+      if (isSaveRequest(r)) sent += 1;
+    });
+
+    await row.getByRole("button", { name: "Add note" }).click();
+    const note = row.getByRole("textbox", { name: `Note for ${item.title}` });
+    await note.fill(tooLong);
+    await row.getByRole("button", { name: "Hide note" }).click();
+
+    const message = "Note not saved. Notes can be up to 10,000 characters.";
+    const edit = row.getByRole("button", { name: "Edit note" });
+    await expect(shownLine(row, message)).toBeVisible();
+    await expect(edit).toHaveAccessibleDescription(message);
+    await expect(announced(row)).toHaveText(message);
+    const fix = row.getByRole("button", { name: "Fix note" });
+    await expect(fix).toHaveAccessibleDescription(message);
+
+    // Fix note opens the editor on the note, with its error.
+    await fix.click();
+    await expect(note).toBeFocused();
+    await expect(note).toHaveAttribute("aria-invalid", "true");
+    await expect(row.getByText("Notes can be up to 10,000 characters.", { exact: true })).toBeVisible();
+    // Still too long after a keystroke: the message stays.
+    await note.press("End");
+    await note.press("Backspace");
+    await expect(row.getByText("Notes can be up to 10,000 characters.", { exact: true })).toBeVisible();
+    // The same rule as the server's, checked first: nothing was sent.
+    expect(sent).toBe(0);
+
+    await note.fill("");
+    await row.getByRole("button", { name: "Hide note" }).click();
+    await expect(row.getByRole("button", { name: "Add note" })).toBeVisible();
+    await expect(shownLine(row, message)).toHaveCount(0);
   });
 });
 
 test.describe("a note that fails to save", () => {
-  // The test cuts the save request, so the browser logs the failed request on purpose.
+  // The tests cut save requests, so the browser logs the failed requests on purpose.
   test.use({ allowedConsoleErrors: [/Failed to load resource: net::ERR_FAILED/] });
 
   test("stays visible after Escape: Not saved. with Try again, which saves it and keeps focus on the note button", async ({ page }, testInfo) => {
@@ -341,7 +447,8 @@ test.describe("a note that fails to save", () => {
     await expect(edit).toBeFocused();
     await expect(note).toBeHidden();
     await expect(row.getByText(text)).toBeVisible();
-    await expect(row.getByText("Not saved.", { exact: true })).toBeVisible();
+    await expect(shownLine(row, "Not saved.")).toBeVisible();
+    await expect(announced(row)).toHaveText("Not saved.");
     await expect(edit).toHaveAccessibleDescription("Not saved.");
     const tryAgain = row.getByRole("button", { name: "Try again" });
     await expect(tryAgain).toHaveAccessibleDescription("Not saved.");
@@ -351,9 +458,81 @@ test.describe("a note that fails to save", () => {
     await restore();
     await tryAgain.click();
     await expect(edit).toBeFocused();
-    await expect(row.getByText("Not saved.", { exact: true })).toBeHidden();
+    await expect(shownLine(row, "Not saved.")).toHaveCount(0);
     await expect(page.getByRole("alert").filter({ hasText: SAVE_FAILED_TEXT })).toBeHidden();
     await expect(edit).toBeFocused();
+
+    await page.reload();
+    await page.waitForLoadState("networkidle");
+    await expect(row.getByText(text)).toBeVisible();
+    await clearNote(page, row, item.title);
+  });
+
+  test("with the keyboard: Tab from the field reaches Try again, and Enter saves with focus on the note button", async ({ page }, testInfo) => {
+    const item = forProject(
+      testInfo,
+      { id: "c6-2", title: "Review Gemini and Google Cloud AI offerings" },
+      { id: "c7-2", title: "Complete architecture labs" },
+    );
+    await gotoReady(page, "/certs");
+    const row = page.locator(`#item-${item.id}`);
+    await clearNote(page, row, item.title);
+
+    const restore = await failSaves(page, "/certs");
+    await row.getByRole("button", { name: "Add note" }).click();
+    const link = row.getByRole("textbox", { name: `Link for ${item.title}` });
+    await link.fill(EXAMPLE_LINK);
+    // The save after the typing pause fails while focus is still in the field.
+    await expect(shownLine(row, "Not saved.")).toBeVisible();
+    await expect(link).toBeFocused();
+
+    await page.keyboard.press("Tab");
+    const tryAgain = row.getByRole("button", { name: "Try again" });
+    await expect(tryAgain).toBeFocused();
+    await expect(shownLine(row, "Not saved.")).toBeVisible();
+
+    await restore();
+    await page.keyboard.press("Enter");
+    await expect(row.getByRole("button", { name: "Hide note" })).toBeFocused();
+    await expect(announced(row)).toHaveText("Saved");
+    await clearNote(page, row, item.title);
+  });
+
+  test("saves by itself, once, when the connection drops and comes back", async ({ page, context }, testInfo) => {
+    const item = forProject(
+      testInfo,
+      { id: "c2-3", title: "Practice architecture and agent scenarios" },
+      { id: "c3-3", title: "Take timed mock exams" },
+    );
+    const text = `Draft for ${item.id}: failed, then saved once back online.`;
+    await gotoReady(page, "/certs");
+    const row = page.locator(`#item-${item.id}`);
+    await clearNote(page, row, item.title);
+
+    const restore = await failSaves(page, "/certs");
+    await row.getByRole("button", { name: "Add note" }).click();
+    await row.getByRole("textbox", { name: `Note for ${item.title}` }).fill(text);
+    await page.keyboard.press("Escape");
+    await expect(shownLine(row, "Not saved.")).toBeVisible();
+    // Focus on Try again when it goes away (offline): focus moves to the note button, not the page.
+    await page.keyboard.press("Tab");
+    const tryAgain = row.getByRole("button", { name: "Try again" });
+    await expect(tryAgain).toBeFocused();
+
+    await context.setOffline(true);
+    await expect(shownLine(row, WAITING_TEXT)).toBeVisible();
+    await expect(tryAgain).toHaveCount(0);
+    const edit = row.getByRole("button", { name: "Edit note" });
+    await expect(edit).toBeFocused();
+    await expect(page.getByRole("alert").filter({ hasText: SAVE_FAILED_TEXT })).toHaveCount(0);
+
+    await restore();
+    const saved = page.waitForResponse((r) => isSaveRequest(r.request()));
+    await context.setOffline(false);
+    expect((await saved).ok()).toBe(true);
+    await expect(shownLine(row, WAITING_TEXT)).toHaveCount(0);
+    await expect(shownLine(row, "Not saved.")).toHaveCount(0);
+    await expect(edit).toHaveAccessibleDescription("");
 
     await page.reload();
     await page.waitForLoadState("networkidle");
@@ -366,50 +545,61 @@ test.describe("weekly notes", () => {
   // The desktop test cuts one save on purpose, so the browser logs the failed request.
   test.use({ allowedConsoleErrors: [/Failed to load resource: net::ERR_FAILED/] });
 
-  test("save and survive a reload; Try again after a failure", async ({ page }, testInfo) => {
+  test("save and survive a reload; Try again with the keyboard after a failure", async ({ page }, testInfo) => {
     // One record shared by both projects: only the desktop run writes it.
     test.skip(isPhone(testInfo), "the weekly notes are one record; the desktop run saves them");
     await gotoReady(page, "/career");
+    const card = page.locator("#item-journal");
     const journal = page.getByRole("textbox", { name: "Weekly notes" });
     const text = "Week of 30 Nov: finished Phase 1. Next: the retrieval prototype.";
     await journal.fill(text);
-    await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+    await expect(announced(card)).toHaveText("Saved");
 
     await page.reload();
     await page.waitForLoadState("networkidle");
     await expect(journal).toHaveValue(text);
 
-    // A failed save: Try again moves focus to the textarea first (the button goes away).
+    // A failed save, with focus still in the textarea: Tab reaches Try again (the blur doesn't
+    // save again and remove it), and Enter saves with focus back in the textarea.
     const restore = await failSaves(page, "/career");
     await journal.fill(`${text} Draft while saves fail.`);
-    await journal.blur();
-    const tryAgain = page.getByRole("button", { name: "Try again" });
-    await expect(page.getByText("Not saved.", { exact: true })).toBeVisible();
+    await expect(shownLine(card, "Not saved.")).toBeVisible();
+    await expect(journal).toBeFocused();
+    await page.keyboard.press("Tab");
+    const tryAgain = card.getByRole("button", { name: "Try again" });
+    await expect(tryAgain).toBeFocused();
     await expect(tryAgain).toHaveAccessibleDescription("Not saved.");
     expect((await tryAgain.boundingBox())?.height).toBeGreaterThanOrEqual(44);
     await restore();
-    await tryAgain.click();
+    await page.keyboard.press("Enter");
     await expect(journal).toBeFocused();
-    await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+    await expect(announced(card)).toHaveText("Saved");
 
     const cleared = page.waitForResponse((r) => isSaveRequest(r.request()));
     await journal.fill("");
     await journal.blur();
     await cleared;
-    await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+    await expect(announced(card)).toHaveText("Saved");
   });
 
-  test("stay editable offline: a change waits for the connection", async ({ page, context }) => {
+  test("stay editable offline: a change waits for the connection, and stops waiting when undone", async ({ page, context }) => {
     // Saves nothing: the text goes back to what was saved before the connection returns.
+    await page.clock.install();
     await gotoReady(page, "/career");
+    const card = page.locator("#item-journal");
     const journal = page.getByRole("textbox", { name: "Weekly notes" });
     const before = await journal.inputValue();
     await context.setOffline(true);
     await expect(journal).toBeEditable();
     await journal.fill(`${before} Offline draft.`);
-    await expect(page.getByText(WAITING_TEXT)).toBeVisible();
+    await expect(shownLine(card, WAITING_TEXT)).toBeVisible();
+    // Back to the saved text: the line goes at once. The clock is paused, so it can't be the
+    // save attempt after the typing pause that clears it.
+    await page.clock.pauseAt(Date.now() + 1_000);
     await journal.fill(before);
-    await expect(page.getByText(WAITING_TEXT)).toBeHidden();
+    await expect(shownLine(card, WAITING_TEXT)).toHaveCount(0);
+    await expect(announced(card)).toHaveText("");
+    await page.clock.resume();
     await context.setOffline(false);
     await expect(journal).toBeEditable();
     await expect(journal).toHaveValue(before);

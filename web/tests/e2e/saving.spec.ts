@@ -5,11 +5,13 @@ import { expect, test } from "./fixtures";
 import {
   SAVE_FAILED_TEXT,
   SIGNED_OUT_TEXT,
+  announced,
   failSaves,
   forProject,
   gotoReady,
   isPhone,
   replaceSessionCookie,
+  shownLine,
 } from "./helpers";
 
 /** The card's own count, read from its "N of M done" text. */
@@ -116,7 +118,8 @@ test.describe("when a save fails", () => {
     await row.getByRole("button", { name: /^(Add|Edit) note$/ }).click();
     const note = row.getByRole("textbox", { name: `Note for ${item.title}` });
     await note.fill(text);
-    await expect(row.getByText("Not saved.", { exact: true })).toBeVisible();
+    await expect(shownLine(row, "Not saved.")).toBeVisible();
+    await expect(announced(row)).toHaveText("Not saved.");
     await expect(note).toHaveValue(text);
     await expect(page.getByRole("alert").filter({ hasText: SAVE_FAILED_TEXT })).toBeVisible();
 
@@ -124,13 +127,13 @@ test.describe("when a save fails", () => {
     await row.getByRole("button", { name: "Try again" }).click();
     // Try again goes away once the save starts, so focus moves to the note button first.
     await expect(row.getByRole("button", { name: "Hide note" })).toBeFocused();
-    await expect(row.getByText("Saved", { exact: true })).toBeVisible();
+    await expect(announced(row)).toHaveText("Saved");
     await expect(page.getByRole("alert").filter({ hasText: SAVE_FAILED_TEXT })).toBeHidden();
 
     // Clean up for a retried run.
     await note.fill("");
     await note.blur();
-    await expect(row.getByText("Saved", { exact: true })).toBeVisible();
+    await expect(announced(row)).toHaveText("Saved");
   });
 });
 
@@ -203,7 +206,7 @@ test.describe("signed out while using the app", () => {
     await note.focus();
     await page.keyboard.press("Escape");
     await expect(row.getByText("Typed after the sign-in ended.")).toBeVisible();
-    await expect(row.getByText("Not saved.", { exact: true })).toBeVisible();
+    await expect(shownLine(row, "Not saved.")).toBeVisible();
     await expect(row.getByRole("button", { name: "Try again" })).toHaveCount(0);
   });
 });

@@ -1,4 +1,4 @@
-import { type Page, type TestInfo, expect } from "@playwright/test";
+import { type Locator, type Page, type TestInfo, expect } from "@playwright/test";
 import { SESSION_COOKIE } from "./auth";
 
 /** Open a page and wait until it is interactive (hydrated), so typing and toggles are not lost. */
@@ -26,6 +26,19 @@ export const WAITING_TEXT = "Not saved yet. Saves when you're back online.";
 /** Made-up example note from the design spec. */
 export const EXAMPLE_NOTE = "Finished the quickstart. Next: try hybrid search on the sample set.";
 export const EXAMPLE_LINK = "https://example.com/demo";
+
+/**
+ * What a note area (a row's note, or the weekly notes) announces: its live region, which is
+ * visually hidden and holds "Saved", "Not saved.", "Not saved yet…" and field problems.
+ */
+export const announced = (scope: Locator) => scope.getByRole("status");
+
+/**
+ * A status line as shown on screen, matched exactly. Its words are aria-hidden (screen readers
+ * get them from `announced`), and its buttons are described by them.
+ */
+export const shownLine = (scope: Locator, text: string) =>
+  scope.locator('[aria-hidden="true"]').filter({ hasText: new RegExp(`^${text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`) });
 
 /** Make every Server Action request on `path` fail, as a dropped connection would. Returns the undo. */
 export async function failSaves(page: Page, path: string): Promise<() => Promise<void>> {

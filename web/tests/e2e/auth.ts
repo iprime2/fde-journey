@@ -31,7 +31,11 @@ export const SPARE_SESSIONS = ["sign-out"] as const;
 export type SpareSession = (typeof SPARE_SESSIONS)[number];
 export type E2eSession = "shared" | SpareSession;
 
-/** Runs of one test (the first plus retries) that each get their own spare session. */
+/**
+ * Runs of one test (the first plus retries) that each get their own spare session. Repeats made
+ * with `--repeat-each` (local runs only) are not attempts: they would share one, so don't repeat
+ * tests that sign out.
+ */
 export const SPARE_ATTEMPTS = 3;
 
 /**
