@@ -1281,7 +1281,7 @@ export const trackerContent = {
    ]
   },
   "l1-2": {
-   "start": "Watch the 3Blue1Brown 'explained briefly' video, then read the OpenAI tokens article (it links an interactive Tokenizer you can try). The Karpathy talk ties it all together when you have an hour.",
+   "start": "Watch the 3Blue1Brown 'explained briefly' video, then read the OpenAI tokens article (it links an interactive Tokenizer you can try). For how a transformer works inside, watch 3Blue1Brown chapters 5 and 6 and play with the Transformer Explainer; read Prefill vs decode for inference. Then do the LLM settings lab. The Karpathy talk ties it all together when you have an hour.",
    "items": [
     {
      "title": "Large Language Models, Explained Briefly",
@@ -1327,6 +1327,60 @@ export const trackerContent = {
      "length": "~1 h",
      "level": "beginner",
      "why": "General-audience tour of how LLMs are trained and used; ties tokens, inference and limitations together. Conceptual, so still valid."
+    },
+    {
+     "title": "Transformers, the tech behind LLMs (Deep Learning, chapter 5)",
+     "url": "https://www.3blue1brown.com/lessons/gpt",
+     "by": "3Blue1Brown (Grant Sanderson)",
+     "type": "video",
+     "length": "",
+     "level": "beginner",
+     "why": "Visual walk through a GPT-style transformer: tokens become vectors, flow through attention and feed-forward layers, and come out as next-token probabilities."
+    },
+    {
+     "title": "Attention in transformers, step-by-step (Deep Learning, chapter 6)",
+     "url": "https://www.3blue1brown.com/lessons/attention",
+     "by": "3Blue1Brown (Grant Sanderson)",
+     "type": "video",
+     "length": "~26 min",
+     "level": "intermediate",
+     "why": "How attention lets each token look at the others (queries, keys and values), the core mechanism inside every transformer."
+    },
+    {
+     "title": "Transformer Explainer",
+     "url": "https://poloclub.github.io/transformer-explainer/",
+     "by": "Polo Club, Georgia Tech",
+     "type": "interactive",
+     "length": "",
+     "level": "beginner",
+     "why": "Runs GPT-2 in your browser: type a sentence and watch it pass through each layer to the next-token probabilities. Makes the videos concrete."
+    },
+    {
+     "title": "The Illustrated Transformer",
+     "url": "https://jalammar.github.io/illustrated-transformer/",
+     "by": "Jay Alammar (2018)",
+     "type": "article",
+     "length": "",
+     "level": "intermediate",
+     "why": "The classic diagram-by-diagram walk through the original transformer paper. Read it after the videos to fix the vocabulary."
+    },
+    {
+     "title": "Prefill vs decode",
+     "url": "https://redis.io/blog/prefill-vs-decode/",
+     "by": "Redis blog",
+     "type": "article",
+     "length": "",
+     "level": "intermediate",
+     "why": "Inference in two phases: prefill reads the whole prompt (it sets time to first token), decode writes one token at a time using the KV cache. Explains why long prompts and long answers cost and wait differently."
+    },
+    {
+     "title": "Hands-on lab: LLM settings experiment",
+     "url": "https://docs.ollama.com/api/openai-compatibility",
+     "by": "Ollama docs (run a model locally)",
+     "type": "docs",
+     "length": "~1 h",
+     "level": "beginner",
+     "why": "Run one prompt on a local open-weight model with a fixed seed while changing one setting at a time: temperature, top_p, max_tokens, stop, frequency_penalty, presence_penalty. Free, and current hosted frontier models no longer accept most of these settings."
     }
    ]
   },
