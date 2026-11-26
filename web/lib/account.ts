@@ -31,7 +31,8 @@ export function initials(name: string | null | undefined): string {
   const letters = (name ?? "").trim().split(/\s+/).map(firstLetter).filter(Boolean);
   if (letters.length === 0) return "";
   const picked = letters.length === 1 ? letters : [letters[0], letters[letters.length - 1]];
-  return picked.join("").toLocaleUpperCase();
+  // A fixed locale, so the letters never depend on the server's language settings.
+  return picked.join("").toLocaleUpperCase("en");
 }
 
 /**

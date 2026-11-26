@@ -41,6 +41,11 @@ export function Avatar({
           decoding="async"
           referrerPolicy="no-referrer"
           onError={() => setFailed(src)}
+          // The image arrives with the server's HTML, so it can fail before React is listening;
+          // on mount, treat an image that already finished with no pixels as failed.
+          ref={(img) => {
+            if (img?.complete && img.naturalWidth === 0) setFailed(src);
+          }}
           className="absolute inset-0 size-full object-cover"
         />
       )}

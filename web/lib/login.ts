@@ -59,7 +59,11 @@ export function parseLoginParams(params: Params): { next: string; notice: LoginN
 /** Who may sign in (design spec 8). Only the access line and the not-allowed error depend on it. */
 export type AccessMode = "owner-only" | "invite-only" | "open";
 
-/** The sign-up mode in force. Change this one line when sign-up opens up (M4). */
+/**
+ * The sign-up mode the sign-in page describes. This changes the wording only; it does not decide
+ * who can sign in. The real gate is ownerGate (lib/owner.ts) and isOwnerUser (lib/auth.ts): when
+ * sign-up opens up (M4), change those and this line together.
+ */
 export const ACCESS_MODE: AccessMode = "owner-only";
 
 /** Everything on the sign-in page that depends on the access mode. */

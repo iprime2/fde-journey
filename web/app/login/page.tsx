@@ -3,7 +3,7 @@ import { redirect, unstable_rethrow } from "next/navigation";
 import { Suspense, useId } from "react";
 import { signInWithGitHub } from "@/app/actions/auth";
 import { Banner } from "@/components/Banner";
-import { LogoMark } from "@/components/Brand";
+import { BrandLockup } from "@/components/Brand";
 import { CheckIcon, LockIcon } from "@/components/icons";
 import { JourneyPreview } from "@/components/JourneyPreview";
 import { SignInButton } from "@/components/SignInButton";
@@ -31,10 +31,8 @@ export default function LoginPage({ searchParams }: PageProps<"/login">) {
     >
       <div className="brand-panel mx-auto w-full max-w-[400px] lg:relative lg:m-0 lg:flex lg:min-h-dvh lg:max-w-none lg:flex-col lg:overflow-hidden lg:bg-brand-panel lg:p-[clamp(40px,4.5vw,64px)] lg:text-brand-ink lg:[--wordmark-size:20px]">
         <div className="grid gap-2 lg:relative lg:mx-auto lg:flex lg:w-full lg:max-w-[34rem] lg:flex-1 lg:flex-col lg:gap-8">
-          <div className="flex items-center gap-2.5">
-            <LogoMark className="size-7 text-accent lg:size-8 lg:text-brand-accent" />
-            <p className="type-wordmark">FDE Journey</p>
-          </div>
+          {/* 28/18 here, 32/20 on the brand panel (the panel sets --wordmark-size). */}
+          <BrandLockup markClassName="lg:size-8 lg:text-brand-accent" />
           <div className="lg:mt-auto lg:grid lg:gap-5">
             <p className="type-body max-w-[34em] text-muted short:hidden lg:type-hero lg:max-w-none lg:text-brand-ink">
               From AI engineer to Forward Deployed Engineer, one milestone at a time.

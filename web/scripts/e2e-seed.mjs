@@ -1,7 +1,8 @@
-// End-to-end tests only: creates a fresh local test database with a made-up owner ("Sam Example",
-// no avatar image, so the account menu shows the initials "SE"), the session
+// End-to-end tests only: creates a fresh local test database with a made-up owner, the session
 // every test shares, and spare sessions for tests that sign out, so Playwright can sign in without
-// GitHub. playwright.config.ts runs it right before `next start`; the browser then sends a cookie
+// GitHub. The owner is "Sam Example" (initials "SE") with a made-up GitHub avatar URL (u/0, not a
+// real account). The browser never fetches it: tests/e2e/fixtures.ts answers every request to
+// avatars.githubusercontent.com with a solid-colour PNG made in the test. playwright.config.ts runs it right before `next start`; the browser then sends a cookie
 // signed with the test run's secret.
 //
 // Nothing in the app knows about this: there is no test sign-in route or flag in production code.
@@ -10,6 +11,9 @@
 import { rmSync } from "node:fs";
 import { checkE2eSeedEnv } from "./lib/e2e-guard.mjs";
 import { openScriptDb } from "./lib/db.mjs";
+
+/** Made-up avatar URL for the test owner. u/0 is not a GitHub account; tests route it anyway. */
+const E2E_OWNER_IMAGE = "https://avatars.githubusercontent.com/u/0?v=4";
 
 const check = checkE2eSeedEnv(process.env);
 if (!check.ok) {
@@ -21,8 +25,9 @@ rmSync(check.dataDir, { recursive: true, force: true });
 const db = await openScriptDb({ kind: "pglite", dataDir: check.dataDir });
 try {
   await db.query(
-    `insert into "user" (id, name, email, email_verified, created_at, updated_at)
-     values ('e2e-owner', 'Sam Example', 'owner@example.com', true, now(), now())`,
+    `insert into "user" (id, name, email, email_verified, image, created_at, updated_at)
+     values ('e2e-owner', 'Sam Example', 'owner@example.com', true, $1, now(), now())`,
+    [E2E_OWNER_IMAGE],
   );
   await db.query(
     `insert into account (id, account_id, provider_id, user_id, created_at, updated_at)

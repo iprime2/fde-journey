@@ -76,28 +76,31 @@ export function BottomBar({ account }: { account?: React.ReactNode }) {
         }}
         className="fixed inset-x-0 bottom-[calc(64px+env(safe-area-inset-bottom))] short:bottom-[calc(48px+env(safe-area-inset-bottom))] z-40 rounded-t-lg bg-surface pr-[max(16px,env(safe-area-inset-right))] pl-[max(16px,env(safe-area-inset-left))] py-2 shadow-overlay"
       >
-        <ul>
-          {MORE.map((s) => {
-            const current = isCurrentSection(pathname, s.href);
-            return (
-              <li key={s.href}>
-                <Link
-                  href={s.href}
-                  aria-current={current ? "page" : undefined}
-                  onClick={() => close(current)}
-                  className={cn(
-                    "flex min-h-[52px] items-center gap-3 rounded-md px-3 type-body-strong",
-                    current ? "bg-accent-soft text-ink" : "text-ink hover:bg-hover",
-                  )}
-                >
-                  <s.Icon size={22} className={current ? "text-accent" : "text-muted"} />
-                  {s.label}
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-        <div className="mt-2 border-t border-line pt-2">{account}</div>
+        {/* On wider screens (tablets, phone landscape) the rows keep a readable width. */}
+        <div className="md:mx-auto md:max-w-[560px]">
+          <ul>
+            {MORE.map((s) => {
+              const current = isCurrentSection(pathname, s.href);
+              return (
+                <li key={s.href}>
+                  <Link
+                    href={s.href}
+                    aria-current={current ? "page" : undefined}
+                    onClick={() => close(current)}
+                    className={cn(
+                      "flex min-h-[52px] items-center gap-3 rounded-md px-3 type-body-strong",
+                      current ? "bg-accent-soft text-ink" : "text-ink hover:bg-hover",
+                    )}
+                  >
+                    <s.Icon size={22} className={current ? "text-accent" : "text-muted"} />
+                    {s.label}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+          <div className="mt-2 border-t border-line pt-2">{account}</div>
+        </div>
       </div>
       {/* The background runs to the screen edges; the cells stay clear of a side notch. */}
       <ul className="fixed inset-x-0 bottom-0 z-40 grid h-[calc(64px+env(safe-area-inset-bottom))] grid-cols-5 border-t border-line bg-surface pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] short:h-[calc(48px+env(safe-area-inset-bottom))]">

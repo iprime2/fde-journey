@@ -27,7 +27,7 @@ export function e2eRunSecrets(): { secret: string; token: string } {
  * every other test out with it, so it asks for a spare one instead: `test.use({ session: "sign-out" })`.
  * Add a name here for each new test that ends its session.
  */
-export const SPARE_SESSIONS = ["sign-out"] as const;
+export const SPARE_SESSIONS = ["sign-out", "signing-out"] as const;
 export type SpareSession = (typeof SPARE_SESSIONS)[number];
 export type E2eSession = "shared" | SpareSession;
 

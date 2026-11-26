@@ -22,7 +22,9 @@ test.describe("sign-in page layout", () => {
     [1920, 1080],
     [844, 390],
   ] as const) {
-    test(`fits ${width}x${height} without sideways scrolling, with the button on screen`, async ({ page }) => {
+    test(`fits ${width}x${height} without sideways scrolling, with the button on screen`, async ({ page }, testInfo) => {
+      // One project is enough: the test sets its own screen size.
+      test.skip(isPhone(testInfo), "sets its own screen size");
       await page.setViewportSize({ width, height });
       await gotoReady(page, "/login");
       await expect(pageHeading(page)).toHaveText("Sign in");

@@ -65,11 +65,12 @@ export function AccountMenu({ account }: { account: AccountView }) {
         <span className="type-body-strong min-w-0 flex-1 truncate">{account.name}</span>
         <ChevronUpIcon size={16} className={cn("flex-none text-muted", open && "rotate-180")} />
       </button>
-      {/* After the button in reading order (it shows above it): Tab from Sign out leaves the area. */}
+      {/* After the button in reading order (it shows above it): Tab from Sign out leaves the area.
+          17 px up: 8 px clear of the sidebar's divider (8 px padding plus the 1 px line below it). */}
       <div
         id={panelId}
         hidden={!open}
-        className="absolute inset-x-0 bottom-[calc(100%+8px)] z-30 rounded-lg border border-line bg-surface p-1.5 shadow-overlay"
+        className="absolute inset-x-0 bottom-[calc(100%+17px)] z-30 rounded-lg border border-line bg-surface p-1.5 shadow-overlay"
       >
         <p className="type-small mb-1 border-b border-line px-2.5 pt-1.5 pb-2 text-muted">
           Signed in with GitHub as <span className="block font-medium text-ink [overflow-wrap:anywhere]">{account.name}</span>
