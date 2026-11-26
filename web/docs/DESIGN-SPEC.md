@@ -1,7 +1,16 @@
-# FDE Journey web app: design spec (v0.3)
+# FDE Journey web app: design spec (v0.4)
 
-Status: for M1 and later. v0.1 written 2026-11-25 against `PLAN.md` v0.1, which the owner approved on 2026-11-25 (GitHub sign-in for the owner's account only; job applications are the first new section after go-live; four agents plus one skill). v0.2 written 2026-11-25 after the M1 screen review. v0.3 written 2026-11-26 after the M2 screen review.
+Status: for M1 and later. v0.1 written 2026-11-25 against `PLAN.md` v0.1, which the owner approved on 2026-11-25 (GitHub sign-in for the owner's account only; job applications are the first new section after go-live; four agents plus one skill). v0.2 written 2026-11-25 after the M1 screen review. v0.3 written 2026-11-26 after the M2 screen review. v0.4 written 2026-11-26 for D1 (design refresh), phase 1; the `/login` mockup waits for the owner's approval.
 Read with `.claude/skills/journey-app-dev/SKILL.md`. If this spec and the plan disagree, the plan wins; tell the lead.
+
+**Changes in v0.4** (D1 phase 1: logo, sign-in page, account menu, breakpoints)
+- New logo and app icon (section 9, Brand). The sidebar and the not-found page show the lockup (mark plus "FDE Journey") instead of the eyebrow and the app name.
+- `/login` redesigned (section 5): a split screen from 1024 px (brand panel plus sign-in card), a compact header above the card below 1024 px. Button "Continue with GitHub". Messages move above the button. The access line lives in one constant, so open or invite-only sign-up later changes one line (section 8).
+- New tokens: a fixed dark brand panel (`brand-*`, the same in both schemes), `radius-xl` (16 px), `shadow-raised` (light only, sign-in card only), and the type tokens `hero`, `title-lg` and `wordmark` (section 2).
+- Motion: two allowed exceptions, both only under `motion-safe`: the example path draws in once on `/login`, and a spinner turns on loading buttons (section 2.5).
+- Account area with the GitHub avatar (new Avatar and AccountMenu components, sections 3 and 4). On desktop it replaces the bare Sign out at the foot of the sidebar. On phone it sits in the More sheet, above the Sign out button.
+- Responsive rules for 320 to 1920 px and phone landscape (new section 3.4). Line lengths are now capped in `em`, not `ch`: in Inter, `65ch` measured 86 characters per line and `75ch` measured 101. Certification cards go to two columns only from 1280 px. The bottom bar pads for left and right safe areas, and gets a compact form on short landscape screens.
+- Button: the loading state keeps full opacity (section 4).
 
 **Changes in v0.3** (from the M2 screen review)
 - Closing the note editor always closes it; anything not saved stays visible in the collapsed row with its own action (NoteEditor, "Closing with unsaved changes"). The preview shows what was typed.
@@ -41,7 +50,7 @@ Read with `.claude/skills/journey-app-dev/SKILL.md`. If this spec and the plan d
 2. **Where am I, and what's next?** Home opens with the current phase, the next class and the countdown. Every section and card shows its done count.
 3. **Same tracker, new home.** Keep the teal identity, the three typefaces, the card-and-list layout and today's wording. The owner should not have to relearn anything.
 4. **Never lose work quietly.** Every save shows its status. A failed save is visible, says what to do, and keeps the text that was typed.
-5. **Calm and dense.** About 400 items live in long lists. Keep the chrome quiet: no shadows on cards, no decoration, mono type for numbers only.
+5. **Calm and dense.** About 400 items live in long lists. Keep the chrome quiet: no shadows on cards, no decoration, mono type for numbers only. The one exception is `/login`, the front door: it carries the brand (dark panel, example path, a soft card shadow in light mode) so the app reads as a product. None of that crosses into the signed-in pages.
 
 ## 2. Design tokens
 
@@ -68,6 +77,20 @@ The tracker's palette is kept. Changes: light `accent-soft` is lightened so teal
 | `danger-soft` (new) | `#fdeceb` | `#3d1915` | Error banner background |
 
 Dark mode follows the system setting (`prefers-color-scheme`). Set `color-scheme: light dark` so native controls match, and add `<meta name="theme-color">` for both schemes (`page` values).
+
+**Brand panel tokens (new in v0.4).** Used only by the `/login` brand panel from 1024 px. They have **the same value in both schemes**: the panel is always dark, in light mode too, so the mint accent always sits on dark (the research pattern "dark branding sidebar"). Nothing interactive sits on the panel; if a link is ever added there, its focus ring uses `brand-accent`.
+
+| Token | Both schemes | Role |
+|---|---|---|
+| `brand-panel` | `#0c1f1a` | Panel background (plus a decorative glow and dot grid, section 5) |
+| `brand-card` | `#12302a` | Example-path card on the panel |
+| `brand-ink` | `#e8f0ed` | Wordmark, headline, labels in the example path |
+| `brand-muted` | `#a3b8b1` | Value points, caption, percentages |
+| `brand-accent` | `#3fcfb3` | Logo mark, walked part of the path, check icons, chip text (same as dark `accent`) |
+| `brand-faint` | `#5d7c74` | Route not walked yet (dashed), upcoming node ring |
+| `brand-line` | `#2a4a42` | Example-card border (decorative) |
+
+The "Example" chip on the panel uses `brand-accent` text on `#143a32` (dark `accent-soft`).
 
 ### 2.2 Contrast
 Computed with the WCAG 2.x formula (relative luminance with sRGB linearisation, ratio = (L1 + 0.05) / (L2 + 0.05)) on 2026-11-25. Text needs 4.5:1. Field borders, tick boxes, focus rings and the progress fill need 3:1 (WCAG 1.4.11).
@@ -102,7 +125,26 @@ Computed with the WCAG 2.x formula (relative luminance with sRGB linearisation, 
 | UI | `accent` | `page` | Focus ring on the page | 4.83 | 9.57 |
 | UI | `accent` | `sunk` | Focus ring in lists, progress fill on its track | 4.52 | 8.09 |
 
-Lowest text pair: 4.52 (light `accent` on `sunk`). Lowest UI pair: 3.37 (dark `line-strong` on `sunk`). `line` on `surface` is 1.33 (light) and 1.31 (dark); it is only used for decorative dividers and must never be the only border of a control. Disabled controls are exempt from contrast rules but must still look disabled (section 4).
+Brand and logo pairs (v0.4, computed 2026-11-26 with the same formula; brand tokens are the same in both schemes, so one number):
+
+| Kind | Foreground | Background | Used for | Ratio |
+|---|---|---|---|---|
+| Text | `brand-ink` | `brand-panel` | Wordmark, headline | 14.77 |
+| Text | `brand-muted` | `brand-panel` | Value points | 8.19 |
+| Text | `brand-ink` | `brand-card` | Path labels, card title | 12.23 |
+| Text | `brand-muted` | `brand-card` | Percentages, caption | 6.78 |
+| Text | `brand-accent` | `#143a32` | "Example" chip | 6.42 |
+| UI | `brand-accent` | `brand-panel` | Logo mark, check icons | 8.79 |
+| UI | `brand-accent` | `brand-card` | Walked path, done nodes | 7.28 |
+| UI | `brand-faint` | `brand-card` | Dashed route, upcoming node (the figure is decorative and `aria-hidden`, but it still reaches 3:1) | 3.10 |
+| UI | `accent` | `page` | Logo mark on the page (light / dark) | 4.83 / 9.57 |
+| UI | `#ffffff` | `#0b7a68` | Mark on the app icon tile | 5.25 |
+| UI | `#0b7a68` | `#dee1e6` / `#202124` / `#35363a` | App icon tile on typical light and dark browser tab strips | 4.01 / 3.06 / 2.30 (the white mark carries it on the darkest strip) |
+| Text | `accent` | `accent-soft` | Avatar initials (light / dark) | 4.61 / 6.42 |
+
+`brand-line` on `brand-card` (1.46) and `brand-panel` against the dark `page` (1.09) are decorative only.
+
+Lowest text pair: 4.52 (light `accent` on `sunk`). Lowest UI pair: 3.10 (`brand-faint` on `brand-card`, decorative figure), then 3.37 (dark `line-strong` on `sunk`). `line` on `surface` is 1.33 (light) and 1.31 (dark); it is only used for decorative dividers and must never be the only border of a control. Disabled controls are exempt from contrast rules but must still look disabled (section 4).
 
 ### 2.3 Tailwind setup
 Tokens live as CSS variables, so components never need `dark:` variants for colour. Clear Tailwind's default palette so only these colours exist.
@@ -117,6 +159,10 @@ Tokens live as CSS variables, so components never need `dark:` variants for colo
   --accent:#0b7a68; --accent-hover:#096a5a; --accent-ink:#ffffff; --accent-soft:#e2f4ef;
   --warn:#9a5600; --warn-soft:#fbeed8; --danger:#b42318; --danger-soft:#fdeceb;
   --overlay-shadow: 0 8px 24px rgb(0 0 0 / 0.14);
+  --raised-shadow: 0 1px 2px rgb(16 40 34 / 0.05), 0 12px 32px rgb(16 40 34 / 0.08);   /* v0.4, sign-in card only */
+  /* v0.4 brand panel: same in both schemes, so not repeated in the dark block */
+  --brand-panel:#0c1f1a; --brand-card:#12302a; --brand-ink:#e8f0ed; --brand-muted:#a3b8b1;
+  --brand-accent:#3fcfb3; --brand-faint:#5d7c74; --brand-line:#2a4a42;
 }
 @media (prefers-color-scheme: dark) { :root {
   --page:#0e1412; --surface:#151d1a; --sunk:#1b2521; --hover:#1f2a26;
@@ -124,14 +170,17 @@ Tokens live as CSS variables, so components never need `dark:` variants for colo
   --accent:#3fcfb3; --accent-hover:#5fdcc3; --accent-ink:#06211b; --accent-soft:#143a32;
   --warn:#f0b35a; --warn-soft:#3a2b13; --danger:#ff958a; --danger-soft:#3d1915;
   --overlay-shadow: 0 8px 24px rgb(0 0 0 / 0.5);
+  --raised-shadow: none;   /* the card's border is enough on dark */
 } }
 @theme {
   --color-*: initial;   /* drop Tailwind's default palette */
   --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
   --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
-  --radius-sm: 6px; --radius-md: 10px; --radius-lg: 12px;
+  --radius-sm: 6px; --radius-md: 10px; --radius-lg: 12px; --radius-xl: 16px;
 }
+/* v0.4: add to @theme inline: --color-brand-panel … --color-brand-line (var() of each),
+   and --shadow-raised: var(--raised-shadow). */
 @theme inline {
   --color-page: var(--page); --color-surface: var(--surface); --color-sunk: var(--sunk); --color-hover: var(--hover);
   --color-ink: var(--ink); --color-muted: var(--muted); --color-line: var(--line); --color-line-strong: var(--line-strong);
@@ -162,15 +211,18 @@ Load fonts from npm in the root layout, one import per weight (`import "@fontsou
 | `label` | Mono | 12 px / 1.3, uppercase, tracking 0.08em | 600 | Eyebrow, kickers, chips, group labels, fact labels |
 | `num` | Mono, tabular figures | 13 px / 1.4 | 500 | Counts ("3/7"), date ranges, item index |
 | `num-lg` | Mono, tabular figures | 26 px / 1.2 | 600 | Tile numbers |
+| `hero` (v0.4) | Display | `clamp(2rem, 1.2rem + 1.6vw, 2.5rem)` (32 to 40 px) / 1.15, tracking -0.02em, `text-wrap: balance` | 600 | `/login` headline on the brand panel only |
+| `title-lg` (v0.4) | Display | 24 px / 1.25, tracking -0.01em | 600 | Sign-in card `h1` |
+| `wordmark` (v0.4) | Display | 18 px (below 1024 px and in the sidebar) or 20 px (brand panel) / 1, tracking -0.01em | 600 | "FDE Journey" in the lockup (section 9) |
 
-Nothing smaller than 12 px. Body text lines stay under about 75 characters (descriptions `max-w-[65ch]`; row meta and why lines `max-w-[75ch]`).
+Nothing smaller than 12 px. Body text lines stay under about 75 characters. **v0.4: cap line length in `em`, not `ch`.** Inter's "0" (what `ch` measures) is much wider than an average letter, so on 2026-11-26 `65ch` measured 86 characters per line and `75ch` measured 101. Use `max-w-[34em]` (about 73 characters at any font size) for page descriptions, card sub lines and descriptions, row meta and why lines, note previews, the "Start here" line and the Home footer note. Titles may use the full width.
 
 ### 2.5 Spacing, radius, shadow, motion, breakpoints
 - **Spacing**: Tailwind's default 4 px scale. Use 4, 8, 12, 16, 20, 24, 32, 40, 64 px only. Card padding 16 px; gap between cards 12 px; gap between page sections 20 px (phone) and 24 px (desktop).
-- **Radius**: `sm` 6 px (focus ring, skeleton blocks), `md` 10 px (fields, buttons, resource list box), `lg` 12 px (cards, tiles, panels, sheet), `full` (chips, progress bar).
-- **Shadow**: cards and tiles have none, only a 1 px `line` border. `shadow-overlay` is only for the "More" sheet and the focused SkipLink.
-- **Motion**: 150 ms ease-out for colour changes, 200 ms for caret rotation, 300 ms for progress-bar width. Nothing else moves. Colour transitions list their properties (`transition-[color,background-color,border-color]`), not Tailwind's `transition-colors`, which also animates `outline-color` and makes the focus ring fade in from the text colour. The focus ring always appears at once. Under `prefers-reduced-motion: reduce` all of it is off (use Tailwind's `motion-safe:`), including skeleton pulsing.
-- **Breakpoints**: Tailwind defaults. Below `lg` (1024 px) is the phone layout; `md` (768 px) only changes grids. Layouts must also work at 320 px with no sideways scrolling.
+- **Radius**: `sm` 6 px (focus ring, skeleton blocks), `md` 10 px (fields, buttons, resource list box), `lg` 12 px (cards, tiles, panels, sheet, account panel), `xl` 16 px (v0.4: sign-in card and example-path card only), `full` (chips, progress bar, avatar).
+- **Shadow**: cards and tiles have none, only a 1 px `line` border. `shadow-overlay` is only for the "More" sheet, the account panel (v0.4) and the focused SkipLink. `shadow-raised` (v0.4) is only for the sign-in card, and is `none` in dark mode.
+- **Motion**: 150 ms ease-out for colour changes, 200 ms for caret rotation, 300 ms for progress-bar width. v0.4 adds two exceptions, both `motion-safe` only: on `/login` the walked part of the example path draws in once (900 ms ease-out after 150 ms, `stroke-dashoffset`), and its nodes fade in (200 ms each, staggered 0.2, 0.5 and 0.9 s); a loading button shows an 18 px ring spinner (one turn per 800 ms, linear) in place of its icon. Nothing else moves. Colour transitions list their properties (`transition-[color,background-color,border-color]`), not Tailwind's `transition-colors`, which also animates `outline-color` and makes the focus ring fade in from the text colour. The focus ring always appears at once. Under `prefers-reduced-motion: reduce` all of it is off (use Tailwind's `motion-safe:`), including skeleton pulsing.
+- **Breakpoints**: Tailwind defaults. Below `lg` (1024 px) is the phone layout; `md` (768 px) and `xl` (1280 px) only change grids and gutters. Layouts must also work at 320 px with no sideways scrolling. Full table in section 3.4.
 
 ## 3. Layout
 
@@ -178,15 +230,15 @@ Nothing smaller than 12 px. Body text lines stay under about 75 characters (desc
 - Set the viewport to `viewport-fit=cover` (Next.js `viewport` export, `viewportFit: "cover"`) so the safe-area insets below work on phones with a notch.
 - No top bar. The page header is the first thing on screen; pad the top with `max(24px, env(safe-area-inset-top))`.
 - **Bottom bar**, fixed: `surface` background, 1 px `line` top border, height 64 px plus `env(safe-area-inset-bottom)`. Five equal cells: **Home, Roadmap, Reading, Scaler, More**. Each cell is a 22 px icon above a `tab-label`, the whole cell is the target (at least 48 px tall). Default colour `muted`. Current page: icon and label `accent`, a 3 px by 24 px `accent` pill above the icon, and `aria-current="page"`. Focus ring inset (`outline-offset: -2px`) so the bottom edge of the screen never clips it.
-- **More** is a button (`aria-expanded`, `aria-controls`). It opens a sheet above the bar: `surface`, `lg` top corners, `shadow-overlay`, over a scrim of `rgb(0 0 0 / 0.3)`. Rows 52 px tall: Certifications, Projects, Career, then a divider and Sign out (M2 onwards). It closes on choosing a row, on Escape and on tapping the scrim; focus goes to the first row on open and back to More on close. When the current page is in the sheet, More takes the current style.
+- **More** is a button (`aria-expanded`, `aria-controls`). It opens a sheet above the bar: `surface`, `lg` top corners, `shadow-overlay`, over a scrim of `rgb(0 0 0 / 0.3)`. Rows 52 px tall: Certifications, Projects, Career, then a divider and the account row (v0.4; it replaces the M2 Sign out row): Avatar, the name and "Signed in with GitHub", and a secondary "Sign out" button (AccountMenu, section 4). It closes on choosing a row, on Escape and on tapping the scrim; focus goes to the first row on open and back to More on close. When the current page is in the sheet, More takes the current style.
 - Side padding `max(16px, env(safe-area-inset-left/right))`. Bottom padding 24 px plus the bar height, so the last row is never hidden.
 - Set `scroll-padding-bottom: calc(64px + env(safe-area-inset-bottom) + 16px)` on `html` below `lg`, so a control reached with Tab (or scrolled to with `#item-…`) is never hidden under the bar. Without it, the M2 review found 8 of 40 Tab stops on `/roadmap` at 390 px hidden behind the bar (WCAG 2.4.11).
 
 ### 3.2 Desktop (1024 px and wider)
 - **Sidebar**, fixed on the left, 248 px wide, full height, `surface` with a 1 px `line` right border, padding 24 px by 16 px.
-  - Top: eyebrow "AI Engineering & FDE" (`label`, `accent`), app name "FDE Journey" (`title`).
+  - Top: the lockup (v0.4, section 9): the 24 px mark in `accent` and "FDE Journey" (`wordmark`, 18 px, `ink`), padding 0 12 px so it lines up with the nav labels. It replaces the eyebrow and app name; the Home page header keeps its eyebrow.
   - Nav: Home, Roadmap, Reading, Scaler course, Certifications, Projects, Career (today's tab order). Each link is 44 px tall, `md` radius, 20 px icon, label (`body-strong`) and a right-aligned count (`num`, `muted`) as on today's tabs. Hover: `hover` background. Current: `accent-soft` background, `ink` label, `accent` icon, `aria-current="page"`.
-  - Bottom, pinned: "Readiness review · N days left" (`small`, `muted`) and a ghost "Sign out" button (M2 onwards).
+  - Bottom, pinned: "Readiness review · N days left" (`small`, `muted`), then a 1 px `line` divider with 8 px above and below it, then the account button (v0.4, AccountMenu, section 4). It replaces the M2 ghost "Sign out" button.
 - **Main area**: left margin 248 px; content column at most 960 px wide, centred in the remaining space; padding 40 px top, 32 px sides, 64 px bottom.
 
 Nav counts (same as today's tabs): Roadmap = roadmap tasks done (`l` ids only); Reading = papers and books done; Scaler course = classes done; Certifications = passed of 7; Projects = complete of 3; Career = career milestones done. Home has none.
@@ -194,7 +246,7 @@ Nav counts (same as today's tabs): Roadmap = roadmap tasks done (`l` ids only); 
 Icons: one set, line style, 1.75 px stroke, always next to a visible label, `aria-hidden`. Suggested `lucide-react` (1.80.0 on npm on 2026-11-25; adding it is the lead's call): house, map, book-open, graduation-cap, award, folder-git, briefcase, ellipsis.
 
 ### 3.3 Page frame and grid
-Every page: page header, banner area, then content. Content is a single column of cards. Grids: summary tiles 2 columns below `md`, 3 columns from `md`; certification cards 1 column below `md`, 2 from `md`; current-phase panel 1 column below `md`, 2 columns (`1.1fr 1fr`) from `md`.
+Every page: page header, banner area, then content. Content is a single column of cards. Grids: summary tiles 2 columns below `md`, 3 columns from `md`; certification cards 1 column below `xl`, 2 from `xl` (v0.4, was `md`; section 3.4); current-phase panel 1 column below `md`, 2 columns (`1.1fr 1fr`) from `md`.
 
 ```
 390 px (Home)                          1280 px (Home)
@@ -217,6 +269,28 @@ Every page: page header, banner area, then content. Content is a single column o
 +--------------------------------+       248 px
 ```
 
+### 3.4 Responsive rules (v0.4)
+Checked on 2026-11-26 with screenshots of the current app at 320, 390, 844×390, 768, 1024, 1280, 1440 and 1920 px. There was no sideways scrolling at any size; the problems were line length, cramped two-column cards on tablets, and empty space on wide screens.
+
+| Width (example device) | Navigation | Content column | Side gutters | Grids and reflow | Toolbar |
+|---|---|---|---|---|---|
+| 320 (small phone) | Bottom bar | Full width | `max(16px, safe area)` | Tiles 2 columns; NowPanel 1; certification cards 1; card heads wrap the chip and count group under the title | Wraps: search on its own row, filter under it at natural width |
+| 390 (phone) | Bottom bar | Full width | `max(16px, safe area)` | As 320 | One row (search plus filter) |
+| 844×390 (phone landscape) | Bottom bar, compact when the screen is under 500 px tall (below) | Full width | `max(16px, safe area)`; the notch is on a side now, so the left and right insets matter | Tiles 3 (from `md`); NowPanel 2; certification cards 1 | One row |
+| 768 (tablet portrait) | Bottom bar. The sidebar would leave only 520 px of content | Full width, so 720 px | 24 px from `md` (was 16) | Tiles 3; NowPanel 2; **certification cards 1** (two columns gave 362 px cards: titles on three lines, chips pushed under the sub line) | One row |
+| 1024 (tablet landscape, small laptop) | **Sidebar** (248 px) from `lg` | 712 px (1024 − 248 − 2 × 32) | 32 px | As 768; certification cards still 1 (two columns would give 350 px cards) | One row |
+| 1280 (laptop) | Sidebar | 960 px, centred in the space right of the sidebar | at least 32 px | **Certification cards 2 from `xl`** (474 px each) | One row |
+| 1440 (desktop) | Sidebar | 960 px, centred | auto (about 116 px each side) | As 1280 | One row |
+| 1920 (large desktop) | Sidebar | 960 px, centred | auto (about 356 px each side) | As 1280. No two-column dashboard yet: Home fits in about 700 px and has nothing for a second column. Revisit with M5 insights (Later) | One row |
+
+- **Where the bar becomes the sidebar:** at 1024 px (`lg`), as today. Nothing changes at 768 except gutters and grids.
+- **Content width:** one 960 px cap for every signed-in page, including on very wide screens, because rows are text and a wider column only spreads the title and its note button further apart. Text inside the column is capped at `34em` (section 2.4), so a row's title can be wide but its meta lines stay readable.
+- **Cards:** always one column of cards, except tiles (2, then 3 from `md`) and certification cards (2 from `xl`). The Home NowPanel goes to 2 columns from `md`. Card heads keep the rule from section 4 (Card): the chip and count group never splits.
+- **Tables:** none today. M4 and later tables (for example job applications) become one card per row below `lg`, as sketched under Later.
+- **Phone landscape (short screens):** when `(max-height: 500px)` and below `lg`, the bottom bar is 48 px tall plus the safe area, with the icon (20 px) beside the label instead of above it. It keeps the five cells and the current-page pill (on the left of the icon). `scroll-padding-bottom` follows the shorter bar. `/login` hides its tagline at this size (section 5).
+- **Safe areas (notched phones):** keep `viewport-fit=cover`. Page and sheet padding already use `max(16px, env(safe-area-inset-*))`. **New:** the bottom bar's list gets `padding-left: env(safe-area-inset-left)` and `padding-right: env(safe-area-inset-right)`, so in landscape the first and last cells stay clear of the notch and the rounded corners; its background still runs to the edges. The More sheet and the account panel stay above the bar, so they inherit its inset.
+- **Zoom:** at 200% text zoom on a 1280 px laptop the layout behaves like 640 px (bottom bar), which is supported.
+
 ## 4. Components
 Shared rules:
 - Focus ring: `outline: 2px solid accent; outline-offset: 2px` on `:focus-visible`. Never removed, never transitioned (section 2.5). Exceptions: bottom-bar cells use `outline-offset: -2px` (section 3.1), and the Scaler card head draws the ring for its button (CollapsibleCard).
@@ -228,7 +302,7 @@ Shared rules:
 
 **SkipLink.** "Skip to content", the first focusable element on every page that has the sidebar or bottom bar; it targets `<main id="main">`. Visually hidden until focused (hidden with the `sr-only` technique, never `display: none`). When focused: fixed 12 px from the top and left, above everything (`z-50`), at least 44 px tall (`inline-flex items-center`, padding 0 16 px), `surface` background, 1 px `line-strong` border, `md` radius, `shadow-overlay`, `body-strong` in `accent`. In Tailwind, `focus:not-sr-only` resets padding to 0, so set the padding with `focus:` utilities after it. States: hidden, focused.
 
-**PageHeader.** Optional eyebrow (`label`, `accent`), `h1` (`display`), optional description (`small`, `muted`, 65ch), optional facts. The `h1` gets `tabindex="-1"` so focus can move to it after navigation, and `w-fit` so the focus ring (shown after keyboard navigation only) hugs the title instead of spanning the column. States: default only.
+**PageHeader.** Optional eyebrow (`label`, `accent`), `h1` (`display`), optional description (`small`, `muted`, `max-w-[34em]`), optional facts. The `h1` gets `tabindex="-1"` so focus can move to it after navigation, and `w-fit` so the focus ring (shown after keyboard navigation only) hugs the title instead of spanning the column. States: default only.
 
 **Facts.** A `<dl>` that wraps: `dt` in `label`/`muted`, `dd` in `small` at weight 500, `ink`. Gap 8 px by 18 px. Loading: `dd` shows "–" until the client has computed it.
 
@@ -281,7 +355,7 @@ Shared rules:
 ```
 - Grid: `[44px] [1fr] [auto]`; padding 4 px 16 px 4 px 4 px, so the box lines up with the 16 px card padding. Below `md` the grid is `[44px] [1fr]` and the note button sits under the text, left-aligned.
 - Tick box: a real `<input type="checkbox">` styled with `appearance: none`: 20 px square, 2 px `line-strong` border, 5 px radius, centred in a 44 by 44 px `<label>` cell. Checked: `accent` fill and an `accent-ink` tick. Accessible name "Mark done: {title}". It must stay visible in forced-colours mode.
-- Text column: optional index (`num`, `muted`: "M1·01", "1.", "Week of 30 Nov"), title (`body-strong`; a link when the item has a URL, `accent`, underline offset 2 px, opens in a new tab with a small "↗" and visually hidden "(opens in a new tab)"), meta (`small`, `muted`), "why" line (`small`, `muted`). Meta and why lines are capped at `max-w-[75ch]`; the title can use the full width.
+- Text column: optional index (`num`, `muted`: "M1·01", "1.", "Week of 30 Nov"), title (`body-strong`; a link when the item has a URL, `accent`, underline offset 2 px, opens in a new tab with a small "↗" and visually hidden "(opens in a new tab)"), meta (`small`, `muted`), "why" line (`small`, `muted`). Meta and why lines are capped at `max-w-[34em]` (v0.4; was `75ch`); the title can use the full width.
 - States: **default**; **done**: box checked, title `muted` with a line-through (links keep their underline); **focus**: ring around the 20 px box; **read-only** (M1, offline, signed out): box disabled. M1 has no note button (NoteButton arrives in M2); offline and signed out keep the note button enabled so notes can still be read (and, offline, written; see NoteEditor); **saving**: none for ticks (they change at once); **save failed**: the tick goes back to its saved value and a line appears under the title in `small` `danger`: "Couldn't save this tick." with a "Try again" inline text button (44 px rule). Pressing Try again moves focus to the tick box first, because the line disappears once the tick saves. Ticks never retry by themselves; **filtered out**: `hidden`.
 
 **NoteButton** (built in M2). Secondary small button: 32 px visible height inside a 44 px hit area, padding 0 12 px, `md` radius, `small` 500. Labels: "Add note" (1 px `line-strong` border, `muted` text), "Edit note" when the note or link fields hold any text, saved or not (`accent-soft` background, `accent` text, no border), "Hide note" while the editor is open. `aria-expanded`, and `aria-controls` pointing at the editor while it is open. While the collapsed row shows an unsaved line (NoteEditor), `aria-describedby` points at that line. Hover: border and text `accent`. Disabled: shared rule.
@@ -336,7 +410,45 @@ Shared rules:
 
 **Skeleton.** `sunk` blocks with `sm` radius in the shape of the content. It covers only what waits for data: the toolbar block and the cards (Home: six tiles and the panel). The page header is static, so it renders at once, with Facts showing "–" until the client has computed them. Pulses (opacity 1 to 0.6, 1.2 s) only with `motion-safe`. The wrapper has `aria-busy="true"` and a visually hidden "Loading".
 
-**Button.** 44 px tall, `md` radius, padding 0 16 px, `body-strong`. Primary: `accent` / `accent-ink`, hover `accent-hover`. Secondary: `surface`, 1 px `line-strong` border, `ink`, hover `hover`. Ghost: no border, `muted` text, hover `hover` background and `ink` text. Loading: label changes (for example "Opening GitHub…"), `aria-busy`, disabled. Disabled: shared rule.
+**Button.** 44 px tall, `md` radius, padding 0 16 px, `body-strong`. Primary: `accent` / `accent-ink`, hover `accent-hover`. Secondary: `surface`, 1 px `line-strong` border, `ink`, hover `hover`. Ghost: no border, `muted` text, hover `hover` background and `ink` text. Size `lg` (v0.4, the sign-in button only): 48 px tall, icon 20 px, gap 10 px. Loading: label changes (for example "Opening GitHub…"), `aria-busy`, disabled, but at **full opacity** with `cursor: progress` (v0.4: at 0.5 it looked broken, not busy; override the disabled look when `aria-busy` is set). Under `motion-safe` an 18 px ring spinner (2 px `currentColor` border, one side transparent) replaces the button's icon; with reduced motion the icon stays and the label alone says it is busy. Disabled: shared rule.
+
+**BrandLockup** (v0.4). The logo mark (inline mono SVG, section 9, `aria-hidden`) beside the wordmark "FDE Journey" (`wordmark`). `flex items-center`, mark 28 px with gap 10 px (`/login` below 1024 px, not found), 32 px with gap 10 px (brand panel), 24 px with gap 10 px (sidebar, wordmark 18 px). Mark colour `accent` (`brand-accent` on the panel); wordmark `ink` (`brand-ink`). The wordmark is text, a `<p>`, never the page `h1`. Not a link on `/login` (it would go to a page that sends you back); in the sidebar it is not a link either, since Home is the first nav item.
+
+**Avatar** (v0.4). A circle, 32 px, `full` radius, `accent-soft` background, a 1 px inset `line` ring (`box-shadow: inset 0 0 0 1px var(--line)`, so light photos keep an edge), `overflow: hidden`. Always `aria-hidden` with `alt=""`: wherever it appears, the name is next to it as text.
+- **Initials, always rendered underneath:** first letter of the first and last words of the name, uppercased (`toLocaleUpperCase`); one word gives one letter. Split by grapheme (`Intl.Segmenter` or `Array.from`) so accented letters and non-Latin names work. If the name has no letter or number, show a 18 px line "user" icon instead. Type: Inter 600, 13 px, `accent` on `accent-soft` (4.61 light, 6.42 dark).
+- **Photo, on top:** a plain `<img>` (decision below), `position: absolute; inset: 0; object-fit: cover`, `width` and `height` 32, `alt=""`, `decoding="async"`, `referrerPolicy="no-referrer"`. While it loads, the initials show, so there is no blank circle and no layout shift. On `error`, remove the `<img>` (client state); the initials stay.
+- **Which URL:** the `user.image` column, used only if it parses as a URL with protocol `https:` and host `avatars.githubusercontent.com`; anything else (null, another host) shows initials. Set the size with `url.searchParams.set("s", "64")` (64 = 32 px at 2x), which keeps GitHub's existing `v=4` parameter. Build the URL on the server, where the session is read.
+- **`<img>`, not `next/image` (recommended).** GitHub's avatar service already resizes (`s=64`) and caches the image, so `next/image` would add nothing but cost: it would fetch the photo through the app's own server, use the host's image-optimisation allowance, and keep a copy of a personal photo in the server's image cache. No `next.config.ts` change is needed. ESLint's `@next/next/no-img-element` rule will warn: disable it on that one line with the reason ("tiny external avatar, already sized by GitHub"). If `next/image` is ever wanted, it needs `images.remotePatterns` for hostname `avatars.githubusercontent.com`, pathname `/u/**`.
+- States: loading (initials), loaded (photo), failed or missing (initials), no letters (icon).
+- Tests and screenshots: made-up names ("Sam Example") and initials, or an abstract generated image served by the test itself; never a real photo or a real GitHub URL.
+
+**AccountMenu** (v0.4). Who is signed in, and Sign out. It reads the session, so it streams in: wrap it in `Suspense` with a skeleton of the same size (a 32 px `sunk` circle plus a 96 by 12 px `sunk` bar in a 52 px row), so nothing jumps when it arrives.
+
+*Desktop (sidebar foot).* A disclosure button and a panel, not an ARIA `menu`: with one action, the menu role's arrow-key model adds nothing, and a disclosure is announced plainly.
+```
+                        +----------------------------+
+                        | Signed in with GitHub as   |   small, muted
+                        | Sam Example                |   small 500, ink, wraps
+                        |----------------------------|
+                        | [->] Sign out              |   44 px row
+                        +----------------------------+
+ Readiness review · 81 days left
+ --------------------------------
+ (SE) Sam Example              ^                        52 px account button
+```
+- Button: full width of the sidebar's inner column, at least 52 px tall, `md` radius, padding 0 10 px, gap 10 px: Avatar, the name (`body-strong`, one line, `truncate`), and a 16 px chevron-up icon (`muted`, decorative; it points down while open). `type="button"`, `aria-expanded`, `aria-controls` = the panel id, and `aria-label="Account: {name}"` (it contains the visible name, so speech input works). Hover and open: `hover` background. Focus: shared ring.
+- Truncation needs room to shrink: the foot's grid column must be `minmax(0, 1fr)` and the name `min-w-0 flex-1`. Without it the button grows past the 248 px sidebar (seen in the mockup). The full name shows in the panel and in the accessible name.
+- Panel: opens above the button with an 8 px gap, as wide as the button, `surface`, 1 px `line` border, `lg` radius, `shadow-overlay`, padding 6 px, `z-30`. Content: "Signed in with GitHub as" (`small`, `muted`) with the name under it (`small` 500, `ink`, `overflow-wrap: anywhere`), padding 6 px 10 px 8 px, a 1 px `line` divider, then a "Sign out" row: a submit button for the existing sign-out action, 44 px tall, `md` radius, padding 0 10 px, 20 px log-out icon (`muted`) and `body-strong` label, hover `hover`.
+- Behaviour: opening moves focus to Sign out. Escape closes and returns focus to the account button. A click outside, or Tab moving focus out of the panel, closes it (as the More sheet does). While signing out: the row reads "Signing out…", `aria-busy`, disabled, full opacity.
+- States: default, hover, focus, open, signing out, loading (skeleton). Signed out never shows: those pages redirect to `/login`.
+
+*Phone (More sheet).* Chosen over a header avatar: the More sheet already holds Sign out, and a header avatar would add chrome to every page and need a second menu. The account row sits under the divider, after Career:
+```
+ (avatar) Sam Example                      [ -> Sign out ]
+          Signed in with GitHub
+```
+- Row at least 60 px tall, padding 8 px 4 px 8 px 12 px, gap 12 px: Avatar (32 px), a text column (name in `body-strong`, up to two lines then an ellipsis with `line-clamp-2`, because a phone has no hover to reveal more; "Signed in with GitHub" in `small` `muted`), then a secondary Button "Sign out" (44 px, 18 px log-out icon, natural width).
+- The row itself is not interactive; only the button is. Focus order: Certifications, Projects, Career, Sign out. The sheet's existing rules (focus to the first row on open, Escape, scrim) are unchanged. Signing out: the button reads "Signing out…" (Button loading).
 
 **GroupLabel.** `label`, `muted`, 8 px top margin ("Core modules", "Elective modules"). Hidden when nothing under it matches the filter.
 
@@ -345,6 +457,26 @@ Shared rules:
 **JournalEditor** (Weekly notes on Career). Card head "Weekly notes" with its sub line; one textarea (min 160 px) labelled by the card heading; status line, announcements, offline and read-only behaviour as in NoteEditor (the status line is in the DOM from page load). It never closes, so there is no collapsed state. Try again moves focus to the textarea first.
 
 **SignInCard** (`/login`). See section 5.
+
+**JourneyPreview** (v0.4, `/login` brand panel from 1024 px). A decorative "example path" card: `<figure aria-hidden="true">`, `brand-card` background, 1 px `brand-line` border, `xl` radius, padding 18 px 20 px 16 px, max width 30 rem. Head: "Example path" (Display 600, 15 px, `brand-ink`) and the "Example" chip (StatusChip shape, `brand-accent` on `#143a32`). Then the SVG below, at 100% width. Then the caption "Illustration only. Your own progress shows after you sign in." (`small`, `brand-muted`), so nobody takes the numbers for real progress. The stages and percentages are fixed, made-up and generic; never fill them from the database. Motion as in section 2.5; the screenshot and reduced-motion state is the fully drawn path.
+```svg
+<svg viewBox="0 0 480 196" font-family="Inter, system-ui, sans-serif">
+  <!-- whole route, dashed -->
+  <path d="M20 170C70 166 92 150 128 142S200 112 240 102 312 74 348 64 420 38 452 30"
+        fill="none" stroke="var(--brand-faint)" stroke-width="2" stroke-dasharray="2 6" stroke-linecap="round"/>
+  <!-- walked part: draws in (pathLength about 260) -->
+  <path d="M20 170C70 166 92 150 128 142S200 112 240 102"
+        fill="none" stroke="var(--brand-accent)" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="20" cy="170" r="7" fill="var(--brand-accent)"/>                 <!-- done -->
+  <circle cx="128" cy="142" r="7" fill="var(--brand-accent)"/>                <!-- done -->
+  <circle cx="240" cy="102" r="14" fill="var(--brand-accent)" opacity=".18"/> <!-- current: halo -->
+  <circle cx="240" cy="102" r="7" fill="var(--brand-card)" stroke="var(--brand-accent)" stroke-width="3"/>
+  <circle cx="348" cy="64" r="6" fill="var(--brand-card)" stroke="var(--brand-faint)" stroke-width="2"/> <!-- upcoming -->
+  <path d="M452 16l2.9 6.6 6.6 2.9-6.6 2.9L452 35l-2.9-6.6-6.6-2.9 6.6-2.9z" fill="var(--brand-accent)"/> <!-- the logo's spark -->
+  <!-- labels: 13 px Inter 500 brand-ink; percentage as a tspan dx="6", JetBrains Mono 500 12 px brand-muted -->
+  Foundations 100% at (34,190) · Retrieval 100% at (142,166) · Agents 60% at (258,126) · Evals 0% at (362,88) · Ship at (440,56), text-anchor end
+</svg>
+```
 
 ## 5. Pages
 Each page has its own `<title>`: "{Page} · FDE Journey" ("FDE Journey" on Home). Order is the same at 390 px and 1280 px unless stated; at 390 px everything is one column.
@@ -378,7 +510,7 @@ Next class (Mon, Wed and Fri, 09:00 to 11:30 IST): "In class now (until 11:30 IS
 **`/certs`**
 1. PageHeader: `h1` "Certifications"; description "In the order to take them. A certification counts as passed when its last step is ticked."
 2. Banners. 3. Toolbar.
-4. Cards in rank order (today's `CERT_ORDER`), 1 column at 390 px, 2 columns at 1280 px. Head: `h2` name, sub "{date} · {status}", StatusChip, Count; description; step rows without meta.
+4. Cards in rank order (today's `CERT_ORDER`), 1 column below 1280 px, 2 columns from 1280 px (`xl`). Head: `h2` name, sub "{date} · {status}", StatusChip, Count; description; step rows without meta.
 
 **`/projects`**
 1. PageHeader: `h1` "Projects"; description "Three portfolio projects. A project is complete when every step is ticked."
@@ -391,16 +523,58 @@ Next class (Mon, Wed and Fri, 09:00 to 11:30 IST): "In class now (until 11:30 IS
 4. Card "Career milestones" (sub "Apply while learning; don't wait for every certification.", Count): rows with meta "{date} · {description}".
 5. JournalEditor card "Weekly notes" (sub "Blockers, next actions, exam dates, weekly reflections."). It shows under the filters "All items" and "With notes" only, as today.
 
-**`/login`** (no sidebar or bottom bar)
-- One centred column, max 400 px; 64 px from the top on a phone, vertically centred on desktop.
-- Eyebrow "AI Engineering & FDE", `h1` "FDE Journey", text "A private tracker for an AI engineering and Forward Deployed Engineer (FDE) learning journey. Only the owner's GitHub account can sign in."
-- Primary button, full width: GitHub mark plus "Sign in with GitHub". Loading: "Opening GitHub…", `aria-busy`, disabled. While the part of the page that reads the address streams in, the button shows disabled with no message (a split second).
-- Banner area under the button for the messages in section 8: `?error=not_owner` gives the "not allowed" error; any other `?error=` gives "Sign-in didn't finish. Try again."; `?status=signed-out` gives the info banner "You're signed out.".
-- M1 only (removed in M2): the button is disabled, an info banner says "Sign-in isn't available yet. It comes with saving progress.", and a secondary "Go to Home" link-button sits under the banner, so the page is not a dead end.
+**`/login`** (no sidebar, bottom bar or skip link; `<title>` "Sign in · FDE Journey"). Redesigned in v0.4. A static mockup with screenshots exists for the owner's review (the lead has the paths); build only after approval.
+
+One DOM for every size; CSS changes how the brand part looks. No text is duplicated between phone and desktop.
+```
+<main id="main" class="login">
+  <div class="brand">                         compact header < 1024 px; dark panel >= 1024 px
+    BrandLockup                               <p> wordmark, not a heading
+    <div class="pitch">
+      <p class="statement">                   tagline (phone) / hero headline (panel)
+      <ul class="points">                     panel only
+    <figure aria-hidden="true">               JourneyPreview, panel only
+  <div class="side">
+    <div class="card">                        SignInCard
+      <h1>Sign in</h1>
+      <p class="sub">                          muted
+      <p id="access" class="access">          lock icon + access line (section 8)
+      [message banner, only when there is one]
+      <form><button aria-describedby="access">Continue with GitHub</button></form>
+      <p class="fine">                         what GitHub shares
+```
+
+*Below 1024 px (320, 390, 768, phone landscape).* One column, max 400 px, centred. Page `page` background.
+1. BrandLockup (mark 28 px, `wordmark` 18 px).
+2. Tagline, 8 px below: "From AI engineer to Forward Deployed Engineer, one milestone at a time." (`body`, `muted`, `max-w-[34em]`).
+3. SignInCard, 24 px below.
+- Padding: top `max(32px, env(safe-area-inset-top))` (64 px from `md`), sides `max(16px, env(safe-area-inset-left/right))`, bottom 40 px. The card is 288 px wide at 320, and nothing scrolls sideways at any width (checked in the mockup at 320, 390, 768 and 844×390).
+- Short landscape (`max-height: 500px`): hide the tagline and use 24 px top padding, so the card starts at about y = 90 on an 844×390 screen instead of y = 139, and the button is fully on screen without scrolling.
+- The points and the JourneyPreview are `display: none` here (not just visually hidden: they are decoration, and the figure is `aria-hidden` anyway).
+
+*1024 px and wider.* Equal split: `grid-template-columns: minmax(0,1fr) minmax(0,1fr)`, at least `100dvh` tall.
+- **Brand panel (left):** `brand-panel` background, padding `clamp(40px, 4.5vw, 64px)`. Decoration, behind the content and `pointer-events: none`: a radial glow (`radial-gradient(60% 50% at 15% 0%, rgb(63 207 179 / .18), transparent 70%)`) and a 24 px dot grid (`rgb(232 240 237 / .09)` 1 px dots), both faded out towards the bottom with a mask (`linear-gradient(to bottom, #000 30%, transparent 95%)`). Content sits in one column, `width: 100%; max-width: 34rem; margin-inline: auto` (so at 1920 px it is centred in the 960 px panel, not stuck to its left edge), flex column with 32 px gaps:
+  1. BrandLockup (mark 32 px, `wordmark` 20 px, `brand-ink`, mark `brand-accent`).
+  2. Pitch (`margin-top: auto`): the statement in `hero` (`brand-ink`), then 20 px below, three points (`body`, `brand-muted`, 10 px apart, each with an 18 px check icon in `brand-accent`): "Roadmap, classes and certifications in one place", "A note and a link on every step", "Made for your phone and your laptop".
+  3. JourneyPreview (`margin-bottom: auto`), so the pitch and the preview sit together in the middle of the panel, under the lockup.
+- **Sign-in side (right):** `page` background. `position: sticky; top: 0; height: 100dvh; display: grid; place-items: center; padding: 48px 32px`, so the card stays centred in the window even if the panel is taller than the screen (for example 1024×600).
+- Measured in the mockup: card top at 201 px (1024×768), 267 px (1440×900) and 357 px (1920×1080); the panel content fits in 768 px of height.
+
+*SignInCard.* `surface`, 1 px `line` border, `xl` radius, `shadow-raised` (light only), padding 24 px below 1024 px and 32 px from 1024 px, full width up to 400 px, grid with 16 px gaps.
+1. `h1` "Sign in" (`title-lg`).
+2. Sub line, 6 px under the heading (a −10 px top margin on the 16 px gap): "Pick up where you left off." (`body`, `muted`).
+3. Access line: `small`, `muted` on `sunk`, `md` radius, padding 10 px 12 px, a 16 px lock icon (decorative) and the text from the `ACCESS_NOTE` constant (section 8). It has an `id`; the button's `aria-describedby` points at it, so screen readers hear the rule with the button.
+4. Message banner (section 4, Banner), **above the button** (v0.4; it was under it), so the problem is read before the action and stays in view on a phone. Render nothing when there is no message (no empty grid cell, or the gap doubles). `?error=not_owner` gives the "not allowed" error; any other `?error=` gives "Sign-in didn't finish. Try again."; `?status=signed-out` gives the info banner "You're signed out.".
+5. Primary Button, size `lg`, full width: the GitHub mark (20 px) and "Continue with GitHub". "Continue" works for signing in today and for a first sign-in once others can join. Loading: "Opening GitHub…" (Button, loading). While the part of the page that reads the address streams in, the button shows disabled at 0.5 with no message (a split second).
+6. Fine print under a 1 px `line` divider (padding-top 14 px): "GitHub shares your profile and email address with FDE Journey. It can't post or change anything on GitHub." (`small`, `muted`). This matches Better Auth's default GitHub scopes, `read:user` and `user:email`, which are read-only (checked in `@better-auth/core` on 2026-11-26; `lib/auth.ts` adds no scopes). If scopes are ever added, update this line.
+
+*Light and dark.* The brand panel is dark in both schemes; the right side and the card follow the scheme. In dark mode the card has no shadow, and the panel is told apart from the page by its glow and its slightly greener tone.
+
+*Focus.* Tab order: the GitHub button, then nothing else (the panel has no controls). Focus ring: the shared 2 px `accent` ring (5.25:1 on light `surface`, 8.82:1 on dark). No focus is moved on load, even with an error: the error banner is `role="alert"`, and it is the first thing after the access line.
 
 **Not found** (`not-found.tsx`; no sidebar or bottom bar; `<title>` "Page not found · FDE Journey")
-- The `/login` layout: one centred column, max 400 px.
-- Eyebrow "AI Engineering & FDE" (`label`, `accent`) and the app name "FDE Journey" (`title`, a paragraph, not a heading), so the owner can tell they are still in the app.
+- One centred column, max 400 px (the phone layout of `/login`, at every width; no brand panel).
+- BrandLockup (mark 28 px, wordmark 18 px; v0.4, replacing the eyebrow and app name), so the owner can tell they are still in the app. The top-level error page uses the same header.
 - A card with `h1` "This page doesn't exist." (`title` size) and a primary "Go to Home" button.
 
 ## 6. States
@@ -409,7 +583,9 @@ Next class (Mon, Wed and Fri, 09:00 to 11:30 IST): "In class now (until 11:30 IS
 |---|---|---|---|
 | Read-only preview | M1 only | Info banner on every page: "Read-only preview. Ticks and notes can't be saved yet." | Tick boxes and weekly notes disabled; no note buttons (they arrive in M2). The first-visit banner is not shown. Search, filter, open and close, tiles and countdown work |
 | Signed out | Any page without a valid sign-in | Nothing from the page; goes straight to `/login?next={path}` | After sign-in, return to `next`. No flash of content |
-| Not the owner | Sign-in with another GitHub account | `/login` with the "not allowed" error | No account is kept for that user |
+| Not the owner | Sign-in with another GitHub account | `/login` with the "not allowed" error above the button | No account is kept for that user |
+| Signing in (v0.4) | After pressing "Continue with GitHub" | "Opening GitHub…" with a spinner (motion-safe), full opacity | Button disabled and `aria-busy` until the browser leaves for GitHub |
+| Avatar missing or broken (v0.4) | `user.image` empty, not a GitHub avatar URL, or fails to load | Initials on `accent-soft` (Avatar) | No error shown; nothing to fix for the owner |
 | Signed out while using | A save is refused for sign-in reasons | Error banner with a "Sign in" link | Write controls disabled; note fields read-only but readable (NoteEditor), so typed text can be copied before leaving. Typed note text stays in place until the page is left |
 | First visit, no progress | No progress saved yet | Zeros and empty bars; NowPanel shows today's phase with its first three tasks; info banner on Home only, and not while the read-only banner shows (it asks for ticks that can't be saved yet) | Banner disappears once anything is saved (based on data, not a dismiss) |
 | Loading | A page is waiting for data | The page header renders at once (facts show "–" until computed). Skeleton for the rest: toolbar block, then three cards of four rows (Home: six tiles and the panel). After 3 s add the "still loading" line | Navigation stays usable. The free database sleeps after 5 idle minutes, so the first load can be slow |
@@ -429,7 +605,8 @@ The conventions checklist, applied:
 | Full keyboard use | SkipLink "Skip to content" first on every page, at least 44 px tall when focused. Tab order follows reading order; in a row: tick, title link, note button, note link, Learning resources. Space ticks; Enter and Space open and close disclosure buttons; Escape closes the More sheet and the note editor (focus back to the note button). After client navigation, focus moves to the page `h1`. After "Clear search and filter", focus moves to the search field. After Try again: tick line to the tick box, note to the note button, Weekly notes to its textarea. Focus never falls to the page body |
 | Labelled controls | Tick boxes "Mark done: {title}" (contains the visible title). Search, filter, note and link fields have labels (visually hidden is fine). Icon-only controls do not exist; bottom-bar icons sit above visible labels |
 | Touch targets at least 44 px | Applies to controls: tick cell 44 by 44; note button, disclosure buttons, fields, select, buttons, inline text buttons (Try again, Fix link, Fix note), nav links, skip link 44 px; Scaler card heads 56 px; bottom-bar cells 48 px; More sheet rows 52 px. Text links in rows and sentences follow WCAG 2.5.8 (24 px, or spaced so a 24 px circle on each does not overlap another target); one-line title links pass by spacing |
-| Reduced motion | All transitions and the skeleton pulse are off under `prefers-reduced-motion` |
+| Reduced motion | All transitions and the skeleton pulse are off under `prefers-reduced-motion`. So are the v0.4 `/login` path draw-in (shown fully drawn) and the button spinner (the icon stays) |
+| Brand and account (v0.4) | Logo marks next to the wordmark are `aria-hidden`; the wordmark is text. The JourneyPreview is `aria-hidden` (its numbers are fake and must not be read out). Avatar images have `alt=""` because the name is beside them. The account button's name is "Account: {name}"; the panel is a disclosure (`aria-expanded`, `aria-controls`), with Escape returning focus to the button. The sign-in button is described by the access line (`aria-describedby`) |
 | Structure | Landmarks: `nav` (sidebar or bottom bar, "Sections"), `main`. One `h1` per page; cards use `h2`. On Scaler the `h2` holds the disclosure button; never put a heading inside a `<summary>`. `<html lang="en">` |
 | Status messages | Save status, filter result count and banners are announced (`aria-live="polite"`; error banner `role="alert"`). Save status announces "Saved" and problems only, never "Saving…", and never per keystroke (saves wait for an 800 ms pause). Each "Try again" gets `aria-describedby` pointing at its message, so a list of buttons reads "Try again, Couldn't save this tick." rather than many identical "Try again". Counts read as "3 of 7 done" |
 | Not colour alone | Chips always carry text; done items have a checked box and a line-through; the current nav item also has a shape (pill or background), not just colour |
@@ -437,7 +614,7 @@ The conventions checklist, applied:
 | Links that open new tabs | Small "↗" plus visually hidden "(opens in a new tab)"; `rel="noopener noreferrer"` |
 | Errors | Field errors are linked with `aria-describedby` and say how to fix them |
 
-Each check is part of the M1 screen review at 390x844 and 1280x900, light and dark.
+Each check is part of the M1 screen review at 390x844 and 1280x900, light and dark. From D1, screen reviews also cover 320, 768, 1024, 1440 and 1920 px wide and 844×390 (phone landscape), as the plan requires.
 
 ## 8. UI copy
 
@@ -446,7 +623,7 @@ Each check is part of the M1 screen review at 390x844 and 1280x900, light and da
 2. Short. Buttons are one to three words and start with a verb: "Add note", "Try again", "Sign in with GitHub".
 3. Messages say what happened, then what to do. No blame, no "Oops", no exclamation marks, no emoji.
 4. No internal words: not "sync", "session", "database", "server", "request", "item id" or error codes. Say "saved", "signed in", "connection".
-5. Define jargon once, where it first appears: the sign-in page spells out "Forward Deployed Engineer (FDE)", so later screens can say "FDE". Course and roadmap content keeps its own wording.
+5. Define jargon once, where it first appears: the sign-in page spells out "Forward Deployed Engineer" beside the name "FDE Journey" (v0.4 tagline), so later screens can say "FDE". Course and roadmap content keeps its own wording.
 6. Dates like the tracker: "Mon 30 Nov", "24 Nov – 1 Dec 2026", "15 Feb 2027". Times in 24-hour IST: "09:00 IST". Numbers as digits.
 7. Keep the tracker's labels for anything that already exists, so the owner recognises it.
 
@@ -479,12 +656,60 @@ Each check is part of the M1 screen review at 390x844 and 1280x900, light and da
 | Offline | "You're offline. You can read and search, but changes won't save until you're back online." |
 | Back online | "Back online." |
 | Signed out while using | "You were signed out, so that change wasn't saved." Action: "Sign in". When a note or Weekly notes change is unsaved on the page: "You were signed out, so that change wasn't saved. Copy any text you typed, then sign in." (signing in leaves the page) |
-| Login: not the owner | "This GitHub account can't sign in. The app is private to its owner." |
+| Login: heading and sub line (v0.4) | "Sign in" / "Pick up where you left off." |
+| Login: tagline and headline (v0.4) | "From AI engineer to Forward Deployed Engineer, one milestone at a time." |
+| Login: value points (v0.4, panel only) | "Roadmap, classes and certifications in one place" / "A note and a link on every step" / "Made for your phone and your laptop" |
+| Login: button (v0.4) | "Continue with GitHub"; loading "Opening GitHub…" |
+| Login: fine print (v0.4) | "GitHub shares your profile and email address with FDE Journey. It can't post or change anything on GitHub." |
+| Login: example path (v0.4) | Title "Example path", chip "Example", caption "Illustration only. Your own progress shows after you sign in." |
+| Login: not the owner | "This GitHub account can't sign in. FDE Journey is private to its owner for now." (v0.4 wording; v0.3 said "The app is private to its owner.") |
 | Login: GitHub failed | "Sign-in didn't finish. Try again." |
 | Login: after sign-out | "You're signed out." |
+| Account button, accessible name (v0.4) | "Account: {name}" |
+| Account panel (v0.4) | "Signed in with GitHub as" + name; "Sign out"; while pending "Signing out…" |
+| More sheet account row (v0.4) | Name; "Signed in with GitHub"; button "Sign out" |
 | Login: M1 only (sign-in not built yet) | "Sign-in isn't available yet. It comes with saving progress." Link-button: "Go to Home" |
 | Not found | "This page doesn't exist." Button: "Go to Home" |
 | Example note in screenshots or tests | "Finished the quickstart. Next: try hybrid search on the sample set." with link "https://example.com/demo" |
+| Example account in screenshots or tests (v0.4) | Name "Sam Example" (initials "SE"); a long-name case "Samantha Example-Longname"; no image, or an abstract image the test generates |
+
+**Who can sign in: one constant (v0.4).** Keep everything that depends on the sign-up mode in one place (for example `lib/login.ts`, `ACCESS_COPY[mode]`), with the mode set in one line. Only the access line changes on the default screen; the not-allowed error changes with it. The rest of the page (heading, tagline, button, fine print) is the same in every mode.
+
+| Mode | Access line (under the sub line) | Not-allowed error (`?error=not_owner` or its later equivalent) |
+|---|---|---|
+| Owner only (now) | "Private for now: only the owner's GitHub account can sign in." | "This GitHub account can't sign in. FDE Journey is private to its owner for now." |
+| Invite only (M4, as the plan says) | "Invite only for now. Use the GitHub account your invite was sent to." | "This GitHub account doesn't have an invite yet." |
+| Open sign-up (later, not planned) | "New here? Continue with GitHub to start your own tracker." | Not needed |
+
+The invite-only wording assumes invites are tied to a GitHub account; adjust it when the M4 invite flow is designed.
+
+## 9. Brand (v0.4)
+
+**The mark.** A path that climbs through milestones and ends in a spark, drawn as a lowercase "j" for Journey: the round start node is where the path begins, the bowl is the work, the stem is the climb, and the spark at the top is the goal (it also reads as the dot of the "j" at 16 px). Built on a 32-unit grid: the J is a 4-unit stroke with round caps (`M8 21.5a7 7 0 0 0 14 0V15`), the start node a circle of radius 4 at (8, 19.5), and the spark a four-point star centred at (22, 5.5) with 5-unit arms. The gap between the spark and the stem (2.5 units) keeps them apart at 16 px. The stem sits on whole pixels at 16 and 32 px.
+
+**Files** (each has a `viewBox`, a `<title>`, and no editor metadata)
+| File | What | Size |
+|---|---|---|
+| `web/public/brand/logo-mark.svg` | Colour mark: `#0b7a68` in light, `#3fcfb3` in dark (through `prefers-color-scheme` inside the SVG, which browsers apply to SVGs shown with `<img>`). For places outside the app's CSS: README, social preview, docs | 442 bytes |
+| `web/public/brand/logo-mark-mono.svg` | One colour, `currentColor`. The source for the inline React component | 331 bytes |
+| `web/app/icon.svg` | App icon and favicon: a `#0b7a68` tile (radius 7 of 32) with the mark in white at 80% size. Next.js turns `app/icon.svg` into `<link rel="icon" type="image/svg+xml" sizes="any">` (checked in `node_modules/next/dist/docs/01-app/03-api-reference/03-file-conventions/01-metadata/app-icons.md`) | 420 bytes |
+
+**In the app,** use the mark as an inline SVG component (paths from `logo-mark-mono.svg`, `fill`/`stroke="currentColor"`, `aria-hidden`), coloured with `text-accent` (or `text-brand-accent` on the panel), so the colour tokens and dark mode drive it. Don't load the colour file with `<img>` inside the app.
+
+**Wordmark.** "FDE Journey" in Space Grotesk 600 (`wordmark`), tracking -0.01em, one colour (`ink`, or `brand-ink` on the panel). Never all caps, never in two colours, never set in another font.
+
+**Lockup.** The mark left of the wordmark, centred vertically, gap 10 px. The mark is about 1.5 times the wordmark size: 24/16, 28/18, 32/20.
+
+**Minimum size and clear space.** The bare mark down to 20 px; below that (favicons) use the tile, which is drawn for 16 px. The lockup down to a 14 px wordmark. Keep clear space of a quarter of the mark's height on every side (8 px around a 32 px mark).
+
+**Don't:** recolour it outside the tokens, add shadows or gradients, rotate or stretch it, or put the teal mark on a teal background (use the mono mark in `accent-ink` there).
+
+**Favicon and app icon.**
+- `app/icon.svg` is the favicon in current browsers and the app icon tile. It is checked at 16 and 32 px on light and dark tab strips.
+- `app/favicon.ico` is still the Next.js default "N" from the scaffold. Replace it with the matching ICO (16, 32 and 48 px, rendered from `icon.svg`) for browsers that only read `.ico`. Otherwise the two disagree.
+- Add `app/apple-icon.png`, 180 by 180, full bleed with no rounded corners and no transparency (iOS rounds it), for "Add to Home Screen".
+- The lead has candidate files for both and decides whether to add them.
+- The installable app (PWA manifest icons) comes later, with that feature.
 
 ## Later (not M1 to M3)
 
@@ -498,5 +723,12 @@ Each check is part of the M1 screen review at 390x844 and 1280x900, light and da
 - Empty: "No applications yet." Button: "Add application".
 
 **Scaler: open the new current module once.** When the course moves on to the next module, add that module to the stored open list once (and remember that it was added), so the new module is open without undoing the owner's other choices. Today, once anything is stored, the new current module stays closed until the owner opens it, as in the tracker.
+
+**From D1 (v0.4), not planned yet:**
+- `/login` offline: a warning banner "You're offline. Signing in needs a connection." and the button disabled.
+- More items in the account panel when they exist (settings, data export, the M4 privacy page).
+- A right-hand column on Home from 1440 px, once M5 gives it something to show (weekly insights); until then Home stays one 960 px column.
+- A sticky phase index beside `/roadmap` on wide screens.
+- A favicon that switches colour with the browser theme.
 
 **Other ideas, not planned:** a light, dark or system theme switch; a "Jump to current phase" link on `/roadmap`; a sticky toolbar on long pages; search across all sections; the installable phone app from the plan's list; a browser "leave page?" warning while a note change is unsaved, or keeping unsaved note text in the browser until it saves (text typed offline is lost if the page closes first); a "Go to it" action on the save-failed banner that scrolls to the first failed item.
