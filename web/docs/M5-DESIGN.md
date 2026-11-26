@@ -53,3 +53,21 @@ Insights is always shown, with no Settings switch. In the sidebar it goes right 
 ## Open for the owner (asked later, not blocking M5a)
 1. Turn on M5b: a weekly target and a personal time zone?
 2. Vercel Web Analytics (page views, no cookies) on the privacy page: yes or no?
+
+## Rules decided during the build (data layer)
+1. **Activity window:** 26 whole weeks, Monday to Sunday, ending with this week. The event query starts at 00:00 IST on the first Monday.
+2. **Hidden or locked kinds:** left out of activity and the month's note count too, not just the charts. Weekly notes (`journal`) always count. Only ids that exist in the content are counted.
+3. **Scaler:** needs to be both shown and unlocked. Locked always wins.
+4. **Done with no `done_at`, or a future one:** counts in the phase and certification totals, but in no week.
+5. **Estimates from `done_at`:** only for days before 2026-11-26 (IST). From that day on, only events count.
+6. **"Notes saved":** counts saves, not distinct notes. Edits and clearing a note both count, because the event can't tell them apart.
+7. **Pace:** the last 28 days, today included (IST).
+   - Finish date = today + ceil(remaining × 28 / recent).
+   - "On track" means the finish date is on or before the phase's end date.
+   - A finished phase shows "complete" instead of a projection.
+8. **Current phase:** chosen the same way as on Home (`pickCurrentPhase`). Outside every phase's dates, the fallback phase is shown, marked as outside its dates.
+9. **Certification target dates:** read from the content's date text.
+   - A month, a month range or a day range gives the last day named ("February–March 2027" becomes 31 Mar 2027).
+   - Text that names no date ("After joining…") shows no countdown.
+   - A test checks that every certification either parses or starts with "After".
+10. **Projects and career:** separate kinds, because each has its own section switch.

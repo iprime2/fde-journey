@@ -4,6 +4,7 @@
 // No runtime imports here: scripts/import-progress.mjs loads this file with Node's TypeScript
 // support, which can't resolve the "@/" alias. Callers pass the content in.
 import type { Course, TrackerContent } from "@/content/types";
+import type { DoneSection } from "./access-types";
 
 /** Phase number is 1-based (Phase.n); task index is 0-based. */
 export const phaseTaskId = (phaseNumber: number, taskIndex: number) => `l${phaseNumber}-${taskIndex + 1}`;
@@ -22,7 +23,29 @@ export const courseId = (index: number) => `cr${index + 1}`;
 /** Free-text weekly notes. */
 export const JOURNAL_ID = "journal";
 
-export type ItemGroup = "roadmap" | "cert" | "project" | "career" | "scaler" | "resource" | "paper" | "book" | "course";
+/**
+ * Which kind of item an id is, from its prefix and shape, or null for anything else (the journal,
+ * a malformed id). Courses (`cr1`) are tested first, before any rule on a single letter, so they
+ * can never be taken for certification steps (`c1-1`); likewise `pp` before `p`.
+ */
+const KIND_PATTERNS: readonly (readonly [RegExp, DoneSection])[] = [
+  [/^cr[1-9][0-9]*$/, "courses"],
+  [/^pp[1-9][0-9]*$/, "reading"],
+  [/^bk[1-9][0-9]*$/, "reading"],
+  [/^l[1-9][0-9]*-[1-9][0-9]*$/, "roadmap"],
+  [/^r[1-9][0-9]*-[1-9][0-9]*-[1-9][0-9]*$/, "resources"],
+  [/^s[1-9][0-9]*-[1-9][0-9]*$/, "scaler"],
+  [/^c[1-9][0-9]*-[1-9][0-9]*$/, "certs"],
+  [/^p[1-9][0-9]*-[1-9][0-9]*$/, "projects"],
+  [/^k[1-9][0-9]*$/, "career"],
+];
+
+export function itemKind(itemId: string): DoneSection | null {
+  for (const [pattern, kind] of KIND_PATTERNS) if (pattern.test(itemId)) return kind;
+  return null;
+}
+
+export type ItemGroup ="roadmap" | "cert" | "project" | "career" | "scaler" | "resource" | "paper" | "book" | "course";
 
 export interface ItemRef {
   id: string;

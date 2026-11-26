@@ -5,7 +5,7 @@
 // lib/session.ts), never from the request, and validate the input (lib/validation.ts) first.
 // tests/unit/isolation-guard.test.ts fails if a query here, or anywhere else, lacks the filter.
 import "server-only";
-import { type SQL, and, asc, eq, sql } from "drizzle-orm";
+import { type SQL, and, asc, eq, gte, sql } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { type ProgressEventKind, progress, progressEvent } from "@/db/schema";
 import type { ProgressEntry, ProgressRecord } from "./progress";
@@ -57,6 +57,39 @@ export async function readEvents(userId: string, db: Db): Promise<ProgressEvent[
     .where(eq(progressEvent.userId, userId))
     .orderBy(asc(progressEvent.at), asc(progressEvent.id));
   return rows.map((r) => ({ itemId: r.itemId, kind: r.kind, at: r.at.toISOString() }));
+}
+
+export interface InsightRows {
+  /** The user's done items: id and completion time only, never note or link text. */
+  done: { itemId: string; done: true; doneAt: string | null }[];
+  /** The user's events from `since` on, oldest first. */
+  events: ProgressEvent[];
+}
+
+/**
+ * What the Insights page needs (M5-DESIGN "Speed"): the user's done items and their events since
+ * `since` (the start of the activity window, lib/insights.ts activityWindowStart). Two queries run
+ * together, selecting only item ids, done flags and times. The event query is a range scan on the
+ * (user_id, at) index, progress_event_user_at_idx.
+ */
+export async function readInsightRows(userId: string, db: Db, since: Date): Promise<InsightRows> {
+  checkUserId(userId);
+  if (!(since instanceof Date) || Number.isNaN(since.getTime())) throw new Error("A valid start time is required for the insights query.");
+  const [doneRows, eventRows] = await Promise.all([
+    db
+      .select({ itemId: progress.itemId, doneAt: progress.doneAt })
+      .from(progress)
+      .where(and(eq(progress.userId, userId), eq(progress.done, true))),
+    db
+      .select({ itemId: progressEvent.itemId, kind: progressEvent.kind, at: progressEvent.at })
+      .from(progressEvent)
+      .where(and(eq(progressEvent.userId, userId), gte(progressEvent.at, since)))
+      .orderBy(asc(progressEvent.at), asc(progressEvent.id)),
+  ]);
+  return {
+    done: doneRows.map((r) => ({ itemId: r.itemId, done: true as const, doneAt: iso(r.doneAt) })),
+    events: eventRows.map((r) => ({ itemId: r.itemId, kind: r.kind, at: r.at.toISOString() })),
+  };
 }
 
 // ---- Saving

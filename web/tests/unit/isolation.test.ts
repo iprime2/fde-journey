@@ -8,6 +8,7 @@
 // and getProgress(), the one data function every page and the sidebar counts read through.
 // Rendering the pages themselves here isn't practical (async Server Components need Next's
 // renderer); the static guard is what keeps pages from querying the tables any other way.
+// getInsights() (the Insights page, M5a) is called here too, so its statements are checked as well.
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const request = vi.hoisted(() => ({ headers: new Headers() }));
@@ -29,7 +30,7 @@ import { asc, eq } from "drizzle-orm";
 import { saveJournal, saveLink, saveNote, toggleDone } from "@/app/actions/progress";
 import type { Db } from "@/db/client";
 import { progress, progressEvent, user } from "@/db/schema";
-import { getProgress } from "@/lib/data";
+import { getInsights, getProgress } from "@/lib/data";
 import { readEvents, readProgress, setDone, setLink, setNote } from "@/lib/progress-db";
 import { requireUser } from "@/lib/session";
 import { checkSqlText } from "./support/query-guard";
@@ -182,6 +183,41 @@ describe("reads", () => {
     expect(bEvents.every((e) => e.at === B_TIME.toISOString())).toBe(true);
   });
 
+  it("getInsights (the Insights page) counts only the signed-in user's rows and events", async () => {
+    // A has nothing yet: B's ticks, notes and links (all before the event history began, and in
+    // the 26-week window) must not show up as A's completions, activity or notes.
+    const empty = await getInsights();
+    expect(empty.hasCompletions).toBe(false);
+    expect(empty.activity.hasActivity).toBe(false);
+    expect(empty.activity.days.every((d) => d.count === 0)).toBe(true);
+    expect(empty.thisMonth).toMatchObject({ notesSaved: 0, resourcesDone: 0 });
+    expect(empty.phase.done).toBe(0);
+    expect(empty.certs.every((c) => c.done === 0)).toBe(true);
+
+    await toggleDone("l1-2", true);
+    const forA = await getInsights();
+    expect(forA.thisWeek.done).toBe(1);
+    expect(forA.weekly.reduce((n, w) => n + w.total, 0)).toBe(1);
+    expect(forA.activity.days.reduce((n, d) => n + d.count, 0)).toBe(1);
+    expect(forA.phase.done).toBe(1);
+    expect(JSON.stringify(forA)).not.toContain("B's made-up");
+
+    // B, signed in, sees B's own and not A's tick today. (The checks don't depend on the date the
+    // tests run: B_TIME's day leaves the 26-week window some day.)
+    actAs(B);
+    const forB = await getInsights();
+    const bDay = "2026-11-20"; // B_TIME in IST
+    expect(forB.thisWeek.done).toBe(0);
+    expect(forB.thisWeek.longestStreak).toBe(1);
+    expect(forB.activity.days.find((d) => d.date === forA.today)?.count).toBe(0);
+    if (forB.activity.windowStart <= bDay) {
+      // 13 saves (4 ticks, 4 notes, 4 links, weekly notes) plus the 4 completions, as that day is
+      // before the event history began.
+      expect(forB.activity.days.find((d) => d.date === bDay)?.count).toBe(17);
+      expect(forA.activity.days.find((d) => d.date === bDay)?.count).toBe(0);
+    }
+  });
+
   it("refuses to run without a user id", async () => {
     for (const bad of ["", undefined, null]) {
       await expect(readProgress(bad as unknown as string, db)).rejects.toThrow("A user id is required");
@@ -206,6 +242,9 @@ describe("every statement the app sent on progress or progress_event", () => {
     const touching = statements.filter((s) => /\b(from|into|update|join)\s+"?progress(_event)?"?(?![\w."])/i.test(s));
     // Reads, upserts with events, read-backs and the test's own scoped selects.
     expect(touching.length).toBeGreaterThan(50);
+    // getInsights' two reads (done items; events in the 26-week window) were among them.
+    expect(touching.some((s) => s.startsWith(`select "item_id", "done_at" from "progress" where`))).toBe(true);
+    expect(touching.some((s) => s.startsWith(`select "item_id", "kind", "at" from "progress_event" where`) && s.includes(`"at" >= $2`))).toBe(true);
     const unscoped = touching.filter((s) => checkSqlText(s).length > 0);
     // The test support's emptyDb() deletes everything between tests; nothing else may be unscoped.
     expect(unscoped.filter((s) => !/^delete from "progress(_event)?"$/.test(s.trim()))).toEqual([]);

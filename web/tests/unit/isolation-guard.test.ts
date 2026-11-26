@@ -76,7 +76,7 @@ describe("every query on progress and progress_event is scoped to a user", () =>
 
   it("would object if a filter were removed from the data layer (so it isn't passing vacuously)", () => {
     const dataLayer = readFileSync(path.join(WEB, "lib/progress-db.ts"), "utf8");
-    expect(dataLayer.match(/\.from\((progress|progressEvent)\)/g)?.length).toBeGreaterThanOrEqual(3);
+    expect(dataLayer.match(/\.from\((progress|progressEvent)\)/g)?.length).toBeGreaterThanOrEqual(5);
     const broken = dataLayer.replace(".where(eq(progress.userId, userId));", ";");
     expect(broken).not.toBe(dataLayer);
     expect(problems("lib/progress-db.ts", broken)).toEqual(["from(progress) needs one where() with eq(progress.userId, userId) at its top level"]);
@@ -84,6 +84,28 @@ describe("every query on progress and progress_event is scoped to a user", () =>
     const brokenImport = importCore.replace("where user_id = $1 and item_id = any($2::text[])", "where item_id = any($2::text[])");
     expect(brokenImport).not.toBe(importCore);
     expect(problems("scripts/lib/import-core.mjs", brokenImport)).toContain("from progress without a top-level user_id = $n condition");
+  });
+
+  it("covers the Insights queries (M5a): removing or weakening their user filter is caught", () => {
+    const dataLayer = readFileSync(path.join(WEB, "lib/progress-db.ts"), "utf8");
+    const doneFilter = ".where(and(eq(progress.userId, userId), eq(progress.done, true)))";
+    const eventFilter = ".where(and(eq(progressEvent.userId, userId), gte(progressEvent.at, since)))";
+    expect(dataLayer).toContain(doneFilter);
+    expect(dataLayer).toContain(eventFilter);
+    const probes: [string, string, string][] = [
+      [doneFilter, ".where(eq(progress.done, true))", "from(progress) needs one where() with eq(progress.userId, userId) at its top level"],
+      [eventFilter, ".where(gte(progressEvent.at, since))", "from(progressEvent) needs one where() with eq(progressEvent.userId, userId) at its top level"],
+      [eventFilter, ".where(or(eq(progressEvent.userId, userId), gte(progressEvent.at, since)))", "from(progressEvent) needs one where() with eq(progressEvent.userId, userId) at its top level"],
+      [eventFilter, "", "from(progressEvent) needs one where() with eq(progressEvent.userId, userId) at its top level"],
+    ];
+    for (const [from, to, problem] of probes) {
+      const broken = dataLayer.replace(from, to);
+      expect(broken).not.toBe(dataLayer);
+      expect(problems("lib/progress-db.ts", broken)).toEqual([problem]);
+    }
+    // The page read must go through the data layer: the same query anywhere else is refused.
+    const elsewhere = `import { progressEvent } from "@/db/schema";\nexport async function getInsights(userId: string, db: Db) { return db.select().from(progressEvent).where(eq(progressEvent.userId, userId)); }`;
+    expect(problems("lib/data.ts", elsewhere).some((p) => p.startsWith("imports the progressEvent table"))).toBe(true);
   });
 
   it("the database's relational API can't reach the per-user tables at all", async () => {
