@@ -14,6 +14,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getAuth } from "@/lib/auth";
 import { SIGNED_OUT_STATUS, loginHref, safeNextPath } from "@/lib/login";
+import { describeError, rethrowNextControl } from "@/lib/safe-log";
 import { getOwnerSession } from "@/lib/session";
 
 export async function signInWithGitHub(formData: FormData): Promise<void> {
@@ -39,8 +40,10 @@ export async function signOut(): Promise<void> {
   try {
     const auth = await getAuth();
     await auth.api.signOut({ headers: await headers() });
-  } catch {
-    // No session (already signed out) or the database is unreachable: still leave the app.
+  } catch (error) {
+    // The database is unreachable, say: still leave the app (the cookie is cleared or expires).
+    rethrowNextControl(error);
+    console.error(`Sign-out failed (${describeError(error)})`);
   }
   redirect(`/login?status=${SIGNED_OUT_STATUS}`);
 }
@@ -58,7 +61,9 @@ export async function refreshSession(): Promise<{ ok: boolean }> {
     const auth = await getAuth();
     const result = await auth.api.getSession({ headers: await headers(), query: { disableCookieCache: true } });
     return { ok: result !== null };
-  } catch {
+  } catch (error) {
+    rethrowNextControl(error);
+    console.error(`Session renewal failed (${describeError(error)})`);
     return { ok: false };
   }
 }

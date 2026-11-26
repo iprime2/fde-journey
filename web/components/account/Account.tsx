@@ -2,9 +2,9 @@
 // Components: they read the session (lib/session.ts) and build the avatar URL here, on the
 // server, so nothing from the browser decides which image loads. Render each inside <Suspense>
 // with its skeleton (design spec 4, AccountMenu).
-import { unstable_rethrow } from "next/navigation";
 import { signOut } from "@/app/actions/auth";
 import { type AccountView, accountView } from "@/lib/account";
+import { describeError, rethrowNextControl } from "@/lib/safe-log";
 import { getOwnerSession } from "@/lib/session";
 import { AccountMenu } from "./AccountMenu";
 import { Avatar } from "./Avatar";
@@ -13,14 +13,16 @@ import { SignOutButton } from "./SignOutButton";
 /**
  * The owner's account, or null when it can't be read. Signed-out visitors never get here (the
  * page sends them to /login); if the session check itself fails, a plain Sign out still shows.
+ * Next's own control errors (a redirect, a prerender that has completed) are not failures: they
+ * go back to Next, unlogged, even when wrapped in another error.
  */
 async function loadAccount(): Promise<AccountView | null> {
   try {
     const owner = await getOwnerSession();
     return owner ? accountView(owner) : null;
   } catch (error) {
-    unstable_rethrow(error);
-    console.error(`Account menu: session check failed (${error instanceof Error ? error.name : "unknown"})`);
+    rethrowNextControl(error);
+    console.error(`Account menu: session check failed (${describeError(error)})`);
     return null;
   }
 }

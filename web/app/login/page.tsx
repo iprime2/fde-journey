@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { redirect, unstable_rethrow } from "next/navigation";
+import { redirect } from "next/navigation";
 import { Suspense, useId } from "react";
 import { signInWithGitHub } from "@/app/actions/auth";
 import { Banner } from "@/components/Banner";
@@ -8,6 +8,7 @@ import { CheckIcon, LockIcon } from "@/components/icons";
 import { JourneyPreview } from "@/components/JourneyPreview";
 import { SignInButton } from "@/components/SignInButton";
 import { ACCESS_COPY, ACCESS_MODE, loginMessage, parseLoginParams } from "@/lib/login";
+import { describeError, rethrowNextControl } from "@/lib/safe-log";
 import { getOwnerSession } from "@/lib/session";
 
 export const metadata: Metadata = { title: "Sign in" };
@@ -103,8 +104,8 @@ async function signedInOwner(): Promise<boolean> {
   try {
     return (await getOwnerSession()) !== null;
   } catch (error) {
-    unstable_rethrow(error);
-    console.error(`Sign-in page: session check failed (${error instanceof Error ? error.name : "unknown"})`);
+    rethrowNextControl(error);
+    console.error(`Sign-in page: session check failed (${describeError(error)})`);
     return false;
   }
 }

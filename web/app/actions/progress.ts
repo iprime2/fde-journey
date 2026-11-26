@@ -12,15 +12,10 @@ import { type Db, getDb } from "@/db/client";
 import { JOURNAL_ID } from "@/lib/ids";
 import type { ProgressEntry } from "@/lib/progress";
 import { setDone, setLink, setNote } from "@/lib/progress-db";
+import { describeError } from "@/lib/safe-log";
 import { FAILED_ERROR, SIGNED_OUT_ERROR, type SaveResult } from "@/lib/save-result";
 import { SignedOutError, requireUser } from "@/lib/session";
 import { type Parsed, doneSchema, linkSchema, noteIdSchema, noteSchema, parseField, tickableIdSchema } from "@/lib/validation";
-
-/** Postgres error code only: messages and details can contain the row, which holds personal notes. */
-function errorCode(error: unknown): string {
-  if (error && typeof error === "object" && "code" in error && typeof error.code === "string") return error.code;
-  return error instanceof Error ? error.name : "unknown";
-}
 
 async function save<T>(parse: () => Parsed<T>, write: (userId: string, db: Db, input: T) => Promise<ProgressEntry>): Promise<SaveResult> {
   try {
@@ -35,7 +30,8 @@ async function save<T>(parse: () => Parsed<T>, write: (userId: string, db: Db, i
     return { ok: true, record };
   } catch (error) {
     if (error instanceof SignedOutError) return { ok: false, error: SIGNED_OUT_ERROR };
-    console.error(`Saving progress failed (${errorCode(error)})`);
+    // Names and codes only: messages and details can quote the row, which holds personal notes.
+    console.error(`Saving progress failed (${describeError(error)})`);
     return { ok: false, error: FAILED_ERROR };
   }
 }

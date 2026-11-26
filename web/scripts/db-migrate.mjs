@@ -8,7 +8,7 @@
 // the only user is the owner (scripts/lib/migrate-check.mjs).
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { MIGRATIONS_FOLDER } from "./lib/db.mjs";
+import { MIGRATIONS_FOLDER, errorSummary } from "./lib/db.mjs";
 import { checkBeforeMigrate } from "./lib/migrate-check.mjs";
 
 const url = process.env.DATABASE_URL?.trim();
@@ -49,7 +49,9 @@ try {
     console.log(`Migrations: ${after - before} applied now, ${after} in total.`);
   }
 } catch (error) {
-  console.error(`Migration failed: ${error instanceof Error ? error.message : "unknown error"}`);
+  // The scripts' own messages, or names and codes only (look the Postgres code up): a failed
+  // query's message quotes its parameters.
+  console.error(`Migration failed: ${errorSummary(error)}`);
   process.exitCode = 1;
 } finally {
   await pool.end();

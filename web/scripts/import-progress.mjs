@@ -17,7 +17,7 @@
 //   first when importing into the local folder: two processes must not open it at once.
 import path from "node:path";
 import { applyImport, collectRecords, findOwnerUserId, planImport, readExisting, summaryLines } from "./lib/import-core.mjs";
-import { WEB_DIR, openScriptDb, scriptDbConfig } from "./lib/db.mjs";
+import { WEB_DIR, errorSummary, openScriptDb, scriptDbConfig } from "./lib/db.mjs";
 
 const args = process.argv.slice(2);
 const dryRun = args.includes("--dry-run");
@@ -70,9 +70,9 @@ try {
     }
   }
 } catch (error) {
-  // Database messages can quote the row (and so a note): print the error code only.
-  const code = error && typeof error === "object" && "code" in error ? String(error.code) : error instanceof Error ? error.name : "unknown";
-  console.error(`Import failed (${code}).${error instanceof Error && /db:migrate|DATABASE_URL|Vercel/.test(error.message) ? ` ${error.message}` : ""}`);
+  // The scripts' own messages, or names and codes only: database messages can quote the row (and
+  // so a note).
+  console.error(`Import failed: ${errorSummary(error)}`);
   process.exitCode = 1;
 } finally {
   await db?.close();

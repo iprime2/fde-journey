@@ -18,7 +18,8 @@ const nextHeaders = vi.hoisted(() => () => ({
 vi.mock("next/headers", nextHeaders);
 vi.mock("next/headers.js", nextHeaders);
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
-vi.mock("next/navigation", () => ({
+vi.mock("next/navigation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/navigation")>()),
   redirect: (url: string) => {
     throw new Error(`REDIRECT ${url}`);
   },
