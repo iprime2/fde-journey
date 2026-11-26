@@ -56,6 +56,6 @@ Recheck badges and lengths before relying on them; providers change their catalo
 
 **Build notes** (after M4b):
 - Typed content in `web/content/`, plus the ids in `lib/ids.ts` and the id baseline test.
-- A new page, `/courses`, with a sidebar item; a new section key `courses` in the M4b section settings, on by default.
+- A new page, `/courses`, with a sidebar item. Decision at build time (2026-11-26): Courses is always shown, with no section switch in Settings, so no database change was needed. A `courses` switch can be added later if users ask to hide it (that needs a `user_settings` column and a migration).
 - Group by provider, with filters by phase and by "has badge".
 - The tracker artifact is being retired, so this content lives only in the app.
