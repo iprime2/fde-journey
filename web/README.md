@@ -2,7 +2,7 @@
 
 Private tracker for the AI engineering and FDE learning journey. Plan: [`docs/PLAN.md`](docs/PLAN.md). Conventions: [`../.claude/skills/journey-app-dev/SKILL.md`](../.claude/skills/journey-app-dev/SKILL.md).
 
-Status: milestone M2 in progress. Database, sign-in and save actions are built (see [`docs/M2-DESIGN.md`](docs/M2-DESIGN.md)); the front end is wired to them in M2 part B.
+Status: milestone M2 in progress. Database, sign-in and saving are built and wired to the pages: ticks, notes, links and weekly notes save as you go (see [`docs/M2-DESIGN.md`](docs/M2-DESIGN.md) and [`docs/DESIGN-SPEC.md`](docs/DESIGN-SPEC.md)).
 
 ## Run it locally
 Requires Node 22 or later.

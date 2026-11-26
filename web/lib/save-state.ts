@@ -113,11 +113,6 @@ export function combineStatus(statuses: readonly SaveStatus[]): SaveStatus {
   return statuses.reduce<SaveStatus>((a, b) => (PRIORITY[b] > PRIORITY[a] ? b : a), "idle");
 }
 
-/** Status line copy for a status (design spec 8). */
-export function statusText(status: SaveStatus): string {
-  return status === "idle" ? "" : SAVE_TEXT[status];
-}
-
 /** "Hide note" while the editor is open, "Edit note" when the note or link holds any text (saved or not), else "Add note". */
 export function noteButtonLabel(open: boolean, hasText: boolean): "Hide note" | "Edit note" | "Add note" {
   if (open) return "Hide note";

@@ -7,7 +7,7 @@
 //
 // Opening and closing a note only changes which lines are visible, never their text, so toggling
 // the editor announces nothing new.
-import type { LineAction, LineTone, SaveLines as Lines } from "@/lib/save-state";
+import { type LineAction, type LineTone, SAVE_TEXT, type SaveLines as Lines } from "@/lib/save-state";
 import { cn } from "../cn";
 
 const TONES: Record<LineTone, string> = { muted: "text-muted", danger: "text-danger", warn: "text-warn" };
@@ -36,6 +36,10 @@ export function InlineButton({
   return (
     <button
       type="button"
+      // Don't take focus on press: blurring the field being typed in would start a save, which
+      // removes this button before the click lands and drops focus on the page. The click
+      // handler moves focus itself.
+      onMouseDown={(e) => e.preventDefault()}
       onClick={onClick}
       disabled={disabled}
       aria-describedby={describedBy}
@@ -65,11 +69,11 @@ export function SaveLines({
     <>
       {lines.saving && (
         <p id={ids.saving} className="text-muted">
-          Saving…
+          {SAVE_TEXT.saving}
         </p>
       )}
       <div aria-live="polite">
-        {lines.saved && <p className={cn("text-muted", !editing && "sr-only")}>Saved</p>}
+        {lines.saved && <p className={cn("text-muted", !editing && "sr-only")}>{SAVE_TEXT.saved}</p>}
         {save && (
           <p className={TONES[save.tone]}>
             <span id={ids.save}>{save.text}</span>

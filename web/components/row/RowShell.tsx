@@ -16,8 +16,6 @@ interface RowState {
   /** Set after a failed tick: the value it tried to save. */
   failedTarget: boolean | null;
   retry(): void;
-  /** The tick box, so Try again can move focus to it. */
-  tickRef: React.RefObject<HTMLInputElement | null>;
 }
 
 const RowContext = createContext<RowState | null>(null);
@@ -41,7 +39,7 @@ export function RowShell({
   const canWrite = useCanWrite(readOnly);
   const [shownDone, setShownDone] = useOptimistic(done);
   const [failedTarget, setFailedTarget] = useState<boolean | null>(null);
-  const tickRef = useRef<HTMLInputElement>(null);
+  const rowRef = useRef<HTMLLIElement>(null);
   const failureKey = `tick:${id}`;
 
   function toggle(next: boolean) {
@@ -70,15 +68,14 @@ export function RowShell({
     retry: () => {
       if (failedTarget === null) return;
       // The message and its Try again go once the tick saves, so focus moves to the box first.
-      tickRef.current?.focus();
+      rowRef.current?.querySelector<HTMLInputElement>(":scope > .tick-cell > input")?.focus();
       toggle(failedTarget);
     },
-    tickRef,
   };
 
   return (
     <RowContext value={state}>
-      <li id={`item-${id}`} hidden={f.provided && !f.visibility.items.has(id)} className={className}>
+      <li ref={rowRef} id={`item-${id}`} hidden={f.provided && !f.visibility.items.has(id)} className={className}>
         {children}
       </li>
     </RowContext>

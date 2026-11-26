@@ -22,10 +22,11 @@ export function pickBanners(list: ReadonlyArray<BannerSpec | null | undefined | 
     .map((x) => x.b);
 }
 
+/** The page rendered without the owner's sign-in (normally such visits go to /login first). */
 export const READ_ONLY_BANNER: BannerSpec = {
   id: "read-only",
   tone: "info",
-  text: "Read-only preview. Ticks and notes can't be saved yet.",
+  text: "Read-only. Sign in to save ticks and notes.",
 };
 
 export const FIRST_VISIT_BANNER: BannerSpec = {
@@ -49,11 +50,16 @@ export const SAVE_FAILED_BANNER: BannerSpec = {
   text: "A change wasn't saved. Check your connection, then use Try again next to it.",
 };
 
-/** A save was refused because the sign-in ended. `signInHref` returns to the current page. */
-export const signedOutBanner = (signInHref: string): BannerSpec => ({
+/**
+ * A save was refused because the sign-in ended. `signInHref` returns to the current page. When a
+ * note or the weekly notes hold unsaved text, it says to copy it first: signing in leaves the page.
+ */
+export const signedOutBanner = (signInHref: string, unsavedText = false): BannerSpec => ({
   id: "signed-out",
   tone: "error",
-  text: "You were signed out, so that change wasn't saved.",
+  text: unsavedText
+    ? "You were signed out, so that change wasn't saved. Copy any text you typed, then sign in."
+    : "You were signed out, so that change wasn't saved.",
   action: { label: "Sign in", href: signInHref },
 });
 

@@ -17,10 +17,12 @@ export const isPhone = (testInfo: TestInfo) => testInfo.project.name.startsWith(
  */
 export const forProject = <T>(testInfo: TestInfo, desktop: T, phone: T): T => (isPhone(testInfo) ? phone : desktop);
 
-export const READ_ONLY_TEXT = "Read-only preview. Ticks and notes can't be saved yet.";
+export const READ_ONLY_TEXT = "Read-only. Sign in to save ticks and notes.";
 export const FIRST_VISIT_TEXT = "Nothing ticked yet. Tick items as you finish them and your progress will show here.";
 export const SAVE_FAILED_TEXT = "A change wasn't saved. Check your connection, then use Try again next to it.";
 export const SIGNED_OUT_TEXT = "You were signed out, so that change wasn't saved.";
+/** A note or weekly notes change waiting for the connection. */
+export const WAITING_TEXT = "Not saved yet. Saves when you're back online.";
 /** Made-up example note from the design spec. */
 export const EXAMPLE_NOTE = "Finished the quickstart. Next: try hybrid search on the sample set.";
 export const EXAMPLE_LINK = "https://example.com/demo";

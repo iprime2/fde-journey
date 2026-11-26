@@ -84,8 +84,14 @@ test.describe("when a save fails", () => {
     await expect(tick).not.toBeChecked();
     await expect(page.getByRole("alert").filter({ hasText: SAVE_FAILED_TEXT })).toBeVisible();
 
+    const tryAgain = row.getByRole("button", { name: "Try again" });
+    await expect(tryAgain).toHaveAccessibleDescription("Couldn't save this tick.");
+    expect((await tryAgain.boundingBox())?.height).toBeGreaterThanOrEqual(44);
+
     await restore();
-    await row.getByRole("button", { name: "Try again" }).click();
+    await tryAgain.click();
+    // The line goes once the tick saves, so focus moves to the tick box first.
+    await expect(tick).toBeFocused();
     await expect(tick).toBeChecked();
     await expect(row.getByText("Couldn't save this tick.")).toBeHidden();
     await expect(page.getByRole("alert").filter({ hasText: SAVE_FAILED_TEXT })).toBeHidden();
@@ -110,12 +116,14 @@ test.describe("when a save fails", () => {
     await row.getByRole("button", { name: /^(Add|Edit) note$/ }).click();
     const note = row.getByRole("textbox", { name: `Note for ${item.title}` });
     await note.fill(text);
-    await expect(row.getByText("Not saved")).toBeVisible();
+    await expect(row.getByText("Not saved.", { exact: true })).toBeVisible();
     await expect(note).toHaveValue(text);
     await expect(page.getByRole("alert").filter({ hasText: SAVE_FAILED_TEXT })).toBeVisible();
 
     await restore();
     await row.getByRole("button", { name: "Try again" }).click();
+    // Try again goes away once the save starts, so focus moves to the note button first.
+    await expect(row.getByRole("button", { name: "Hide note" })).toBeFocused();
     await expect(row.getByText("Saved", { exact: true })).toBeVisible();
     await expect(page.getByRole("alert").filter({ hasText: SAVE_FAILED_TEXT })).toBeHidden();
 
@@ -126,6 +134,40 @@ test.describe("when a save fails", () => {
   });
 });
 
+test.describe("offline after a failed save", () => {
+  test.use({ allowedConsoleErrors: [/Failed to load resource: net::ERR_FAILED/] });
+
+  test("the save-failed banner hides while offline and comes back with the connection", async ({ page, context }, testInfo) => {
+    const item = forProject(
+      testInfo,
+      { id: "c2-2", title: "Study official preparation materials" },
+      { id: "c3-2", title: "Complete hands-on AWS implementation" },
+    );
+    await gotoReady(page, "/certs");
+    const row = page.locator(`#item-${item.id}`);
+    const tick = row.getByRole("checkbox", { name: `Mark done: ${item.title}` });
+    await untick(page, tick);
+
+    // Nothing is saved: every save on the page fails while the route is in place.
+    await failSaves(page, "/certs");
+    await tick.click();
+    const banner = page.getByRole("alert").filter({ hasText: SAVE_FAILED_TEXT });
+    await expect(banner).toBeVisible();
+
+    // Try again can't work offline; the offline banner explains instead.
+    await context.setOffline(true);
+    await expect(page.getByRole("status").filter({ hasText: /^You're offline\./ })).toBeVisible();
+    await expect(banner).toBeHidden();
+    await expect(row.getByText("Couldn't save this tick.")).toBeVisible();
+
+    // Ticks never retry by themselves, so the failure is still there when the connection returns.
+    await context.setOffline(false);
+    await expect(banner).toBeVisible();
+    await expect(row.getByRole("button", { name: "Try again" })).toBeEnabled();
+    await expect(tick).not.toBeChecked();
+  });
+});
+
 test.describe("signed out while using the app", () => {
   test("a refused save explains, offers Sign in, and keeps typed text", async ({ page, baseURL }, testInfo) => {
     const item = forProject(
@@ -133,7 +175,8 @@ test.describe("signed out while using the app", () => {
       { id: "c4-1", title: "Study official skills outline" },
       { id: "c5-1", title: "Review official exam objectives" },
     );
-    await gotoReady(page, "/certs");
+    // With a search, so Sign in can come back to the same filtered page.
+    await gotoReady(page, "/certs?q=official");
     const row = page.locator(`#item-${item.id}`);
     const tick = row.getByRole("checkbox", { name: `Mark done: ${item.title}` });
     await row.getByRole("button", { name: /^(Add|Edit) note$/ }).click();
@@ -146,11 +189,21 @@ test.describe("signed out while using the app", () => {
 
     const banner = page.getByRole("alert").filter({ hasText: SIGNED_OUT_TEXT });
     await expect(banner).toBeVisible();
-    await expect(banner.getByRole("link", { name: "Sign in" })).toHaveAttribute("href", "/login?next=%2Fcerts");
+    // A note holds unsaved text, so the banner says to copy it before signing in.
+    await expect(banner).toContainText("Copy any text you typed, then sign in.");
+    await expect(banner.getByRole("link", { name: "Sign in" })).toHaveAttribute("href", "/login?next=%2Fcerts%3Fq%3Dofficial");
     await expect(tick).not.toBeChecked();
     await expect(tick).toBeDisabled();
-    // Typed text stays in place; the fields are now read-only.
+    // Typed text stays in place; the fields are now read-only but keep full-contrast text.
     await expect(note).toHaveValue("Typed after the sign-in ended.");
     await expect(note).not.toBeEditable();
+    await expect(note).toHaveCSS("opacity", "1");
+
+    // Closed, the row says it isn't saved, with no Try again: the banner's Sign in is the way on.
+    await note.focus();
+    await page.keyboard.press("Escape");
+    await expect(row.getByText("Typed after the sign-in ended.")).toBeVisible();
+    await expect(row.getByText("Not saved.", { exact: true })).toBeVisible();
+    await expect(row.getByRole("button", { name: "Try again" })).toHaveCount(0);
   });
 });

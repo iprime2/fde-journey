@@ -11,7 +11,6 @@ export function TickBox({ title }: { title: string }) {
   return (
     <label className={`tick-cell relative grid size-11 place-items-center ${row.canWrite ? "cursor-pointer" : "cursor-not-allowed"}`}>
       <input
-        ref={row.tickRef}
         type="checkbox"
         className="tick peer"
         checked={row.done}

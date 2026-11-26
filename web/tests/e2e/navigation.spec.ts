@@ -22,7 +22,8 @@ test.describe("desktop sidebar", () => {
     await expect(pageHeading(page)).toHaveText("FDE Journey");
   });
 
-  test("shows a done count beside each section", async ({ page }) => {
+  // Expects nothing saved yet, so it runs before the tests that save.
+  test("shows a done count beside each section", { tag: "@fresh" }, async ({ page }) => {
     await gotoReady(page, "/");
     const nav = page.getByRole("navigation", { name: "Sections" });
     await expect(nav.getByRole("link", { name: /^Roadmap 0 of \d+ done$/ })).toBeVisible();
@@ -81,6 +82,24 @@ test.describe("phone bottom bar", () => {
       await expect(more).toHaveAttribute("aria-expanded", "false");
       await expect(row).toBeHidden();
     }
+  });
+
+  test("Tab never leaves the focused control hidden under the bar", async ({ page }) => {
+    await gotoReady(page, "/roadmap");
+    const hidden: string[] = [];
+    for (let i = 0; i < 40; i++) {
+      await page.keyboard.press("Tab");
+      const covered = await page.evaluate(() => {
+        const el = document.activeElement;
+        // The bar's list (the desktop sidebar is also a "Sections" nav, hidden on phones).
+        const bar = [...document.querySelectorAll('nav[aria-label="Sections"] > ul')].find((ul) => ul.getBoundingClientRect().height > 0);
+        if (!el || el === document.body || !bar || bar.contains(el)) return null;
+        const box = el.getBoundingClientRect();
+        return box.bottom > bar.getBoundingClientRect().top ? (el.getAttribute("aria-label") ?? el.textContent ?? el.tagName) : null;
+      });
+      if (covered) hidden.push(covered);
+    }
+    expect(hidden, "focused controls under the bottom bar").toEqual([]);
   });
 
   test("the More sheet focuses its first row and closes with Escape or the scrim", async ({ page }) => {
