@@ -24,7 +24,7 @@ test.describe("signed in as the owner", () => {
 
   test("works at 320 px wide without sideways scrolling", async ({ page }) => {
     await page.setViewportSize({ width: 320, height: 700 });
-    for (const path of ["/", "/roadmap", "/scaler", "/certs"]) {
+    for (const path of ["/", "/roadmap", "/scaler", "/certs", "/courses"]) {
       await gotoReady(page, path);
       await expectNoSidewaysScroll(page);
     }

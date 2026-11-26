@@ -26,13 +26,13 @@ test.describe("another user's progress", () => {
   test("leaves every done count at 0", { tag: "@fresh" }, async ({ page }, testInfo) => {
     await gotoReady(page, "/");
     const tiles = page.getByRole("region", { name: "Summary" }).getByRole("link");
-    await expect(tiles).toHaveCount(6);
-    for (let i = 0; i < 6; i++) await expect(tiles.nth(i)).toHaveAccessibleName(/^(0%|0 of \d+ done),/);
+    await expect(tiles).toHaveCount(7);
+    for (let i = 0; i < 7; i++) await expect(tiles.nth(i)).toHaveAccessibleName(/^(0%|0 of \d+ done),/);
     if (!isPhone(testInfo)) {
       // The sidebar shows a count beside each section (the phone bar has none).
       const counted = page.getByRole("navigation", { name: "Sections" }).getByRole("link", { name: / of \d+ done$/ });
-      await expect(counted).toHaveCount(6);
-      for (let i = 0; i < 6; i++) await expect(counted.nth(i)).toHaveAccessibleName(/ 0 of \d+ done$/);
+      await expect(counted).toHaveCount(7);
+      for (let i = 0; i < 7; i++) await expect(counted.nth(i)).toHaveAccessibleName(/ 0 of \d+ done$/);
     }
   });
 });

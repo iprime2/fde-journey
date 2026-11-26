@@ -8,7 +8,7 @@ import { NoteArea } from "./notes/NoteArea";
 import { ResourceList } from "./ResourceList";
 import { RowShell } from "./row/RowShell";
 import { TickBox, TickError } from "./row/TickBox";
-import { Count, ExternalLink } from "./ui";
+import { Count, ExternalLink, StatusChip } from "./ui";
 
 export function ItemRow({
   row,
@@ -42,6 +42,15 @@ export function ItemRow({
         )}
         {row.meta && <span className="type-small block max-w-[34em] text-muted">{row.meta}</span>}
         {row.why && <span className="type-small block max-w-[34em] text-muted">{row.why}</span>}
+        {row.chips && row.chips.length > 0 && (
+          // A long chip ("Phase 6 · AWS cloud and deployment") may wrap on a small phone rather
+          // than push the page sideways.
+          <span className="mt-1 flex flex-wrap gap-2">
+            {row.chips.map((chip) => (
+              <StatusChip key={chip.label} chip={chip} wrap />
+            ))}
+          </span>
+        )}
         <TickError />
       </div>
       <NoteArea

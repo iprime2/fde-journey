@@ -64,14 +64,16 @@ export async function replaceSessionCookie(page: Page, baseURL: string | undefin
   await context.addCookies([{ name: SESSION_COOKIE, value: "decoy.value", url: baseURL ?? "", httpOnly: true, sameSite: "Lax" }]);
 }
 
+/** Every page in the navigation, in its order. `nav`: the navigation label. */
 export const SECTION_PAGES = [
-  { path: "/", h1: "FDE Journey", title: "FDE Journey" },
-  { path: "/roadmap", h1: "Roadmap", title: "Roadmap · FDE Journey" },
-  { path: "/reading", h1: "Reading", title: "Reading · FDE Journey" },
-  { path: "/scaler", h1: "Scaler course", title: "Scaler course · FDE Journey" },
-  { path: "/certs", h1: "Certifications", title: "Certifications · FDE Journey" },
-  { path: "/projects", h1: "Projects", title: "Projects · FDE Journey" },
-  { path: "/career", h1: "Career", title: "Career · FDE Journey" },
+  { path: "/", nav: "Home", h1: "FDE Journey", title: "FDE Journey" },
+  { path: "/roadmap", nav: "Roadmap", h1: "Roadmap", title: "Roadmap · FDE Journey" },
+  { path: "/reading", nav: "Reading", h1: "Reading", title: "Reading · FDE Journey" },
+  { path: "/scaler", nav: "Scaler course", h1: "Scaler course", title: "Scaler course · FDE Journey" },
+  { path: "/certs", nav: "Certifications", h1: "Certifications", title: "Certifications · FDE Journey" },
+  { path: "/courses", nav: "Courses", h1: "Courses & badges", title: "Courses & badges · FDE Journey" },
+  { path: "/projects", nav: "Projects", h1: "Projects", title: "Projects · FDE Journey" },
+  { path: "/career", nav: "Career", h1: "Career", title: "Career · FDE Journey" },
 ] as const;
 
 /** The page's single visible h1. */

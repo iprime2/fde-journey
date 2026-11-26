@@ -1,11 +1,13 @@
 // Numbers for the Home tiles, the current-phase panel and the navigation counts. Same rules as
 // the tracker. Pure functions; every id comes from lib/ids.ts.
-import type { TrackerContent } from "@/content/types";
+import { COURSES } from "@/content/courses";
+import type { Course, TrackerContent } from "@/content/types";
 import { formatRange } from "@/lib/dates";
 import {
   bookId,
   careerId,
   certTaskId,
+  courseId,
   paperId,
   phaseTaskId,
   projectTaskId,
@@ -14,7 +16,7 @@ import {
 } from "@/lib/ids";
 import { type ProgressMap, countDone, isDone } from "@/lib/progress";
 import { type ChipState, phaseChip, pickCurrentPhase } from "@/lib/status";
-import { currentModuleNumber } from "@/lib/views";
+import { courseFacts, currentModuleNumber } from "@/lib/views";
 
 export interface Fraction {
   done: number;
@@ -37,6 +39,8 @@ export const scalerIds = (c: TrackerContent) => c.scaler.flatMap(moduleIds);
 export const resourceIds = (c: TrackerContent) =>
   Object.entries(c.resources).flatMap(([taskId, g]) => g.items.map((_, k) => resourceId(taskId, k)));
 export const readingIds = (c: TrackerContent) => [...c.papers.map((_, i) => paperId(i)), ...c.books.map((_, i) => bookId(i))];
+/** Courses & badges (cr ids), from content/courses.ts rather than the tracker content. */
+export const courseIds = (courses: readonly Course[] = COURSES) => courses.map((_, i) => courseId(i));
 
 /** Roadmap milestones: tasks, certification steps, project steps and career milestones. */
 export const milestoneIds = (c: TrackerContent) => [
@@ -58,7 +62,7 @@ export const projectsComplete = (c: TrackerContent, progress: ProgressMap): Frac
   total: c.projects.length,
 });
 
-export type SectionKey = "roadmap" | "reading" | "scaler" | "certs" | "projects" | "career";
+export type SectionKey = "roadmap" | "reading" | "scaler" | "certs" | "courses" | "projects" | "career";
 
 /** The counts beside each navigation item (the tracker's tab counts). */
 export function navCounts(c: TrackerContent, progress: ProgressMap): Record<SectionKey, Fraction> {
@@ -67,6 +71,7 @@ export function navCounts(c: TrackerContent, progress: ProgressMap): Record<Sect
     reading: fraction(progress, readingIds(c)),
     scaler: fraction(progress, scalerIds(c)),
     certs: certsPassed(c, progress),
+    courses: fraction(progress, courseIds()),
     projects: projectsComplete(c, progress),
     career: fraction(progress, careerIds(c)),
   };
@@ -80,7 +85,7 @@ export interface TileModel {
   valueLabel: string;
   label: string;
   percent: number;
-  href: "/roadmap" | "/scaler" | "/certs" | "/projects";
+  href: "/roadmap" | "/scaler" | "/certs" | "/courses" | "/projects";
 }
 
 export interface NowModel {
@@ -106,6 +111,13 @@ const tile = (key: string, f: Fraction, label: string, href: TileModel["href"]):
   href,
 });
 
+/** Courses done, with the badges earned in the label ("Courses done · 2 badges earned"). */
+function coursesTile(progress: ProgressMap): TileModel {
+  const f = courseFacts(COURSES, progress);
+  const badges = `${f.badgesEarned} ${f.badgesEarned === 1 ? "badge" : "badges"} earned`;
+  return tile("courses", { done: f.done, total: f.total }, `Courses done · ${badges}`, "/courses");
+}
+
 export function dashboardModel(c: TrackerContent, progress: ProgressMap, todayIso: string): DashboardModel {
   const milestones = fraction(progress, milestoneIds(c));
   const moduleN = currentModuleNumber(c, progress);
@@ -123,6 +135,7 @@ export function dashboardModel(c: TrackerContent, progress: ProgressMap, todayIs
     tile("resources", fraction(progress, resourceIds(c)), "Learning resources studied", "/roadmap"),
     tile("scaler", fraction(progress, scalerIds(c)), `Scaler classes · now Module ${mod.n}`, "/scaler"),
     tile("certs", certsPassed(c, progress), "Certifications passed", "/certs"),
+    coursesTile(progress),
     tile("projects", projectsComplete(c, progress), "Portfolio projects complete", "/projects"),
   ];
 

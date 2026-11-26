@@ -26,9 +26,18 @@ const CHIP_STYLES: Record<ChipState["variant"], string> = {
   danger: "bg-danger-soft text-danger",
 };
 
-export function StatusChip({ chip }: { chip: ChipState }) {
+/** `wrap`: the label may wrap onto a second line when the row has no room (row chips). */
+export function StatusChip({ chip, wrap = false }: { chip: ChipState; wrap?: boolean }) {
   return (
-    <span className={cn("type-label whitespace-nowrap rounded-full px-2 py-[3px]", CHIP_STYLES[chip.variant])}>{chip.label}</span>
+    <span
+      className={cn(
+        "type-label rounded-full px-2 py-[3px]",
+        wrap ? "max-w-full text-balance [overflow-wrap:anywhere]" : "whitespace-nowrap",
+        CHIP_STYLES[chip.variant],
+      )}
+    >
+      {chip.label}
+    </span>
   );
 }
 

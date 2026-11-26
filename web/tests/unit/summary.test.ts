@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { COURSES } from "@/content/courses";
 import { trackerContent as c } from "@/content/tracker-data";
-import { phaseTaskId, projectTaskId, resourceId, scalerClassId } from "@/lib/ids";
+import { courseId, phaseTaskId, projectTaskId, resourceId, scalerClassId } from "@/lib/ids";
 import type { ProgressMap, ProgressRecord } from "@/lib/progress";
 import { dashboardModel, learningIds, milestoneIds, navCounts, percent, readingIds, scalerIds } from "@/lib/summary";
 
@@ -17,6 +18,11 @@ describe("navigation counts", () => {
     expect(n.certs).toEqual({ done: 0, total: 7 });
     expect(n.projects).toEqual({ done: 0, total: 3 });
     expect(n.career).toEqual({ done: 0, total: c.career.length });
+    expect(n.courses).toEqual({ done: 0, total: COURSES.length });
+  });
+
+  it("count done courses for Courses", () => {
+    expect(navCounts(c, done(courseId(0), courseId(26))).courses).toEqual({ done: 2, total: 27 });
   });
 
   it("count roadmap tasks only (not resources) for Roadmap", () => {
@@ -39,11 +45,13 @@ describe("Home", () => {
       `0/${Object.values(c.resources).reduce((s, g) => s + g.items.length, 0)}`,
       `0/${scalerIds(c).length}`,
       "0/7",
+      "0/27",
       "0/3",
     ]);
     expect(m.tiles[0].label).toBe(`0 of ${milestoneIds(c).length} roadmap milestones`);
     expect(m.tiles[3].label).toBe("Scaler classes · now Module 1");
-    expect(m.tiles.map((t) => t.href)).toEqual(["/roadmap", "/roadmap", "/roadmap", "/scaler", "/certs", "/projects"]);
+    expect(m.tiles.map((t) => t.href)).toEqual(["/roadmap", "/roadmap", "/roadmap", "/scaler", "/certs", "/courses", "/projects"]);
+    expect(m.tiles[5].label).toBe("Courses done · 0 badges earned");
     expect(m.hasProgress).toBe(false);
   });
 

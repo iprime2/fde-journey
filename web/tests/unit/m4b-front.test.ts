@@ -26,19 +26,26 @@ import { offSectionsPrompt, orList, phoneSplit, sectionOfHref, visibleHrefs } fr
 
 describe("navigation with chosen sections (design spec 3.5)", () => {
   it("shows Home and the visible sections in today's order", () => {
-    expect(visibleHrefs(OWNER_SECTIONS)).toEqual(["/", "/roadmap", "/reading", "/scaler", "/certs", "/projects", "/career"]);
-    expect(visibleHrefs(DEFAULT_SECTIONS)).toEqual(["/", "/roadmap", "/reading", "/certs"]);
+    expect(visibleHrefs(OWNER_SECTIONS)).toEqual(["/", "/roadmap", "/reading", "/scaler", "/certs", "/courses", "/projects", "/career"]);
+    expect(visibleHrefs(DEFAULT_SECTIONS)).toEqual(["/", "/roadmap", "/reading", "/certs", "/courses"]);
   });
 
   it("keeps Roadmap even if a stored choice says otherwise", () => {
     expect(visibleHrefs({ ...DEFAULT_SECTIONS, roadmap: false })).toContain("/roadmap");
   });
 
-  it("puts Home and the first three visible sections in the bar, the rest in More", () => {
-    expect(phoneSplit(OWNER_SECTIONS)).toEqual({ bar: ["/", "/roadmap", "/reading", "/scaler"], more: ["/certs", "/projects", "/career"] });
-    expect(phoneSplit(DEFAULT_SECTIONS)).toEqual({ bar: ["/", "/roadmap", "/reading", "/certs"], more: [] });
+  it("always shows Courses: it has no switch and nothing stored", () => {
     const fewest = { roadmap: true, reading: false, scaler: false, certs: false, projects: false, career: false };
-    expect(phoneSplit(fewest)).toEqual({ bar: ["/", "/roadmap"], more: [] });
+    expect(visibleHrefs(fewest)).toEqual(["/", "/roadmap", "/courses"]);
+    expect(sectionOfHref("/courses")).toBeNull();
+  });
+
+  it("puts Home and the first three visible sections in the bar, the rest in More", () => {
+    // Courses sits after Certifications, so the owner's and new users' bars are as before.
+    expect(phoneSplit(OWNER_SECTIONS)).toEqual({ bar: ["/", "/roadmap", "/reading", "/scaler"], more: ["/certs", "/courses", "/projects", "/career"] });
+    expect(phoneSplit(DEFAULT_SECTIONS)).toEqual({ bar: ["/", "/roadmap", "/reading", "/certs"], more: ["/courses"] });
+    const fewest = { roadmap: true, reading: false, scaler: false, certs: false, projects: false, career: false };
+    expect(phoneSplit(fewest)).toEqual({ bar: ["/", "/roadmap", "/courses"], more: [] });
   });
 
   it("names a page's section", () => {

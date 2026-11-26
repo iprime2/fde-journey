@@ -261,6 +261,20 @@ export const COURSES: readonly Course[] = [
   },
 ];
 
+/**
+ * Phase names as the plan's table gives them. Some are shorter than the roadmap's titles ("Project
+ * 2" for "Project 2 — AI SRE Agent"), which keeps the phase chip on one line on a phone.
+ */
+export const COURSE_PHASE_NAMES: Readonly<Record<number, string>> = {
+  1: "Foundations",
+  2: "RAG and retrieval",
+  4: "Agents and harnesses",
+  5: "Project 2",
+  6: "AWS cloud and deployment",
+  7: "Evaluation",
+  8: "Portfolio and career",
+};
+
 /** The page's cards, one per provider, in this order. */
 export interface CourseGroup {
   provider: CourseProvider;

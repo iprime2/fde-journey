@@ -27,19 +27,28 @@ export function StatTile({ tile }: { tile: TileModel }) {
 /**
  * Grids by tile count (design spec 5, Home with hidden sections): 5 or 6 tiles 2 columns, 3 from
  * 768 px; 4 tiles 2 by 2, one row from 1280 px; 3 tiles one row from 768 px, and below it the
- * third spans both columns.
+ * third spans both columns. 7 tiles (every section on, with Courses): 2 columns, 4 from 768 px,
+ * with the first tile (roadmap milestones) across two, so the rows fill: 1 + 2 + 2 + 2, then
+ * 3 + 4.
  */
 const TILE_GRID: Record<number, string> = {
   3: "grid-cols-2 md:grid-cols-3",
   4: "grid-cols-2 xl:grid-cols-4",
+  7: "grid-cols-2 md:grid-cols-4",
 };
+
+function tileSpan(count: number, i: number) {
+  if (count === 3 && i === 2) return "col-span-2 md:col-span-1";
+  if (count === 7 && i === 0) return "col-span-2";
+  return false;
+}
 
 export function StatTiles({ tiles }: { tiles: TileModel[] }) {
   return (
     <section aria-label="Summary">
       <ul className={cn("grid gap-3", TILE_GRID[tiles.length] ?? "grid-cols-2 md:grid-cols-3")}>
         {tiles.map((t, i) => (
-          <li key={t.key} className={cn("grid", tiles.length === 3 && i === 2 && "col-span-2 md:col-span-1")}>
+          <li key={t.key} className={cn("grid", tileSpan(tiles.length, i))}>
             <StatTile tile={t} />
           </li>
         ))}

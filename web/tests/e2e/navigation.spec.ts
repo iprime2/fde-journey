@@ -9,7 +9,7 @@ test.describe("desktop sidebar", () => {
     const nav = page.getByRole("navigation", { name: "Sections" });
     await expect(nav.getByRole("link", { name: /^Home/ })).toHaveAttribute("aria-current", "page");
     for (const s of SECTION_PAGES.slice(1)) {
-      const label = s.h1;
+      const label = s.nav;
       await nav.getByRole("link", { name: new RegExp(`^${label}`) }).click();
       await expect(page).toHaveURL(s.path);
       await expect(pageHeading(page)).toHaveText(s.h1);
@@ -63,14 +63,15 @@ test.describe("phone bottom bar", () => {
     }
   });
 
-  test("reaches Certifications, Projects and Career through More", async ({ page }) => {
+  test("reaches Certifications, Courses, Projects and Career through More", async ({ page }) => {
     await gotoReady(page, "/");
     const bar = page.getByRole("navigation", { name: "Sections" });
     const more = bar.getByRole("button", { name: "More" });
-    for (const [name, path] of [
-      ["Certifications", "/certs"],
-      ["Projects", "/projects"],
-      ["Career", "/career"],
+    for (const [name, path, h1] of [
+      ["Certifications", "/certs", "Certifications"],
+      ["Courses", "/courses", "Courses & badges"],
+      ["Projects", "/projects", "Projects"],
+      ["Career", "/career", "Career"],
     ] as const) {
       await more.click();
       await expect(more).toHaveAttribute("aria-expanded", "true");
@@ -78,7 +79,7 @@ test.describe("phone bottom bar", () => {
       await expect(row).toBeVisible();
       await row.click();
       await expect(page).toHaveURL(path);
-      await expect(pageHeading(page)).toHaveText(name);
+      await expect(pageHeading(page)).toHaveText(h1);
       await expect(more).toHaveAttribute("aria-expanded", "false");
       await expect(row).toBeHidden();
     }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import { STATUS_OPTIONS, parseStatus } from "@/lib/filter";
+import { STATUS_OPTIONS, type TagOption, parseStatus } from "@/lib/filter";
 import { SearchIcon } from "../icons";
 import { useFilter } from "./FilterProvider";
 
@@ -36,7 +36,8 @@ export function Toolbar({
   }, [f.key, shown]);
 
   return (
-    <div className="flex flex-wrap gap-2">
+    // min-w-0: a wide tag filter shrinks to the column instead of widening the page.
+    <div className="flex min-w-0 flex-wrap gap-2">
       <div className="relative min-w-[180px] flex-[1_1_180px]">
         <label htmlFor={f.searchId} className="sr-only">
           Search this page
@@ -70,6 +71,25 @@ export function Toolbar({
           ))}
         </select>
       </div>
+      {tagFilter && (
+        <div className="w-auto max-w-full flex-none">
+          <label htmlFor={tagId} className="sr-only">
+            {tagFilter.label}
+          </label>
+          <select
+            id={tagId}
+            value={f.state.tag ?? ""}
+            onChange={(e) => f.setTag(e.target.value)}
+            className="type-input h-11 max-w-full rounded-md border border-line-strong bg-surface px-3 text-ink"
+          >
+            {tagFilter.options.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
       <p className="sr-only" role="status" aria-live="polite">
         {message}
       </p>
