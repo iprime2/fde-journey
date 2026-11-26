@@ -21,6 +21,7 @@ import { getDb } from "@/db/client";
 import { session } from "@/db/schema";
 import { PERMISSIONS, type Permission, type UserStatus } from "./access-types";
 import { loadAccess } from "./access";
+import type { Standing } from "./landing";
 import { getSessionReader } from "./auth";
 import { PATH_HEADER, SUSPENDED_ERROR, loginHref } from "./login";
 import { ownerGithubId } from "./owner";
@@ -56,9 +57,8 @@ const resolveSession = cache(async (): Promise<Resolved> => {
   // every caller request-time. An early return before it would let Next prerender the result
   // at build time (when OWNER_GITHUB_ID is usually unset) and serve it to everyone.
   const requestHeaders = await headers();
-  const ownerId = ownerGithubId(process.env);
   // Without OWNER_GITHUB_ID nobody can use the app: there would be no super admin.
-  if (!ownerId) return { kind: "none" };
+  if (!ownerGithubId(process.env)) return { kind: "none" };
   if (!getSessionCookie(requestHeaders)) return { kind: "none" };
   // No database work in any prerender. Next also prerenders at request time (the App Shell a
   // <Link> prefetches, the `.rsc` requests): headers() resolves there, but Next ends that
@@ -68,6 +68,20 @@ const resolveSession = cache(async (): Promise<Resolved> => {
   // never resolves, so the query never starts and the session parts stay behind their
   // <Suspense> fallbacks, as before.
   await connection();
+  return checkSession(requestHeaders);
+});
+
+/**
+ * The session in `requestHeaders`, checked against the database: Better Auth's session, then the
+ * user's status, owner flag and permissions. Revokes a session that may not exist any more (any
+ * account but the owner's in owner-only mode; a suspended user's). Not memoised: call it from a
+ * route handler with the request's headers (app/auth/continue/route.ts); pages, actions and
+ * data reads go through resolveSession.
+ */
+async function checkSession(requestHeaders: Headers): Promise<Resolved> {
+  const ownerId = ownerGithubId(process.env);
+  if (!ownerId) return { kind: "none" };
+  if (!getSessionCookie(requestHeaders)) return { kind: "none" };
   return withSafeErrors("Session check", async () => {
     // Read-only, in the database and in the browser. Pages cannot set cookies, so a refresh here
     // would extend the session in the database but not in the browser: renewal happens only in
@@ -96,7 +110,19 @@ const resolveSession = cache(async (): Promise<Resolved> => {
     const permissions = access.status === "active" ? access.permissions : [];
     return { kind: "user", user: { ...base, status: access.status, isSuperAdmin: false, permissions } };
   });
-});
+}
+
+/**
+ * The visitor's standing (lib/landing.ts) for a route handler that decides where to send them
+ * after sign-in. The full check, Better Auth's included: a session it refuses (expired, forged)
+ * is signed out; a refused account's session is revoked, as on any page. Throws a SafeError
+ * (names and codes only) when the check itself fails.
+ */
+export async function sessionStanding(requestHeaders: Headers): Promise<Standing> {
+  const resolved = await checkSession(requestHeaders);
+  if (resolved.kind === "user") return resolved.user.status;
+  return resolved.kind === "suspended" ? "suspended" : "signed-out";
+}
 
 /**
  * The signed-in user, active or waitlisted, or null (signed out, suspended, or refused in
