@@ -20,6 +20,9 @@
   --warn-soft: #fbeed8;
   --danger: #b42318;
   --danger-soft: #fdeceb;
+  /* v0.5: the filled destructive button, only inside a destructive Dialog. */
+  --danger-ink: #ffffff;
+  --danger-hover: #912018;
   --scrim: rgb(0 0 0 / 0.3);
   --overlay-shadow: 0 8px 24px rgb(0 0 0 / 0.14);
   /* Sign-in card only (design spec 2.5); none in dark mode. */
@@ -53,6 +56,8 @@
     --warn-soft: #3a2b13;
     --danger: #ff958a;
     --danger-soft: #3d1915;
+    --danger-ink: #2a0a07;
+    --danger-hover: #ffb1a8;
     --overlay-shadow: 0 8px 24px rgb(0 0 0 / 0.5);
     --raised-shadow: none; /* the card's border is enough on dark */
   }
@@ -101,6 +106,8 @@
   --color-warn-soft: var(--warn-soft);
   --color-danger: var(--danger);
   --color-danger-soft: var(--danger-soft);
+  --color-danger-ink: var(--danger-ink);
+  --color-danger-hover: var(--danger-hover);
   --color-scrim: var(--scrim);
   --color-brand-panel: var(--brand-panel);
   --color-brand-card: var(--brand-card);
@@ -313,6 +320,109 @@
   .card-head:has(button:focus-visible) {
     outline: 2px solid var(--accent);
     outline-offset: 2px;
+  }
+}
+
+/* Switch (design spec 4, v0.5): a real checkbox with role="switch", transparent over a drawn
+   track, so clicks, Space and the accessible state all come from the native control. The 44 px
+   hit area is the wrapper; the track is 44 by 24 px. "On" also shows a check mark in the thumb. */
+@layer components {
+  .switch {
+    position: relative;
+    display: inline-grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    flex: none;
+  }
+  .switch-input {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+  .switch-input:disabled {
+    cursor: not-allowed;
+  }
+  .switch-track {
+    position: relative;
+    width: 44px;
+    height: 24px;
+    border: 2px solid var(--line-strong);
+    border-radius: 999px;
+    background: var(--surface);
+  }
+  .switch-thumb {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    display: grid;
+    place-items: center;
+    width: 16px;
+    height: 16px;
+    border-radius: 999px;
+    background: var(--line-strong);
+    color: var(--accent);
+  }
+  .switch-thumb svg {
+    display: none;
+  }
+  .switch-input:checked + .switch-track {
+    border-color: var(--accent);
+    background: var(--accent);
+  }
+  .switch-input:checked + .switch-track .switch-thumb {
+    transform: translateX(20px);
+    background: var(--accent-ink);
+  }
+  .switch-input:checked + .switch-track .switch-thumb svg {
+    display: block;
+  }
+  .switch-input:hover:not(:disabled):not(:checked) + .switch-track {
+    border-color: var(--ink);
+  }
+  .switch-input:hover:not(:disabled):checked + .switch-track {
+    border-color: var(--accent-hover);
+    background: var(--accent-hover);
+  }
+  .switch-input:focus-visible + .switch-track {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  .switch-input:disabled + .switch-track {
+    opacity: 0.5;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .switch-thumb {
+      transition: transform 150ms ease-out;
+    }
+  }
+  /* Windows high contrast: real borders, never a shadow alone; "on" uses Highlight. */
+  @media (forced-colors: active) {
+    .switch-track {
+      border: 2px solid CanvasText;
+      background: Canvas;
+    }
+    .switch-thumb {
+      border: 2px solid CanvasText;
+      background: Canvas;
+    }
+    .switch-input:checked + .switch-track {
+      border-color: Highlight;
+      background: Highlight;
+    }
+    .switch-input:checked + .switch-track .switch-thumb {
+      background: HighlightText;
+    }
+  }
+
+  /* Dialog (design spec 4, v0.5): native <dialog> opened with showModal(). */
+  .dialog::backdrop {
+    background: var(--scrim);
   }
 }
 
