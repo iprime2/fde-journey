@@ -21,7 +21,8 @@ test.describe("search and status filter", () => {
     await expect(page.getByRole("checkbox", { name: "Mark done: Embeddings and vector databases" })).toBeHidden();
   });
 
-  test("status filter, empty state and clearing", async ({ page }) => {
+  // Expects nothing on the Roadmap to be ticked or noted, so it runs before the tests that save.
+  test("status filter, empty state and clearing", { tag: "@fresh" }, async ({ page }) => {
     await gotoReady(page, "/roadmap?q=qdrant");
     const show = page.getByRole("combobox", { name: "Show" });
     await show.selectOption("done");

@@ -214,6 +214,16 @@
     }
   }
 
+  /* A done row: the title turns muted with a line-through as soon as its own box is ticked
+     (optimistic), before the save returns. Links keep their underline. */
+  .item-row:has(> .tick-cell > .tick:checked) > .item-text > .item-title {
+    color: var(--muted);
+    text-decoration-line: line-through;
+  }
+  .item-row:has(> .tick-cell > .tick:checked) > .item-text > a.item-title {
+    text-decoration-line: underline line-through;
+  }
+
   /* Collapsible card head: the h2's button stretches over the whole head (the tap target), and
      the focus ring is drawn around the head instead of the button. */
   .card-head {

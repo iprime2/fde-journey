@@ -6,6 +6,8 @@ export interface BannerSpec {
   id: string;
   tone: BannerTone;
   text: string;
+  /** Optional action, shown as an underlined text link after the message. */
+  action?: { label: string; href: string };
 }
 
 const RANK: Record<BannerTone, number> = { error: 0, warning: 1, info: 2 };
@@ -39,6 +41,21 @@ export const OFFLINE_BANNER: BannerSpec = {
 };
 
 export const BACK_ONLINE_BANNER: BannerSpec = { id: "back-online", tone: "info", text: "Back online." };
+
+/** One banner for the page while any change on it failed to save (each item has its own Try again). */
+export const SAVE_FAILED_BANNER: BannerSpec = {
+  id: "save-failed",
+  tone: "error",
+  text: "A change wasn't saved. Check your connection, then use Try again next to it.",
+};
+
+/** A save was refused because the sign-in ended. `signInHref` returns to the current page. */
+export const signedOutBanner = (signInHref: string): BannerSpec => ({
+  id: "signed-out",
+  tone: "error",
+  text: "You were signed out, so that change wasn't saved.",
+  action: { label: "Sign in", href: signInHref },
+});
 
 /**
  * Banners a page starts with. The first-visit banner is for Home only, and not while the app is

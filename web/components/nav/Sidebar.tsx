@@ -1,6 +1,10 @@
 // Desktop sidebar, 1024 px and wider (design spec 3.2). Server Component.
 import { Suspense } from "react";
+import { signOut } from "@/app/actions/auth";
+import { cn } from "../cn";
 import { DaysLeft } from "../clock";
+import { LogOutIcon } from "../icons";
+import { buttonStyles } from "../ui";
 import { NavCount } from "./NavCount";
 import { NavLink } from "./NavLink";
 import { SECTIONS } from "./sections";
@@ -30,10 +34,16 @@ export function Sidebar() {
           ))}
         </ul>
       </nav>
-      <div className="mt-auto px-3">
-        <p className="type-small text-muted">
+      <div className="mt-auto grid gap-2">
+        <p className="type-small px-3 text-muted">
           Readiness review · <DaysLeft />
         </p>
+        <form action={signOut}>
+          <button type="submit" className={cn(buttonStyles.ghost, "w-full justify-start gap-3 px-3")}>
+            <LogOutIcon size={20} />
+            Sign out
+          </button>
+        </form>
       </div>
     </div>
   );

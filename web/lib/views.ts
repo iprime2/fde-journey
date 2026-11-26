@@ -34,6 +34,8 @@ export interface RowModel {
   link: string;
   /** Text search matches without showing it (a task's resource titles and authors). */
   searchExtra?: string;
+  /** Hint in the empty note field (the tracker's wording for each kind of item). */
+  notePlaceholder: string;
   resources?: ResourceGroupModel;
 }
 
@@ -63,10 +65,31 @@ export interface ModuleCardModel extends CardModel {
   isCurrent: boolean;
 }
 
-function row(progress: ProgressMap, id: string, fields: Omit<RowModel, "id" | "done" | "note" | "link">): RowModel {
+/** Note field hints, as in the tracker. */
+export const NOTE_PLACEHOLDERS = {
+  task: "What did you build or learn? Key takeaways, questions, links…",
+  resource: "What did you learn from this? Key points, questions…",
+  scalerClass: "What did you build in this class? Project, assignment, key takeaways…",
+  paper: "Your takeaway in one or two lines, and one question it raised…",
+  book: "Chapters read, key ideas, what you will use…",
+} as const;
+
+function row(
+  progress: ProgressMap,
+  id: string,
+  fields: Omit<RowModel, "id" | "done" | "note" | "link" | "notePlaceholder"> & { notePlaceholder?: string },
+): RowModel {
   const p = progress.get(id);
   const url = fields.url && isHttpsUrl(fields.url) ? fields.url : undefined;
-  return { id, ...fields, url, done: p?.done === true, note: p?.note ?? "", link: p?.link ?? "" };
+  return {
+    id,
+    ...fields,
+    url,
+    notePlaceholder: fields.notePlaceholder ?? NOTE_PLACEHOLDERS.task,
+    done: p?.done === true,
+    note: p?.note ?? "",
+    link: p?.link ?? "",
+  };
 }
 
 const doneIn = (rows: readonly RowModel[]) => rows.filter((r) => r.done).length;
@@ -91,7 +114,14 @@ export function roadmapView(c: TrackerContent, progress: ProgressMap, todayIso: 
       const id = phaseTaskId(phase.n, j);
       const group = c.resources[id];
       const resourceRows = group?.items.map((r, k) =>
-        row(progress, resourceId(id, k), { title: r.title, url: r.url, index: `${k + 1}.`, meta: resourceMeta(r), why: r.why }),
+        row(progress, resourceId(id, k), {
+          title: r.title,
+          url: r.url,
+          index: `${k + 1}.`,
+          meta: resourceMeta(r),
+          why: r.why,
+          notePlaceholder: NOTE_PLACEHOLDERS.resource,
+        }),
       );
       return row(progress, id, {
         title,
@@ -127,10 +157,17 @@ export function readingView(c: TrackerContent, progress: ProgressMap, todayIso: 
       index: `Week of ${formatDayMonth(p.week)}`,
       meta: `${p.by} · ${p.core ? "Core" : "Optional"}${isInWeek(todayIso, p.week) ? " · This week" : ""}`,
       why: p.why,
+      notePlaceholder: NOTE_PLACEHOLDERS.paper,
     }),
   );
   const books = c.books.map((b, i) =>
-    row(progress, bookId(i), { title: b.title, url: b.url, meta: `${b.by} · ${b.core ? "Core" : "Optional"}`, why: b.why }),
+    row(progress, bookId(i), {
+      title: b.title,
+      url: b.url,
+      meta: `${b.by} · ${b.core ? "Core" : "Optional"}`,
+      why: b.why,
+      notePlaceholder: NOTE_PLACEHOLDERS.book,
+    }),
   );
   return [
     { key: "papers", title: "Research papers", sub: PAPERS_SUB, done: doneIn(papers), rows: papers },
@@ -148,7 +185,11 @@ export function scalerView(c: TrackerContent, progress: ProgressMap): ModuleCard
   const current = currentModuleNumber(c, progress);
   return c.scaler.map((m) => {
     const rows = m.classes.map((title, j) =>
-      row(progress, scalerClassId(m.n, j), { title, index: `M${m.n}·${String(j + 1).padStart(2, "0")}` }),
+      row(progress, scalerClassId(m.n, j), {
+        title,
+        index: `M${m.n}·${String(j + 1).padStart(2, "0")}`,
+        notePlaceholder: NOTE_PLACEHOLDERS.scalerClass,
+      }),
     );
     const done = doneIn(rows);
     return {

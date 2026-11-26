@@ -6,6 +6,9 @@ import { E2E_BASE_URL, E2E_OWNER_GITHUB_ID, E2E_PORT, e2eRunSecrets } from "./te
 // so the tests run signed in without GitHub (see tests/e2e/auth.ts and scripts/e2e-seed.mjs).
 const { secret, token } = e2eRunSecrets();
 
+const DESKTOP = { ...devices["Desktop Chrome"], viewport: { width: 1280, height: 900 } };
+const PHONE = { ...devices["Desktop Chrome"], viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true };
+
 export default defineConfig({
   testDir: "tests/e2e",
   fullyParallel: true,
@@ -16,9 +19,15 @@ export default defineConfig({
     baseURL: E2E_BASE_URL,
     trace: "off",
   },
+  // Every test shares one test database. Tests tagged @fresh need it untouched (nothing ticked or
+  // noted yet), so they run first, on both screen sizes; every other test starts after them. Tests
+  // that save use item ids that no other test touches, and different ids on desktop and phone,
+  // because the two projects run the same test at the same time (see tests/e2e/helpers.ts).
   projects: [
-    { name: "desktop", use: { ...devices["Desktop Chrome"], viewport: { width: 1280, height: 900 } } },
-    { name: "phone", use: { ...devices["Desktop Chrome"], viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } },
+    { name: "desktop-fresh", use: DESKTOP, grep: /@fresh/ },
+    { name: "phone-fresh", use: PHONE, grep: /@fresh/ },
+    { name: "desktop", use: DESKTOP, grepInvert: /@fresh/, dependencies: ["desktop-fresh", "phone-fresh"] },
+    { name: "phone", use: PHONE, grepInvert: /@fresh/, dependencies: ["desktop-fresh", "phone-fresh"] },
   ],
   webServer: {
     command: `node scripts/e2e-seed.mjs && npx next start -p ${E2E_PORT}`,

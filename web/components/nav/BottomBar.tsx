@@ -6,7 +6,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 import { cn } from "../cn";
-import { EllipsisIcon } from "../icons";
+import { signOut } from "@/app/actions/auth";
+import { EllipsisIcon, LogOutIcon } from "../icons";
 import { SECTIONS, isCurrentSection } from "./sections";
 
 const BAR = SECTIONS.filter((s) => s.phone === "bar");
@@ -88,6 +89,15 @@ export function BottomBar() {
             );
           })}
         </ul>
+        <form action={signOut} className="mt-2 border-t border-line pt-2">
+          <button
+            type="submit"
+            className="flex min-h-[52px] w-full items-center gap-3 rounded-md px-3 text-left type-body-strong text-ink hover:bg-hover"
+          >
+            <LogOutIcon size={22} className="text-muted" />
+            Sign out
+          </button>
+        </form>
       </div>
       <ul className="fixed inset-x-0 bottom-0 z-40 grid h-[calc(64px+env(safe-area-inset-bottom))] grid-cols-5 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)]">
         {BAR.map((s) => {

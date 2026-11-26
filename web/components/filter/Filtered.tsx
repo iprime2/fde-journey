@@ -6,16 +6,6 @@ import { emptyKind } from "@/lib/filter";
 import { GroupLabel, buttonStyles } from "../ui";
 import { useFilter } from "./FilterProvider";
 
-/** One item row. Its anchor is `item-{id}` so "Up next" links can jump to it. */
-export function FilterRow({ id, className, children }: { id: string; className?: string; children: React.ReactNode }) {
-  const f = useFilter();
-  return (
-    <li id={`item-${id}`} hidden={f.provided && !f.visibility.items.has(id)} className={className}>
-      {children}
-    </li>
-  );
-}
-
 /** A card (or any block) that holds the rows of one section. */
 export function FilterSection({ section, className, children }: { section: string; className?: string; children: React.ReactNode }) {
   const f = useFilter();

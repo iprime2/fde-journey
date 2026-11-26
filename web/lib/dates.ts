@@ -111,3 +111,12 @@ export function isInWeek(todayIso: string, weekStartIso: string): boolean {
   const d = daysBetween(weekStartIso, todayIso);
   return d >= 0 && d < 7;
 }
+
+/**
+ * Milliseconds from `nowMs` until the next midnight in India (00:00 IST), when "today" changes.
+ * Exactly at midnight it returns a full day.
+ */
+export function msUntilNextIstMidnight(nowMs: number): number {
+  const sinceMidnight = (nowMs + IST_OFFSET_MS) % DAY_MS;
+  return DAY_MS - sinceMidnight;
+}

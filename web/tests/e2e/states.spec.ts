@@ -62,13 +62,10 @@ test.describe("other pages", () => {
     await expect(pageHeading(page)).toHaveText("FDE Journey");
   });
 
-  test("sign-in page shows a disabled GitHub button until saving arrives", async ({ page }) => {
+  test("sign-in page offers GitHub sign-in and fits the screen", async ({ page }) => {
     await gotoReady(page, "/login");
     await expect(pageHeading(page)).toHaveText("FDE Journey");
-    await expect(page.getByRole("button", { name: "Sign in with GitHub" })).toBeDisabled();
-    await expect(page.getByText("Sign-in isn't available yet. It comes with saving progress.")).toBeVisible();
-    await expect(page.getByRole("link", { name: "Go to Home" })).toHaveAttribute("href", "/");
-    await expect(page.getByRole("navigation")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Sign in with GitHub" })).toBeEnabled();
     await expectNoSidewaysScroll(page);
   });
 });
@@ -80,11 +77,16 @@ test.describe("connection", () => {
     await context.setOffline(true);
     await expect(offline).toBeVisible();
     await expect(page.getByRole("searchbox", { name: "Search this page" })).toBeEnabled();
+    // Ticks can't save offline, so they are disabled; notes can still be opened and read.
+    const tick = page.getByRole("checkbox", { name: "Mark done: Python for AI, FastAPI, Pydantic and async programming" });
+    await expect(tick).toBeDisabled();
+    await expect(page.locator("#item-l1-1").getByRole("button", { name: "Add note" })).toBeEnabled();
 
     await context.setOffline(false);
     await expect(offline).toBeHidden();
     const back = page.getByRole("status").filter({ hasText: "Back online." });
     await expect(back).toBeVisible();
     await expect(back).toBeHidden({ timeout: 6000 });
+    await expect(tick).toBeEnabled();
   });
 });
