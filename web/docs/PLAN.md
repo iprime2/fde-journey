@@ -87,7 +87,10 @@ Later tables arrive with their features (for example `applications`, `log_entrie
 | M1 | App skeleton and read-only parity: dashboard plus the six sections (roadmap, reading, Scaler, certifications, projects, career), rendered from `web/content/` | Runs locally, matches the tracker's content, id test passes, CI is green |
 | M2 | Database, sign-in and saving: ticks, notes, links, weekly notes, resource ticks; import script for the existing records | End-to-end tests pass against the local database |
 | M3 | Go live: hosting, database and sign-in set up; export endpoint for Claude; cut-over | The owner uses the new app for a week with no gaps; then the artifact is frozen and `CLAUDE.md` is updated |
-| M4+ | New sections, one at a time | Each has its own short design note first |
+| D1 | Design refresh (runs alongside M3): logo, modern sign-in page, account menu with the GitHub avatar, then a whole-app visual pass | Screens reviewed at 320, 390, 768, 1024, 1440 and 1920 px wide, phone landscape included, light and dark, with no sideways scroll |
+| M4 | Multi-user (section 12) | Two test users can never see or change each other's data (tests prove it); the owner's data is kept; sign-up is invite-only |
+| M5 | Insights dashboard (section 13) | Weekly progress charts and stats per user, built on recorded events |
+| M6+ | New sections, one at a time (job applications first) | Each has its own short design note first |
 
 Carried into M2 from the M1 code review:
 - Make tick boxes and the weekly-notes field controlled components once they save (today they use default values).
@@ -141,6 +144,42 @@ The owner approved the plan with the proposed answers:
 3. Team: four agents (`ux-designer`, `frontend-engineer`, `backend-engineer`, `code-reviewer`) plus the `journey-app-dev` conventions skill, with the main session as lead.
 
 Changes since v0.1: the tracker gained a Reading tab (papers and books, ids `pp{n}` and `bk{n}`), so M1 covers six sections.
+
+## 11a. Decisions (2026-11-26)
+The owner decided:
+1. Hosting as set up: Vercel project `fde-journey` (functions in Singapore, `sin1`; preview deployments off so open pull requests can't reach the real database) and a Neon project in the owner's own Neon account, Singapore region, instead of a Marketplace database. Migrations are applied with `npm run db:migrate`, or with the same statements and the same `drizzle.__drizzle_migrations` records.
+2. The app will later be open to other people tracking their own AI-engineer or FDE journey. Multi-user is M4 and comes before any new section; this replaces decision 2 of 2026-11-25 (job applications move to M6).
+3. A design refresh (D1) runs now: logo, a modern sign-in page, the GitHub avatar in an account menu, and responsive layouts for every common screen size.
+4. An insights dashboard with weekly progress is M5.
+
+## 12. M4: multi-user (plan, for approval before building)
+**Data.**
+- `progress` gets a `user_id` (primary key `user_id, item_id`); the weekly notes become one row per user. One migration assigns every existing row to the owner's user.
+- Every read and every Server Action takes the user from the session, never from the request. No query runs without a user filter; a test fails if one does.
+**Sign-up.**
+- Invite-only first: the owner adds GitHub accounts (and later emails) to an allowlist on an admin page. `OWNER_GITHUB_ID` becomes the first admin. Open sign-up is a later switch.
+- GitHub first; Google as a second provider once invites work.
+**Content.** The roadmap content is the owner's plan (Scaler, his certification order). For other users: the shared roadmap, papers, books and certifications act as a default template; the Scaler and career sections are hidden unless a user turns them on. A short design note settles this before building.
+**Privacy and safety.**
+- A plain privacy page: what is stored (GitHub name, avatar, email, progress, notes), where (Neon, Singapore), and that nothing is sold or shared.
+- Each user can export their data as JSON and delete their account and data.
+- Rate limits on sign-in and saves (carried from M3); Vercel firewall rules.
+- Tests: user A can never read, list, export or change user B's data, through pages, Server Actions or the export endpoint.
+**Cost.** Check the Neon and Vercel free plan limits again before opening invites; the free database sleeps when idle, so the first load can be slow.
+**Claude export.** The export endpoint gets one token per user, so a Claude session only ever sees its own user's data. The mentor notes and `CLAUDE.md` integration stay owner-only.
+
+## 13. M5: insights dashboard (plan)
+**Record events first.** `done_at` keeps only the latest completion, so unticks and history are lost. M4's migration adds a `progress_event` table (user, item, event type: done, undone, note saved; time) and every save writes one row. History then builds up from the M4 release onwards; earlier weeks use `done_at` as a best effort.
+**Dashboard ideas** (a new "Insights" page, per user):
+- Items completed per week (bar chart, last 12 weeks), split by kind: roadmap tasks, learning resources, papers, books, Scaler classes.
+- Current and longest weekly streak (weeks with at least one completion).
+- Phase progress over time (burn-up line) and a projected finish date for the current phase at the recent pace.
+- A calendar heatmap of active days.
+- This week versus last week, and the weekly target if the owner sets one.
+- Certification countdowns and how many of their prep tasks are done.
+- Notes written and resources finished this month.
+**Usage telemetry (optional).** Vercel Web Analytics for page views and Speed Insights for page speed: free on Hobby within limits, no cookies. Only after the privacy page exists (M4).
+**Charts.** Accessible and colour-blind safe, with the same numbers available as a table.
 
 ## Sources (checked 2026-11-25)
 - Next.js releases and support policy: https://nextjs.org/blog/next-16-4 , https://nextjs.org/support-policy
